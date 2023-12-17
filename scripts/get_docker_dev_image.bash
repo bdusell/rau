@@ -25,6 +25,6 @@ done
 
 case $mode in
   none) ;;
-  #pull) bash scripts/pull-docker-image.bash ;;
-  build) bash scripts/build-docker-dev-image.bash ;;
+  #pull) bash scripts/pull_docker_dev_image.bash ;;
+  build) bash scripts/build_docker_dev_image.bash ;;
 esac
