@@ -1,38 +1,7 @@
-FROM nvidia/cuda:12.2.2-cudnn8-devel-ubuntu22.04
+FROM python:3.11.7-bookworm
 # UTF-8 encoding is necessary for printing non-ASCII characters to the
 # terminal.
 ENV LC_ALL C.UTF-8
-# Install Python.
-RUN PYTHON_MAJOR_VERSION=3 && \
-    PYTHON_MINOR_VERSION=11 && \
-    v=$PYTHON_MAJOR_VERSION.$PYTHON_MINOR_VERSION && \
-    apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        # Installs add-apt-repository.
-        software-properties-common \
-        && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        python$v \
-        python$v-dev \
-        # Required by Poetry
-        python$v-venv \
-        # Required by numpy
-        python$v-distutils \
-        # Required by matplotlib
-        python$v-tk \
-        && \
-    apt-get purge -y \
-        software-properties-common \
-        && \
-    rm -rf /var/lib/apt/lists/* && \
-# Poetry won't get installed correctly unless a `python` binary is present.
-# The specific Python installation it points to also needs to have the venv
-# module installed. The version of Python used to run the installation script
-# should also match.
-    ln -s "`which python$v`" /usr/local/bin/python && \
-    ln -sf "`which python$v`" /usr/local/bin/python$PYTHON_MAJOR_VERSION
 # Install Poetry.
 # See https://python-poetry.org/docs/#installing-with-the-official-installer
 RUN POETRY_VERSION=1.7.0 && \
