@@ -1,0 +1,6 @@
+/ignore/
+/*.sif
+
+.venv/
+__pycache__/
+*.swp
