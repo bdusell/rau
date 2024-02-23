@@ -31,7 +31,7 @@ def main():
     parser.add_argument('--training-data-files', type=pathlib.Path, nargs=2,
         help='Input .tok file and output .prepared file for the training '
              'data. Overrides --training-data.')
-    parser.add_argument('--vocabulary', type=pathlib.Path,
+    parser.add_argument('--vocabulary-file', type=pathlib.Path,
         help='A .vocab file where the vocabulary will be saved. Overrides '
              '--training-data.')
     parser.add_argument('--more-data', action='append', default=[],
@@ -61,19 +61,19 @@ def main():
 
     if args.always_allow_unk and args.never_allow_unk:
         parser.error('cannot pass both --always-allow-unk and --never-allow-unk')
-    if args.training_data is not None:
+    if args.training_data_files is not None:
+        training_data_input_file, training_data_output_file = args.training_data_files
+    elif args.training_data is not None:
         training_data_input_file = args.training_data / 'main.tok'
         training_data_output_file = args.training_data / 'main.prepared'
-    elif args.training_data_files is not None:
-        training_data_input_file, training_data_output_file = args.training_data_files
     else:
         parser.error('either --training-data or --training-data-files is required')
-    if args.training_data is not None:
+    if args.vocabulary_file is not None:
+        vocab_output_file = args.vocabulary_file
+    elif args.training_data is not None:
         vocab_output_file = args.training_data / 'main.vocab'
-    elif args.vocabulary is not None:
-        vocab_output_file = args.vocabulary
     else:
-        parser.error('either --training-data or --vocabulary-output is required')
+        parser.error('either --training-data or --vocabulary-file is required')
     prepared_files = [(training_data_input_file, training_data_output_file)]
     for arg in args.more_data:
         if isinstance(arg, str):

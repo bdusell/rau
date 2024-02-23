@@ -39,10 +39,6 @@ def add_data_arguments(parser, validation=True):
         help='A .vocab file containing the token vocabulary. This overrides '
              '--training-data.')
 
-def add_vocabulary_arguments(parser):
-    parser.add_argument('--vocabulary-file', type=pathlib.Path, required=True,
-        help='A .vocab file containing the token vocabulary.')
-
 def get_training_data_file_path(args, parser):
     if args.training_data_file is not None:
         return args.training_data_file
