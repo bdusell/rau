@@ -18,12 +18,12 @@ class Data(VocabularyContainer):
 def add_data_arguments(parser, validation=True):
     group = parser.add_argument_group('Dataset options')
     group.add_argument('--training-data', type=pathlib.Path,
-        help='Path to a directory containing the prepared training data. The '
-             'file <training-data>/main.prepared will be used as the training '
+        help='A directory containing the prepared training data. The file '
+             '<training-data>/main.prepared will be used as the training '
              'data, and the file <training-data>/main.vocab will be used as '
              'the vocabulary.')
     group.add_argument('--training-data-file', type=pathlib.Path,
-        help='Path to a .prepared file containing prepared training data. This '
+        help='A .prepared file containing prepared training data. This '
              'overrides --training-data.')
     if validation:
         group.add_argument('--validation-data', default='validation',
@@ -33,15 +33,15 @@ def add_data_arguments(parser, validation=True):
                  'will be used as the validation data. The default name is '
                  '"validation".')
         group.add_argument('--validation-data-file', type=pathlib.Path,
-            help='Path to a .prepared file containing prepared validation '
-                 'data. This overrides --validation-data.')
+            help='A .prepared file containing prepared validation data. This '
+                 'overrides --validation-data.')
     group.add_argument('--vocabulary-file', type=pathlib.Path,
-        help='Path to a .vocab file containing the token vocabulary. This '
-             'overrides --training-data.')
+        help='A .vocab file containing the token vocabulary. This overrides '
+             '--training-data.')
 
 def add_vocabulary_arguments(parser):
     parser.add_argument('--vocabulary-file', type=pathlib.Path, required=True,
-        help='Path to a .vocab file containing the token vocabulary.')
+        help='A .vocab file containing the token vocabulary.')
 
 def get_training_data_file_path(args, parser):
     if args.training_data_file is not None:
