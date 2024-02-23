@@ -51,8 +51,7 @@ def get_unidirectional_transformer_encoder(
             num_heads=num_heads,
             feedforward_size=feedforward_size,
             dropout=dropout,
-            use_final_layer_norm=True,
-            enable_nested_tensor=use_padding
+            use_final_layer_norm=True
         ), tag) |
         OutputUnidirectional(
             input_size=d_model,
@@ -69,8 +68,7 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
         num_heads: int,
         feedforward_size: int,
         dropout: float,
-        use_final_layer_norm: bool,
-        enable_nested_tensor: bool
+        use_final_layer_norm: bool
     ):
         super().__init__()
         self.layers = torch.nn.TransformerEncoder(
@@ -84,7 +82,7 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
             ),
             num_layers=num_layers,
             norm=torch.nn.LayerNorm(d_model) if use_final_layer_norm else None,
-            enable_nested_tensor=enable_nested_tensor
+            enable_nested_tensor=False
         )
         self.d_model = d_model
 
