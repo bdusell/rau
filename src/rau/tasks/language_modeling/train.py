@@ -16,12 +16,7 @@ def main():
     logger.setLevel(logging.INFO)
     logger.info(f'arguments: {sys.argv}')
 
-    model_interface = LanguageModelingModelInterface(
-        use_load=True,
-        use_init=True,
-        use_output=True,
-        require_output=False
-    )
+    model_interface = LanguageModelingModelInterface()
 
     parser = argparse.ArgumentParser(
         description=
