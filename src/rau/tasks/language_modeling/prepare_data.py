@@ -51,11 +51,11 @@ def main():
     parser.add_argument('--always-allow-unk', action='store_true', default=False,
         help='Always allow the vocabulary to include an <unk> token, even if '
              'one does not appear in the training data.')
-    add_prepare_data_args(parser)
     parser.add_argument('--never-allow-unk', action='store_true', default=False,
         help='Never allow the vocabulary to include an <unk> token; treat '
              'every token as a normal token in the vocabulary. This is useful '
              'for datasets that already have <unk> preprocessing done.')
+    add_prepare_data_args(parser)
     args = parser.parse_args()
     validate_prepare_data_args(parser, args)
 
@@ -103,6 +103,7 @@ def main():
     print(f'has unk ({unk_string}): {has_unk}', file=sys.stderr)
     print(f'allow unk: {allow_unk}', file=sys.stderr)
     print(f'writing {vocab_output_file}', file=sys.stderr)
+    vocab_output_file.parent.mkdir(parents=True, exist_ok=True)
     torch.save({
         'tokens' : tokens,
         'allow_unk' : allow_unk

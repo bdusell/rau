@@ -30,6 +30,7 @@ def get_token_types_in_file(path, unk_string):
 def prepare_file(vocab, pair):
     input_path, output_path = pair
     print(f'preparing {input_path} => {output_path}', file=sys.stderr)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with input_path.open() as fin:
         data = []
         for line_no, line in enumerate(fin, 1):
