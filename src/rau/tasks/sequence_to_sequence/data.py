@@ -110,7 +110,11 @@ def get_vocabulary_file_paths(args, parser):
             return (args.shared_vocabulary_file,)
     elif args.source_vocabulary_file is not None and args.target_vocabulary_file is not None:
         return (args.source_vocabulary_file, args.target_vocabulary_file)
-    elif args.vocabulary_type is not None:
+    elif (
+        hasattr(args, 'vocabulary_type') and
+        hasattr(args, 'training_data') and
+        args.vocabulary_type is not None
+    ):
         if args.vocabulary_type == 'shared':
             return (args.training_data / 'shared.vocab',)
         else:
