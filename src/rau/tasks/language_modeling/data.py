@@ -18,7 +18,7 @@ class Data(VocabularyContainer):
 def add_data_arguments(parser, validation=True):
     group = parser.add_argument_group('Dataset options')
     group.add_argument('--training-data', type=pathlib.Path,
-        help='A directory containing the prepared training data. The file '
+        help='A directory containing prepared training data. The file '
              '<training-data>/main.prepared will be used as the training '
              'data, and the file <training-data>/main.vocab will be used as '
              'the vocabulary.')

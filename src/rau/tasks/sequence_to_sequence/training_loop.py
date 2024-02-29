@@ -20,14 +20,18 @@ def add_train_arguments(parser):
     add_training_loop_arguments(parser,
         batching_max_tokens_help=
         'The maximum number of tokens allowed per batch. This puts a limit on '
-        'the number of elements included in a single batch tensor, including '
-        'BOS, EOS, and padding tokens. If a single example exceeds the limit, '
-        'it is not discarded, but included in a batch by itself.',
-        use_label_smoothing=False
+        'the number of elements included in a single source or target batch '
+        'tensor, including BOS, EOS, and padding tokens. If a single example '
+        'exceeds the limit, it is not discarded, but included in a batch by '
+        'itself.',
+        use_label_smoothing=True
     )
 
 def generate_batches(data, max_tokens):
-    return group_into_batches(data, lambda b, n: b * n <= max_tokens)
+    return group_into_batches(
+        data,
+        lambda b, s, t: b * s <= max_tokens and b * t <= max_tokens
+    )
 
 def train(parser, args, saver, data, model_interface, events, logger):
     """
@@ -54,12 +58,16 @@ def train(parser, args, saver, data, model_interface, events, logger):
     )
     logger.info(f'training examples: {len(data.training_data)}')
     num_validation_examples = len(data.validation_data)
-    logger.info(f'validation examples: {len(data.validation_data)}')
+    logger.info(f'validation examples: {num_validation_examples}')
     validation_batches = list(generate_batches(
         data.validation_data,
         args.batching_max_tokens
     ))
     logger.info(f'validation batches: {len(validation_batches)}')
+    model_interface.on_before_process_pairs(
+        saver,
+        [data.training_data, data.validation_data]
+    )
     data.validation_data = None
     events.log('start_training', dict(
         training_examples=len(data.training_data),
@@ -69,6 +77,7 @@ def train(parser, args, saver, data, model_interface, events, logger):
         random_shuffling_seed=random_shuffling_seed,
         optimizer=args.optimizer,
         learning_rate=args.learning_rate,
+        label_smoothing=args.label_smoothing,
         early_stopping_patience=args.early_stopping_patience,
         learning_rate_patience=args.learning_rate_patience,
         learning_rate_decay_factor=args.learning_rate_decay_factor,
@@ -226,7 +235,8 @@ def evaluate(model, batches, data, model_interface, device):
                 data,
                 model_interface,
                 device,
-                reduction='sum'
+                reduction='sum',
+                label_smoothing=0.0
             )
             cumulative_loss.update(parts.cross_entropy.item(), parts.num_symbols)
     return dict(cross_entropy_per_token=cumulative_loss.get_value())
@@ -235,25 +245,28 @@ def evaluate(model, batches, data, model_interface, device):
 class LossParts:
     cross_entropy: torch.Tensor
     num_symbols: int
-    input_size: torch.Size
-    output_size: torch.Size
+    source_input_size: torch.Size
+    target_input_size: torch.Size
+    target_output_size: torch.Size
 
-def get_loss_parts(model, batch, data, model_interface, device, reduction):
-    pad_index = len(data.input_vocab)
-    model_input, correct_output = model_interface.prepare_batch(batch, device, data)
+def get_loss_parts(model, batch, data, model_interface, device, reduction, label_smoothing):
+    pad_index = len(data.target_output_vocab)
+    model_input, correct_target = model_interface.prepare_batch(batch, device, data)
     logits = model_interface.get_logits(model, model_input)
     cross_entropy = torch.nn.functional.cross_entropy(
         logits.permute(0, 2, 1),
-        correct_output,
+        correct_target,
         ignore_index=pad_index,
-        reduction=reduction
+        reduction=reduction,
+        label_smoothing=label_smoothing
     )
-    num_symbols = torch.sum(correct_output != pad_index).item()
+    num_symbols = torch.sum(correct_target != pad_index).item()
     return LossParts(
         cross_entropy,
         num_symbols,
-        model_input.size(),
-        correct_output.size()
+        model_input.source.size(),
+        model_input.target.size(),
+        correct_target.size()
     )
 
 class OutOfCUDAMemoryError(RuntimeError):
@@ -281,7 +294,8 @@ def run_parameter_update(
             data,
             model_interface,
             device,
-            reduction='none'
+            reduction='none',
+            label_smoothing=args.label_smoothing
         )
         sequence_loss = torch.sum(parts.cross_entropy, dim=1)
         parts.cross_entropy = None
@@ -305,21 +319,28 @@ def handle_out_of_cuda_memory(data, events, logger, device, batch, parts):
     logger.info(torch.cuda.memory_summary(device))
     peak_memory = get_peak_memory(device)
     logger.info(f'  peak CUDA memory: {humanfriendly.format_size(peak_memory)}')
-    logger.info(f'  input size: {tuple(parts.input_size) if parts is not None else None}')
-    logger.info(f'  output size: {tuple(parts.output_size) if parts is not None else None}')
-    tokens = sum(map(len, batch))
-    logger.info(f'  tokens: {tokens}')
-    lengths = list(map(len, batch))
+    logger.info(f'  source input size: {tuple(parts.source_input_size) if parts is not None else None}')
+    logger.info(f'  target input size: {tuple(parts.target_input_size) if parts is not None else None}')
+    logger.info(f'  target output size: {tuple(parts.target_output_size) if parts is not None else None}')
+    source_tokens = sum(len(s) for s, t in batch)
+    logger.info(f'  source tokens: {source_tokens}')
+    target_tokens = sum(len(t) for s, t in batch)
+    logger.info(f'  target tokens: {target_tokens}')
+    lengths = [(len(s), len(t)) for s, t in batch]
     logger.info(f'  sequence lengths: {lengths}')
     token_strs = [
-        [data.input_vocab.to_string(w) for w in x]
-        for x in batch
+        (
+            [data.source_vocab.to_string(w) for w in s],
+            [data.target_output_vocab.to_string(w) for w in t]
+        )
+        for s, t in batch
     ]
-    sequences_str = '\n'.join(' '.join(x) for x in token_strs)
+    sequences_str = '\n'.join(f'{" ".join(s)}\t{" ".join(t)}' for s, t in token_strs)
     logger.info(f'  sequences:\n{sequences_str}')
     events.log('out_of_cuda_memory', dict(
         peak_memory=peak_memory,
-        input_size=list(parts.input_size) if parts is not None else None,
-        output_size=list(parts.output_size) if parts is not None else None,
+        source_input_size=list(parts.source_input_size) if parts is not None else None,
+        target_input_size=list(parts.target_input_size) if parts is not None else None,
+        target_output_size=list(parts.target_output_size) if parts is not None else None,
         sequences=token_strs
     ))

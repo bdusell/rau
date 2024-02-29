@@ -5,9 +5,9 @@ import sys
 import humanfriendly
 
 from rau.tools.torch.profile import get_current_memory
-from rau.tasks.language_modeling.data import add_data_arguments, load_prepared_data
-from rau.tasks.language_modeling.model import LanguageModelingModelInterface
-from rau.tasks.language_modeling.training_loop import add_train_arguments, train
+from rau.tasks.sequence_to_sequence.data import add_data_arguments, load_prepared_data
+from rau.tasks.sequence_to_sequence.model import SequenceToSequenceModelInterface
+from rau.tasks.sequence_to_sequence.training_loop import add_train_arguments, train
 
 def main():
 
@@ -16,11 +16,11 @@ def main():
     logger.setLevel(logging.INFO)
     logger.info(f'arguments: {sys.argv}')
 
-    model_interface = LanguageModelingModelInterface()
+    model_interface = SequenceToSequenceModelInterface()
 
     parser = argparse.ArgumentParser(
         description=
-        'Train a language model.'
+        'Train a sequence-to-sequence model.'
     )
     add_data_arguments(parser)
     model_interface.add_arguments(parser)
@@ -39,8 +39,10 @@ def main():
         memory_before = get_current_memory(device)
     saver = model_interface.construct_saver(
         args,
-        input_vocab_size=len(data.input_vocab),
-        output_vocab_size=len(data.output_vocab)
+        source_vocab_size=len(data.source_vocab),
+        target_input_vocab_size=len(data.target_input_vocab),
+        target_output_vocab_size=len(data.target_output_vocab),
+        tie_embeddings=data.vocab_is_shared
     )
     if model_interface.parameter_seed is not None:
         logger.info(f'parameter random seed: {model_interface.parameter_seed}')
