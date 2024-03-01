@@ -5,13 +5,8 @@ import torch
 
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
-from rau.tools.torch.compose import Composable
-from rau.unidirectional import SimpleLayerUnidirectional, OutputUnidirectional
+from rau.models.transformer.encoder_decoder import get_transformer_encoder_decoder
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
-from rau.models.transformer.input_layer import get_transformer_input_unidirectional
-from rau.models.transformer.encoder_decoder import get_shared_embeddings
-from rau.models.transformer.encoder import get_transformer_encoder
-from rau.models.transformer.decoder import get_transformer_decoder
 from rau.generation.beam_search import beam_search
 from rau.tasks.common.model import pad_sequences
 
@@ -82,8 +77,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
             raise ValueError
         if dropout is None:
             raise ValueError
-        # TODO Use function from rau.models.transformer.encoder_decoder
-        return get_encoder_decoder(
+        return get_transformer_encoder_decoder(
             source_vocabulary_size=source_vocab_size,
             target_input_vocabulary_size=target_input_vocab_size,
             target_output_vocabulary_size=target_output_vocab_size,
@@ -186,8 +180,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
         return model(
             source_sequence=model_input.source,
             target_sequence=model_input.target,
-            encoder_kwargs=self.get_encoder_kwargs(model_input),
-            decoder_kwargs=self.get_decoder_kwargs(model_input)
+            source_is_padding_mask=model_input.source_is_padding_mask
         )
 
     def decode(self, model, model_source, bos_symbol, beam_size, eos_symbol, max_length):
@@ -195,8 +188,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
         with torch.no_grad():
             decoder_state = model.initial_decoder_state(
                 source_sequence=model_source.source,
-                encoder_kwargs=self.get_encoder_kwargs(model_source),
-                decoder_kwargs=self.get_decoder_kwargs(model_source)
+                source_is_padding_mask=model_source.source_is_padding_mask
             )
             device = model_source.source.device
             # Feed BOS into the model at the first timestep.
@@ -208,20 +200,6 @@ class SequenceToSequenceModelInterface(ModelInterface):
             ))
             return beam_search(decoder_state, beam_size, eos_symbol, max_length, device)
 
-    def get_encoder_kwargs(self, model_source):
-        return dict(tag_kwargs=dict(
-            transformer=dict(
-                is_padding_mask=model_source.source_is_padding_mask
-            )
-        ))
-
-    def get_decoder_kwargs(self, model_source):
-        return dict(tag_kwargs=dict(
-            transformer=dict(
-                encoder_is_padding_mask=model_source.source_is_padding_mask
-            )
-        ))
-
 @dataclasses.dataclass
 class ModelSource:
     source: torch.Tensor
@@ -230,90 +208,3 @@ class ModelSource:
 @dataclasses.dataclass
 class ModelSourceAndTarget(ModelSource):
     target: torch.Tensor
-
-def get_encoder_decoder(
-    source_vocabulary_size,
-    target_input_vocabulary_size,
-    target_output_vocabulary_size,
-    tie_embeddings,
-    num_encoder_layers,
-    num_decoder_layers,
-    d_model,
-    num_heads,
-    feedforward_size,
-    dropout,
-    use_source_padding=True,
-    use_target_padding=True
-):
-    shared_embeddings = get_shared_embeddings(
-        tie_embeddings,
-        source_vocabulary_size,
-        target_input_vocabulary_size,
-        target_output_vocabulary_size,
-        d_model,
-        use_source_padding,
-        use_target_padding
-    )
-    positional_encoding_cacher = SinusoidalPositionalEncodingCacher()
-    return EncoderDecoder(
-        get_transformer_encoder(
-            vocabulary_size=source_vocabulary_size,
-            shared_embeddings=shared_embeddings,
-            positional_encoding_cacher=positional_encoding_cacher,
-            num_layers=num_encoder_layers,
-            d_model=d_model,
-            num_heads=num_heads,
-            feedforward_size=feedforward_size,
-            dropout=dropout,
-            use_padding=use_source_padding,
-            tag='transformer'
-        ),
-        get_transformer_decoder(
-            input_vocabulary_size=target_input_vocabulary_size,
-            output_vocabulary_size=target_output_vocabulary_size,
-            shared_embeddings=shared_embeddings,
-            positional_encoding_cacher=positional_encoding_cacher,
-            num_layers=num_decoder_layers,
-            d_model=d_model,
-            num_heads=num_heads,
-            feedforward_size=feedforward_size,
-            dropout=dropout,
-            use_padding=use_target_padding,
-            tag='transformer'
-        )
-    )
-
-class EncoderDecoder(torch.nn.Module):
-
-    def __init__(self, encoder, decoder):
-        super().__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-
-    def forward(self,
-        source_sequence,
-        target_sequence,
-        encoder_kwargs,
-        decoder_kwargs
-    ):
-        encoder_outputs = self.encoder(
-            source_sequence,
-            **encoder_kwargs
-        )
-        decoder_kwargs['tag_kwargs']['transformer']['encoder_sequence'] = encoder_outputs
-        return self.decoder(
-            target_sequence,
-            **decoder_kwargs,
-            include_first=False
-        )
-
-    def initial_decoder_state(self, source_sequence, encoder_kwargs, decoder_kwargs):
-        encoder_outputs = self.encoder(
-            source_sequence,
-            **encoder_kwargs
-        )
-        decoder_kwargs['tag_kwargs']['transformer']['encoder_sequence'] = encoder_outputs
-        return self.decoder.initial_state(
-            batch_size=encoder_outputs.size(0),
-            **decoder_kwargs
-        )
