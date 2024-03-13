@@ -1,14 +1,7 @@
-import functools
-
-import humanfriendly
-import torch
-
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
-from rau.unidirectional import SimpleLayerUnidirectional, OutputUnidirectional
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
 from rau.models.transformer.unidirectional_encoder import (
-    get_shared_embeddings,
     get_unidirectional_transformer_encoder
 )
 from rau.tasks.common.model import pad_sequences
@@ -34,7 +27,11 @@ class LanguageModelingModelInterface(ModelInterface):
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
 
-    def get_kwargs(self, args, input_vocab_size, output_vocab_size):
+    def get_kwargs(self,
+        args,
+        input_vocab_size,
+        output_vocab_size
+    ):
         return dict(
             num_layers=args.num_layers,
             d_model=args.d_model,
@@ -85,23 +82,49 @@ class LanguageModelingModelInterface(ModelInterface):
         # Add 1 for BOS.
         return length + 1
 
-    def prepare_batch(self, batch, device, data):
+    def prepare_batch(self, batch, device, dataset):
         # Use the same index for padding symbols in both the input and output
         # tensor. The input vocab should be bigger than the output vocab, so
         # using the length of the input vocab should work fine. Using the same
         # padding symbol for both allows us to allocate one tensor and simply
-        # slice it to get the input and output tensors.
-        pad = len(data.input_vocab)
+        # slice it to get the input and output tensors. The EOS symbol will
+        # appear as an input symbol, but its embedding will never receive
+        # gradient, because it will only appear in positions where the output
+        # is padding, so it is the same as if padding were given as input.
+        # TODO Can just the length of the softmax vocab be used as the padding
+        # symbol, getting rid of the spurious padding embedding?
+        pad = self.get_output_padding_index(dataset)
         whole_tensor = pad_sequences(
             batch,
             device,
-            bos=data.input_vocab.bos_index,
-            eos=data.output_vocab.eos_index,
+            bos=dataset.input_vocab.bos_index,
+            eos=dataset.output_vocab.eos_index,
             pad=pad
         )
         input_tensor = whole_tensor[:, :-1]
         output_tensor = whole_tensor[:, 1:]
         return input_tensor, output_tensor
+
+    def get_output_padding_index(self, dataset):
+        return len(dataset.input_vocab)
+
+    def on_before_process_pairs(self, saver, datasets):
+        max_length = max(
+            self.adjust_length(len(x))
+            for dataset in datasets
+            for x in dataset
+        )
+        self._preallocate_positional_encodings(saver, max_length)
+
+    def _preallocate_positional_encodings(self, saver, max_length):
+        # Precompute all of the sinusoidal positional encodings up-front based
+        # on the maximum length that will be required. This should help with
+        # GPU memory fragmentation.
+        d_model = saver.kwargs['d_model']
+        for module in saver.model.modules():
+            if isinstance(module, SinusoidalPositionalEncodingCacher):
+                module.get_encodings(max_length, d_model)
+                module.set_allow_reallocation(False)
 
     def get_logits(self, model, model_input):
         # Note that it is unnecessary to pass a padding mask, because padding

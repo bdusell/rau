@@ -1,5 +1,4 @@
 import dataclasses
-import re
 
 import torch
 
@@ -105,20 +104,24 @@ class SequenceToSequenceModelInterface(ModelInterface):
         # Add 1 for BOS.
         return target_length + 1
 
-    def prepare_batch(self, batch, device, data):
-        model_source = self.prepare_source([s for s, t in batch], device, data)
-        target_input_pad = len(data.target_input_vocab)
+    def prepare_batch(self, batch, device, dataset):
+        model_source = self.prepare_source([s for s, t in batch], device, dataset)
+        target_input_pad = len(dataset.target_input_vocab)
+        # TODO It might be possible to use slices of a shared tensor for the
+        # target input and output, because it's ok to include EOS as an input
+        # in the decoder (it will never receive gradient because of causal and
+        # output padding masking).
         target_input = pad_sequences(
             [t for s, t in batch],
             device,
-            bos=data.target_input_vocab.bos_index,
+            bos=dataset.target_input_vocab.bos_index,
             pad=target_input_pad
         )
-        target_output_pad = len(data.target_output_vocab)
+        target_output_pad = self.get_output_padding_index(dataset)
         target_output = pad_sequences(
             [t for s, t in batch],
             device,
-            eos=data.target_output_vocab.eos_index,
+            eos=dataset.target_output_vocab.eos_index,
             pad=target_output_pad
         )
         model_input = ModelSourceAndTarget(
@@ -128,18 +131,21 @@ class SequenceToSequenceModelInterface(ModelInterface):
         )
         return model_input, target_output
 
-    def prepare_source(self, sources, device, data):
-        source_pad = len(data.source_vocab)
+    def prepare_source(self, sources, device, dataset):
+        source_pad = len(dataset.source_vocab)
         source = pad_sequences(
             sources,
             device,
-            eos=data.source_vocab.eos_index,
+            eos=dataset.source_vocab.eos_index,
             pad=source_pad
         )
         return ModelSource(
             source=source,
             source_is_padding_mask=(source == source_pad)
         )
+
+    def get_output_padding_index(self, dataset):
+        return len(dataset.target_output_vocab)
 
     def on_before_process_pairs(self, saver, datasets):
         max_length = max(
