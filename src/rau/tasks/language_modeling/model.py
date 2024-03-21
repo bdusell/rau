@@ -70,7 +70,7 @@ class LanguageModelingModelInterface(ModelInterface):
             num_heads=num_heads,
             feedforward_size=feedforward_size,
             dropout=dropout,
-            use_padding=True
+            use_padding=False
         )
 
     def initialize(self, args, model, generator):
@@ -84,29 +84,30 @@ class LanguageModelingModelInterface(ModelInterface):
 
     def prepare_batch(self, batch, device, dataset):
         # Use the same index for padding symbols in both the input and output
-        # tensor. The input vocab should be bigger than the output vocab, so
-        # using the length of the input vocab should work fine. Using the same
-        # padding symbol for both allows us to allocate one tensor and simply
-        # slice it to get the input and output tensors. The EOS symbol will
-        # appear as an input symbol, but its embedding will never receive
-        # gradient, because it will only appear in positions where the output
-        # is padding, so it is the same as if padding were given as input.
-        # TODO Can just the length of the softmax vocab be used as the padding
-        # symbol, getting rid of the spurious padding embedding?
-        pad = self.get_output_padding_index(dataset)
+        # tensor. The padding index needs to be (1) a value unique from all
+        # other indexes used in the output, and (2) a valid index for the
+        # input embedding matrix. Because BOS is always in the input vocabulary
+        # and never in the output vocabulary, using the size of the output
+        # vocabulary satisfies both of these constraints.
+        # Using the same padding symbol in the input and output tensors us to
+        # allocate one tensor and simply slice it, saving memory. The EOS
+        # symbol will appear as an input symbol, but its embedding will never
+        # receive gradient, because it will only appear in positions where the
+        # output is padding, so it is the same as if padding were given as
+        # input.
         whole_tensor = pad_sequences(
             batch,
             device,
             bos=dataset.input_vocab.bos_index,
             eos=dataset.output_vocab.eos_index,
-            pad=pad
+            pad=self.get_output_padding_index(dataset)
         )
         input_tensor = whole_tensor[:, :-1]
         output_tensor = whole_tensor[:, 1:]
         return input_tensor, output_tensor
 
     def get_output_padding_index(self, dataset):
-        return len(dataset.input_vocab)
+        return len(dataset.output_vocab)
 
     def on_before_process_pairs(self, saver, datasets):
         max_length = max(
