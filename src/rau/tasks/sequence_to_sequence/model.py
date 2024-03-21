@@ -87,7 +87,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
             num_heads=num_heads,
             feedforward_size=feedforward_size,
             dropout=dropout,
-            use_source_padding=True,
+            use_source_padding=False,
             use_target_padding=True
         )
 
@@ -132,16 +132,21 @@ class SequenceToSequenceModelInterface(ModelInterface):
         return model_input, target_output
 
     def prepare_source(self, sources, device, dataset):
-        source_pad = len(dataset.source_vocab)
         source = pad_sequences(
             sources,
             device,
             eos=dataset.source_vocab.eos_index,
-            pad=source_pad
+            pad=-1
         )
+        # Using a reserved -1 padding index lets us compute the mask on GPU.
+        mask = (source == -1)
+        # We need to make sure the padding index is a valid embedding index, so
+        # we arbitrarily set it to 0. It doesn't matter what value is used; it
+        # will always be ignored because of the mask.
+        source[mask] = 0
         return ModelSource(
             source=source,
-            source_is_padding_mask=(source == source_pad)
+            source_is_padding_mask=mask
         )
 
     def get_output_padding_index(self, dataset):
