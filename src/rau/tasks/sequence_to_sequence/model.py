@@ -88,7 +88,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
             feedforward_size=feedforward_size,
             dropout=dropout,
             use_source_padding=False,
-            use_target_padding=True
+            use_target_padding=False
         )
 
     def initialize(self, args, model, generator):
@@ -106,30 +106,23 @@ class SequenceToSequenceModelInterface(ModelInterface):
 
     def prepare_batch(self, batch, device, dataset):
         model_source = self.prepare_source([s for s, t in batch], device, dataset)
-        target_input_pad = len(dataset.target_input_vocab)
-        # TODO It might be possible to use slices of a shared tensor for the
-        # target input and output, because it's ok to include EOS as an input
-        # in the decoder (it will never receive gradient because of causal and
-        # output padding masking).
-        target_input = pad_sequences(
+        # See commments in rau/tasks/language_modeling/model.py for
+        # prepare_batch().
+        whole_tensor = pad_sequences(
             [t for s, t in batch],
             device,
             bos=dataset.target_input_vocab.bos_index,
-            pad=target_input_pad
-        )
-        target_output_pad = self.get_output_padding_index(dataset)
-        target_output = pad_sequences(
-            [t for s, t in batch],
-            device,
             eos=dataset.target_output_vocab.eos_index,
-            pad=target_output_pad
+            pad=self.get_output_padding_index(dataset)
         )
+        target_input_tensor = whole_tensor[:, :-1]
+        target_output_tensor = whole_tensor[:, 1:]
         model_input = ModelSourceAndTarget(
             source=model_source.source,
             source_is_padding_mask=model_source.source_is_padding_mask,
-            target=target_input
+            target=target_input_tensor
         )
-        return model_input, target_output
+        return model_input, target_output_tensor
 
     def prepare_source(self, sources, device, dataset):
         source = pad_sequences(
