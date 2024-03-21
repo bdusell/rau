@@ -112,26 +112,25 @@ def test_unidirectional_language_model():
     )
 
     # Next, we train a model that includes no separate embedding vector for the
-    # padding symbol. Input tensors do have EOS in them (whose outputs should
-    # be ignored and receive 0 gradient anyway), and 0 is arbitrarily used as
-    # the index in padded positions. Output tensors use -1 as the padding index
-    # and ignore_index for cross_entropy().
+    # padding symbol. We use the size of the output vocabulary as the padding
+    # index. We allocate one tensor and slice it to get the input and output
+    # tensors. Input tensors do have EOS in them (whose outputs should be
+    # ignored and receive 0 gradient anyway).
+    shared_pad = len(softmax_to_string_vocab)
     shared_tensor = pad_sequences(
         batch_as_ints,
         device,
-        pad=-1,
+        pad=shared_pad,
         bos=embedding_to_string_vocab.bos_index,
         eos=embedding_to_string_vocab.eos_index
     )
     input_shared = shared_tensor[:, :-1]
-    input_shared = input_shared.clone()
-    input_shared[input_shared == -1] = 0
     target_shared = shared_tensor[:, 1:]
     train_model(
         model_without_padding,
         input_shared,
         target_shared,
-        ignore_index=-1
+        ignore_index=shared_pad
     )
     for (n1, p1), (n2, p2) in zip(
         model_with_padding.named_parameters(),
