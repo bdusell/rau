@@ -73,8 +73,8 @@ class MainUnidirectional(SimpleLayerUnidirectional):
 
 def test_arg_routing_to_main():
     model = (
-        AdditivePositional() |
-        MainUnidirectional().main() |
+        AdditivePositional() @
+        MainUnidirectional().main() @
         MultiplicativePositional()
     )
     batch_size = 5
@@ -110,11 +110,11 @@ class YetAnotherUnidirectional(SimpleLayerUnidirectional):
 
 def test_arg_routing_to_tags():
     model = (
-        AdditivePositional() |
-        MainUnidirectional().main() |
-        AdditivePositional() |
-        OtherUnidirectional().tag('other') |
-        MultiplicativePositional() |
+        AdditivePositional() @
+        MainUnidirectional().main() @
+        AdditivePositional() @
+        OtherUnidirectional().tag('other') @
+        MultiplicativePositional() @
         YetAnotherUnidirectional().tag('yetanother')
     )
     batch_size = 5

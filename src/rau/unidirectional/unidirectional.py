@@ -83,8 +83,8 @@ class Unidirectional(torch.nn.Module):
             include_first=include_first
         )
 
-    def __or__(self, other: 'Unidirectional') -> 'Unidirectional':
-        r"""The ``|`` operator is overridden to compose two Unidirectionals."""
+    def __matmul__(self, other: 'Unidirectional') -> 'Unidirectional':
+        r"""The ``@`` operator is overridden to compose two Unidirectionals."""
         from .composed import ComposedUnidirectional
         return ComposedUnidirectional(self, other)
 

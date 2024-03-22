@@ -8,7 +8,7 @@ class BasicComposable(torch.nn.Module):
         super().__init__()
         self._composable_is_main = main
 
-    def __or__(self, other: torch.nn.Module) -> 'Composed':
+    def __matmul__(self, other: torch.nn.Module) -> 'Composed':
         if not isinstance(other, BasicComposable):
             other = Composable(other)
         return Composed(self, other)

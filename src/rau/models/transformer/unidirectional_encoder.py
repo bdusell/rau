@@ -44,7 +44,7 @@ def get_unidirectional_transformer_encoder(
             use_padding=use_padding,
             shared_embeddings=shared_embeddings,
             positional_encoding_cacher=positional_encoding_cacher
-        ) |
+        ) @
         add_tag(UnidirectionalTransformerEncoderLayers(
             num_layers=num_layers,
             d_model=d_model,
@@ -52,7 +52,7 @@ def get_unidirectional_transformer_encoder(
             feedforward_size=feedforward_size,
             dropout=dropout,
             use_final_layer_norm=True
-        ), tag) |
+        ), tag) @
         OutputUnidirectional(
             input_size=d_model,
             vocabulary_size=output_vocabulary_size,
