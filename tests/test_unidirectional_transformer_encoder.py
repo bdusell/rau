@@ -13,8 +13,7 @@ def test_layers_forward_matches_iterative():
         num_heads=8,
         feedforward_size=64,
         dropout=0,
-        use_final_layer_norm=True,
-        enable_nested_tensor=False
+        use_final_layer_norm=True
     )
     for param in model.parameters():
         param.data.uniform_(generator=generator)
