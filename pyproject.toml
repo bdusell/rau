@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "rau"
 version = "0.1.0"
-description = "Neural machine translation system."
+description = "Machine translation, language modeling, etc. in PyTorch."
 authors = ["Brian DuSell <bdusell@inf.ethz.ch>"]
 
 [tool.poetry.dependencies]
@@ -9,9 +9,6 @@ python = "^3.11"
 beautifulsoup4 = "^4.12.2"
 humanfriendly = "^10.0"
 more-itertools = "^10.1.0"
-numpy = "^1.26.2"
-sacrebleu = "^2.3.1"
-scipy = "^1.11.4"
 torch = "^2.1.0"
 
 [tool.poetry.dev-dependencies]
