@@ -21,39 +21,9 @@ ENV PATH /usr/local/poetry/bin:${PATH}
 # Stores Python packages in the local directory.
 # See https://python-poetry.org/docs/configuration/#virtualenvsin-project-boolean
 ENV POETRY_VIRTUALENVS_IN_PROJECT true
-# Install SentencePiece.
-# See https://github.com/google/sentencepiece#build-and-install-sentencepiece-command-line-tools-from-c-source
-RUN SENTENCEPIECE_VERSION=0.1.99 && \
-    apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        curl \
-        cmake \
-        build-essential \
-        pkg-config \
-        libgoogle-perftools-dev \
-        && \
-    rm -rf /var/lib/apt/lists/* && \
-    cd /tmp && \
-    curl -L -o sentencepiece.tar.gz https://github.com/google/sentencepiece/archive/refs/tags/v$SENTENCEPIECE_VERSION.tar.gz && \
-    ls -lh && \
-    tar xzf sentencepiece.tar.gz && \
-    rm sentencepiece.tar.gz && \
-    cd sentencepiece-$SENTENCEPIECE_VERSION && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j `nproc` && \
-    make install && \
-    ldconfig -v && \
-    cd ../.. && \
-    rm -r sentencepiece-$SENTENCEPIECE_VERSION && \
-    apt-get purge -y \
-        curl \
-        cmake \
-        build-essential \
-        pkg-config \
-        libgoogle-perftools-dev \
-        && \
+# Install curl.
+RUN apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 # Add src/ to PYTHONPATH.
 ENV PYTHONPATH /app/src:${PYTHONPATH}

@@ -1,15 +1,15 @@
 [tool.poetry]
 name = "rau"
 version = "0.1.0"
-description = "Machine translation, language modeling, etc. in PyTorch."
+description = "Neural language modeling and sequence-to-sequence transduction in PyTorch."
 authors = ["Brian DuSell <bdusell@inf.ethz.ch>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-beautifulsoup4 = "^4.12.2"
 humanfriendly = "^10.0"
 more-itertools = "^10.1.0"
 torch = "^2.1.0"
+numpy = "^1.26.4"
 
 [tool.poetry.dev-dependencies]
 mypy = "^1.7.1"
