@@ -189,7 +189,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
 
     def decode(self, model, model_source, bos_symbol, beam_size, eos_symbol, max_length):
         model.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             decoder_state = model.initial_decoder_state(
                 source_sequence=model_source.source,
                 source_is_padding_mask=model_source.source_is_padding_mask

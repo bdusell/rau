@@ -405,7 +405,7 @@ class TrainingLoop(Generic[Example]):
         batches: list[Batch]
     ) -> dict[str, Any]:
         model.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             cumulative_loss = LossAccumulator()
             for batch in batches:
                 device = model_interface.get_device(None)
