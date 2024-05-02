@@ -229,9 +229,9 @@ makes it possible to tie source and target embeddings. The flag ``--more-data``
 indicates the name of a directory under
 ``sequence-to-sequence-example/datasets`` to prepare using the vocabulary of
 the training data (both the source and target sides will be prepared). The flag
-``-more-source-data`` does the same thing, but it only prepares the source side
-(only the source side is necessary for generating translations on a test set).
-The flag ``--never-allow-unk`` indicates that the training data does not
+``--more-source-data`` does the same thing, but it only prepares the source
+side (only the source side is necessary for generating translations on a test
+set). The flag ``--never-allow-unk`` indicates that the training data does not
 contain a designated unknown (UNK) token, and out-of-vocabulary tokens should
 be treated as errors at inference time.
 
