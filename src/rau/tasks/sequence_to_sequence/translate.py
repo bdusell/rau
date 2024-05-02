@@ -1,12 +1,19 @@
 import argparse
+import logging
 import pathlib
+import sys
 
+from rau.tools.ticker import TimedTicker
 from rau.tasks.common.data import load_prepared_data_file
 from rau.tasks.sequence_to_sequence.data import load_vocabularies
 from rau.tasks.sequence_to_sequence.model import SequenceToSequenceModelInterface
 from rau.tasks.sequence_to_sequence.batching import group_sources_into_batches
 
 def main():
+
+    console_logger = logging.getLogger('main')
+    console_logger.addHandler(logging.StreamHandler(sys.stderr))
+    console_logger.setLevel(logging.INFO)
 
     model_interface = SequenceToSequenceModelInterface(
         use_load=True,
@@ -39,7 +46,11 @@ def main():
         help='A .vocab file to be used as the source vocabulary.')
     parser.add_argument('--target-vocabulary-file', type=pathlib.Path,
         help='A .vocab file to be used as the target vocabulary.')
+    parser.add_argument('--no-progress', action='store_true', default=False,
+        help='Do not print progress messages.')
     args = parser.parse_args()
+
+    show_progress = not args.no_progress
 
     device = model_interface.get_device(args)
     sources = load_prepared_data_file(args.input)
@@ -51,7 +62,9 @@ def main():
         lambda b, s: b * s <= args.batching_max_tokens
     ))
     ordered_outputs = [None] * len(sources)
-    for batch in batches:
+    if show_progress:
+        ticker = TimedTicker(len(batches), 1)
+    for batch_no, batch in enumerate(batches):
         source = model_interface.prepare_source([s for i, s in batch], device, vocabs)
         output = model_interface.decode(
             model=saver.model,
@@ -63,6 +76,10 @@ def main():
         )
         for (i, s), output_sequence in zip(batch, output, strict=True):
             ordered_outputs[i] = output_sequence
+        if show_progress:
+            ticker.progress = batch_no + 1
+            if ticker.tick():
+                console_logger.info(f'{ticker.int_percent}%')
     for output_sequence in ordered_outputs:
         print(' '.join(vocabs.target_output_vocab.to_string(w) for w in output_sequence))
 

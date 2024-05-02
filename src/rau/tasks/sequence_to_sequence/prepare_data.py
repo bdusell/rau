@@ -13,6 +13,12 @@ from rau.tasks.common.data_preparation import (
 )
 from rau.tasks.sequence_to_sequence.vocabulary import build_shared_vocabularies
 
+def add_vocabulary_type_to_extension(path, vocabulary_type):
+    return path.with_suffix(f'.{vocabulary_type}{path.suffix}')
+
+def add_vocabulary_type_to_pairs(pairs, vocabulary_type):
+    return [(s, add_vocabulary_type_to_extension(t, vocabulary_type)) for s, t in pairs]
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -31,10 +37,12 @@ def main():
              'as outputs.')
     parser.add_argument('--training-data-source-files', type=pathlib.Path, nargs=2,
         help='Input .tok file and output .prepared file for the source-side '
-             'training data. Overrides --training-data.')
+             'training data. Overrides --training-data. The vocabulary type '
+             'will be added to the extension of the output file name.')
     parser.add_argument('--training-data-target-files', type=pathlib.Path, nargs=2,
         help='Input .tok file and output .prepared file for the target-side '
-             'training data. Overrides --training-data.')
+             'training data. Overrides --training-data. The vocabulary type '
+             'will be added to the extension of the output file name.')
     parser.add_argument('--vocabulary-types', choices=['shared', 'separate'], nargs='*', default=[],
         help='Which types of vocabulary to generate: either "shared" or '
              '"separate". If "shared" is used, then a common vocabulary that '
@@ -56,32 +64,36 @@ def main():
         help='Name of an additional dataset in the training data directory '
              'that will be prepared using the training data. This option can '
              'be passed multiple times. The files '
-             '<training-data>/datasets/<more-data>/{source,target}.{tok,prepared} '
+             '<training-data>/datasets/<more-data>/{source,target}.{tok,<vocabulary-type>.prepared} '
              'will be used as the source/target input/output files.')
     parser.add_argument('--more-source-data', action='append', default=[],
         help='Name of an additional dataset in the training data directory '
              'whose source side will be prepared using the training data. This '
              'option can be passed multiple times. The files '
-             '<training-data>/datasets/<more-data>/source.{tok,prepared} will '
+             '<training-data>/datasets/<more-data>/source.{tok,<vocabulary-type>.prepared} will '
              'be used as the input/output files.')
     parser.add_argument('--more-target-data', action='append', default=[],
         help='Name of an additional dataset in the training data directory '
              'whose target side will be prepared using the training data. This '
              'option can be passed multiple times. The files '
-             '<training-data>/datasets/<more-data>/target.{tok,prepared} will '
+             '<training-data>/datasets/<more-data>/target.{tok,<vocabulary-type>.prepared} will '
              'be used as the input/output files.')
-    parser.add_argument('--more-source-data-files', type=pathlib.Path, nargs=2,
-        default=[],
+    parser.add_argument('--more-source-data-files', action='append',
+        type=pathlib.Path, nargs=2, default=[],
         help='An additional pair of source-side input (.tok) and output '
              '(.prepared) files that will be prepared using the training data. '
              'This option can be passed multiple times. This is an '
-             'alternative to --more-data and --more-source-data.')
-    parser.add_argument('--more-target-data-files', type=pathlib.Path, nargs=2,
-        default=[],
+             'alternative to --more-data and --more-source-data. The '
+             'vocabulary type will be added to the extension of the output '
+             'file name.')
+    parser.add_argument('--more-target-data-files', action='append',
+        type=pathlib.Path, nargs=2, default=[],
         help='An additional pair of target-side input (.tok) and output '
              '(.prepared) files that will be prepared using the training data. '
              'This option can be passed multiple times. This is an '
-             'alternative to --more-data and --more-target-data.')
+             'alternative to --more-data and --more-target-data. The '
+             'vocabulary type will be added to the extension of the output '
+             'file name.')
     parser.add_argument('--always-allow-unk', action='store_true', default=False,
         help='Always allow the vocabulary to include an <unk> token, even if '
              'one does not appear in the training data.')
@@ -145,10 +157,16 @@ def main():
                 'either --training-data or --shared-vocabulary-file is '
                 'required')
         prepared_source_files = [
-            (training_data_source_input_file, training_data_source_output_file)
+            (
+                training_data_source_input_file,
+                add_vocabulary_type_to_extension(training_data_source_output_file, 'shared')
+            )
         ]
         prepared_target_files = [
-            (training_data_target_input_file, training_data_target_output_file)
+            (
+                training_data_target_input_file,
+                add_vocabulary_type_to_extension(training_data_target_output_file, 'shared')
+            )
         ]
         more_source_dirs = [*args.more_data, *args.more_source_data]
         more_target_dirs = [*args.more_data, *args.more_target_data]
@@ -161,16 +179,18 @@ def main():
             data_dir = args.training_data / 'datasets' / source_dir
             prepared_source_files.append((
                 data_dir / 'source.tok',
-                data_dir / 'source.prepared'
+                data_dir / 'source.shared.prepared'
             ))
         for target_dir in more_target_dirs:
             data_dir = args.training_data / 'datasets' / target_dir
             prepared_target_files.append((
                 data_dir / 'target.tok',
-                data_dir / 'target.prepared'
+                data_dir / 'target.shared.prepared'
             ))
-        prepared_source_files.extend(args.more_source_data_files)
-        prepared_target_files.extend(args.more_target_data_files)
+        prepared_source_files.extend(
+            add_vocabulary_type_to_pairs(args.more_source_data_files, 'shared'))
+        prepared_target_files.extend(
+            add_vocabulary_type_to_pairs(args.more_target_data_files, 'shared'))
 
         source_token_types, source_has_unk = \
             get_token_types_in_file(training_data_source_input_file, unk_string)
