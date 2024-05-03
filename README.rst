@@ -141,6 +141,7 @@ Now, train a transformer language model::
 
     python src/rau/tasks/language_modeling/train.py \
       --training-data language-modeling-example \
+      --architecture transformer \
       --num-layers 6 \
       --d-model 64 \
       --num-heads 8 \
