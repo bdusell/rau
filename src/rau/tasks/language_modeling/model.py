@@ -90,13 +90,27 @@ class LanguageModelingModelInterface(ModelInterface):
                 dropout=dropout,
                 use_padding=False
             )
-        elif architecture == 'rnn':
+        elif architecture in ('rnn', 'lstm'):
             if hidden_units is None:
                 raise ValueError
             if num_layers is None:
                 raise ValueError
             if dropout is None:
                 raise ValueError
+            if architecture == 'rnn':
+                core = SimpleRNN(
+                    input_size=hidden_units,
+                    hidden_units=hidden_units,
+                    layers=num_layers,
+                    dropout=dropout
+                )
+            else:
+                core = LSTM(
+                    input_size=hidden_units,
+                    hidden_units=hidden_units,
+                    layers=num_layers,
+                    dropout=dropout
+                )
             shared_embeddings = get_shared_embeddings(
                 tie_embeddings=True,
                 input_vocabulary_size=input_vocabulary_size,
@@ -111,12 +125,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     use_padding=True,
                     shared_embeddings=shared_embeddings
                 )) @
-                SimpleRNN(
-                    input_size=hidden_units,
-                    hidden_units=hidden_units,
-                    layers=num_layers,
-                    dropout=dropout
-                ) @
+                core @
                 OutputUnidirectional(
                     input_size=hidden_units,
                     vocabulary_size=output_vocabulary_size,
