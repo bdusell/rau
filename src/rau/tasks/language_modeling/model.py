@@ -4,91 +4,159 @@ from rau.models.transformer.positional_encodings import SinusoidalPositionalEnco
 from rau.models.transformer.unidirectional_encoder import (
     get_unidirectional_transformer_encoder
 )
+from rau.models.rnn import SimpleRNN, LSTM
 from rau.tasks.common.model import pad_sequences
+from .vocabulary import get_vocabularies
+
+# TODO
+from rau.models.transformer.unidirectional_encoder import get_shared_embeddings
+from rau.unidirectional import SimpleLayerUnidirectional, OutputUnidirectional
+from rau.tools.torch.embedding_layer import EmbeddingLayer
 
 class LanguageModelingModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
+        group.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm'],
+            help='The type of neural network architecture to use.')
         group.add_argument('--num-layers', type=int,
-            help='Number of layers in the transformer.')
+            help='(transformer, rnn, lstm) Number of layers.')
         group.add_argument('--d-model', type=int,
-            help='The size of the vector representations used in the '
-                 'transformer.')
+            help='(transformer) The size of the vector representations used '
+                 'in the transformer.')
         group.add_argument('--num-heads', type=int,
-            help='The number of attention heads used in each layer.')
+            help='(transformer) The number of attention heads used in each '
+                 'layer.')
         group.add_argument('--feedforward-size', type=int,
-            help='The size of the hidden layer of the feedforward network in '
-                 'each feedforward sublayer.')
+            help='(transformer) The size of the hidden layer of the '
+                 'feedforward network in each feedforward sublayer.')
         group.add_argument('--dropout', type=float,
-            help='The dropout rate used throughout the transformer on input '
-                 'embeddings, sublayer function outputs, feedforward hidden '
-                 'layers, and attention weights.')
+            help='(transformer) The dropout rate used throughout the '
+                 'transformer on input embeddings, sublayer function outputs, '
+                 'feedforward hidden layers, and attention weights. '
+                 '(rnn, lstm) The dropout rate used on hidden states '
+                 'connecting to the next layer or the output.')
+        group.add_argument('--hidden-units', type=int,
+            help='(rnn, lstm) Number of hidden units to use in the hidden '
+                 'state.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
 
-    def get_kwargs(self,
-        args,
-        input_vocab_size,
-        output_vocab_size
-    ):
+    def get_kwargs(self, args, vocabulary_data):
+        uses_bos = args.architecture == 'transformer'
+        input_vocab, output_vocab = get_vocabularies(vocabulary_data, uses_bos)
         return dict(
+            architecture=args.architecture,
             num_layers=args.num_layers,
             d_model=args.d_model,
             num_heads=args.num_heads,
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
-            input_vocab_size=input_vocab_size,
-            output_vocab_size=output_vocab_size
+            hidden_units=args.hidden_units,
+            input_vocabulary_size=len(input_vocab),
+            output_vocabulary_size=len(output_vocab)
         )
 
     def construct_model(self,
+        architecture,
         num_layers,
         d_model,
         num_heads,
         feedforward_size,
         dropout,
-        input_vocab_size,
-        output_vocab_size
+        hidden_units,
+        input_vocabulary_size,
+        output_vocabulary_size
     ):
-        if num_layers is None:
+        if architecture is None:
             raise ValueError
-        if d_model is None:
+        if architecture == 'transformer':
+            if num_layers is None:
+                raise ValueError
+            if d_model is None:
+                raise ValueError
+            if num_heads is None:
+                raise ValueError
+            if feedforward_size is None:
+                raise ValueError
+            if dropout is None:
+                raise ValueError
+            return get_unidirectional_transformer_encoder(
+                input_vocabulary_size=input_vocabulary_size,
+                output_vocabulary_size=output_vocabulary_size,
+                tie_embeddings=True,
+                num_layers=num_layers,
+                d_model=d_model,
+                num_heads=num_heads,
+                feedforward_size=feedforward_size,
+                dropout=dropout,
+                use_padding=False
+            )
+        elif architecture == 'rnn':
+            if hidden_units is None:
+                raise ValueError
+            if num_layers is None:
+                raise ValueError
+            if dropout is None:
+                raise ValueError
+            # TODO move get_shared_embeddings()
+            shared_embeddings = get_shared_embeddings(
+                tie_embeddings=True,
+                input_vocabulary_size=input_vocabulary_size,
+                output_vocabulary_size=output_vocabulary_size,
+                # TODO
+                d_model=hidden_units,
+                use_padding=True
+            )
+            return (
+                SimpleLayerUnidirectional(EmbeddingLayer(
+                    vocabulary_size=input_vocabulary_size,
+                    output_size=hidden_units,
+                    use_padding=True,
+                    shared_embeddings=shared_embeddings
+                )) @
+                SimpleRNN(
+                    input_size=hidden_units,
+                    hidden_units=hidden_units,
+                    layers=num_layers,
+                    dropout=dropout
+                ) @
+                OutputUnidirectional(
+                    input_size=hidden_units,
+                    vocabulary_size=output_vocabulary_size,
+                    shared_embeddings=shared_embeddings,
+                    bias=False
+                )
+            )
+        else:
             raise ValueError
-        if num_heads is None:
-            raise ValueError
-        if feedforward_size is None:
-            raise ValueError
-        if dropout is None:
-            raise ValueError
-        return get_unidirectional_transformer_encoder(
-            input_vocabulary_size=input_vocab_size,
-            output_vocabulary_size=output_vocab_size,
-            tie_embeddings=True,
-            num_layers=num_layers,
-            d_model=d_model,
-            num_heads=num_heads,
-            feedforward_size=feedforward_size,
-            dropout=dropout,
-            use_padding=False
-        )
 
     def initialize(self, args, model, generator):
         if args.init_scale is None:
             raise ValueError
         smart_init(model, generator, fallback=uniform_fallback(args.init_scale))
 
+    def on_saver_constructed(self, args, saver):
+        architecture = saver.kwargs['architecture']
+        self.uses_bos = architecture == 'transformer'
+
     def adjust_length(self, length):
         # Add 1 for BOS.
-        return length + 1
+        return length + int(self.uses_bos)
+
+    def get_vocabularies(self, vocabulary_data, builder=None):
+        return get_vocabularies(vocabulary_data, self.uses_bos, builder)
 
     def prepare_batch(self, batch, device, dataset):
         # Use the same index for padding symbols in both the input and output
         # tensor. The padding index needs to be (1) a value unique from all
         # other indexes used in the output, and (2) a valid index for the
-        # input embedding matrix. Because BOS is always in the input vocabulary
-        # and never in the output vocabulary, using the size of the output
+        # input embedding matrix.
+        # For transformers, because BOS is always in the input vocabulary and
+        # never in the output vocabulary, using the size of the output
         # vocabulary satisfies both of these constraints.
+        # For RNNs, we have to use a dummy embedding.
+        # TODO Use packed sequences for RNNs?
         # Using the same padding symbol in the input and output tensors us to
         # allocate one tensor and simply slice it, saving memory. The EOS
         # symbol will appear as an input symbol, but its embedding will never
@@ -98,7 +166,7 @@ class LanguageModelingModelInterface(ModelInterface):
         whole_tensor = pad_sequences(
             batch,
             device,
-            bos=dataset.input_vocab.bos_index,
+            bos=dataset.input_vocab.bos_index if self.uses_bos else None,
             eos=dataset.output_vocab.eos_index,
             pad=self.get_output_padding_index(dataset)
         )
@@ -110,12 +178,13 @@ class LanguageModelingModelInterface(ModelInterface):
         return len(dataset.output_vocab)
 
     def on_before_process_pairs(self, saver, datasets):
-        max_length = max(
-            self.adjust_length(len(x))
-            for dataset in datasets
-            for x in dataset
-        )
-        self._preallocate_positional_encodings(saver, max_length)
+        if saver.kwargs['architecture'] == 'transformer':
+            max_length = max(
+                self.adjust_length(len(x))
+                for dataset in datasets
+                for x in dataset
+            )
+            self._preallocate_positional_encodings(saver, max_length)
 
     def _preallocate_positional_encodings(self, saver, max_length):
         # Precompute all of the sinusoidal positional encodings up-front based
@@ -128,7 +197,7 @@ class LanguageModelingModelInterface(ModelInterface):
                 module.set_allow_reallocation(False)
 
     def get_logits(self, model, model_input):
-        # Note that it is unnecessary to pass a padding mask, because padding
-        # only occurs at the end of a sequence, and the model is already
-        # causally masked.
-        return model(model_input, include_first=False)
+        # Note that for the transformer, it is unnecessary to pass a padding
+        # mask, because padding only occurs at the end of a sequence, and the
+        # model is already causally masked.
+        return model(model_input, include_first=not self.uses_bos)

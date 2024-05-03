@@ -36,6 +36,10 @@ def get_linear(
     if shared_embeddings is None:
         return Layer(input_size, output_size, bias=bias)
     else:
+        if bias:
+            raise NotImplementedError(
+                'using a bias term with tied output embeddings is not '
+                'implemented')
         if shared_embeddings.size(1) != input_size:
             raise ValueError(
                 f'embeddings matrix has vectors of size {shared_embeddings.size(1)}, '

@@ -92,11 +92,7 @@ def main():
     allow_unk = (args.always_allow_unk or has_unk) and not args.never_allow_unk
 
     tokens = sorted(token_types)
-    vocab = build_softmax_vocab(
-        ToIntVocabularyBuilder(),
-        tokens,
-        allow_unk
-    )
+    vocab = build_softmax_vocab(tokens, allow_unk, ToIntVocabularyBuilder())
 
     print(f'token types: {len(token_types)}', file=sys.stderr)
     print(f'vocabulary size: {len(vocab)}', file=sys.stderr)

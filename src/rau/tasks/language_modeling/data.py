@@ -1,9 +1,9 @@
 import dataclasses
 import pathlib
 
-from rau.vocab import ToStringVocabulary, ToStringVocabularyBuilder
+from rau.vocab import ToStringVocabulary
 from rau.tasks.common.data import load_prepared_data_file
-from .vocabulary import load_shared_vocabularies
+from .vocabulary import load_vocabulary_data_from_file, VocabularyData
 
 @dataclasses.dataclass
 class VocabularyContainer:
@@ -66,25 +66,29 @@ def get_vocabulary_file_path(args, parser):
         parser.error(
             'either --training-data or --vocabulary-file is required')
 
-def load_prepared_data(args, parser):
+def load_vocabulary_data(args, parser) -> VocabularyData:
+    return load_vocabulary_data_from_file(get_vocabulary_file_path(args, parser))
+
+def load_prepared_data(args, parser, vocabulary_data, model_interface, builder=None):
     training_data = load_prepared_data_file(get_training_data_file_path(args, parser))
     if hasattr(args, 'validation_data'):
         validation_data = load_prepared_data_file(get_validation_data_file_path(args, parser))
     else:
         validation_data = None
-    vocabs = load_vocabularies(args, parser)
+    input_vocab, output_vocab = model_interface.get_vocabularies(
+        vocabulary_data,
+        builder
+    )
     return Data(
         training_data=training_data,
         validation_data=validation_data,
-        input_vocab=vocabs.input_vocab,
-        output_vocab=vocabs.output_vocab
+        input_vocab=input_vocab,
+        output_vocab=output_vocab
     )
 
-def load_vocabularies(args, parser, builder=None):
-    if builder is None:
-        builder = ToStringVocabularyBuilder()
-    vocabs = load_shared_vocabularies(get_vocabulary_file_path(args, parser), builder)
-    return VocabularyContainer(
-        input_vocab=vocabs.embedding_vocab,
-        output_vocab=vocabs.softmax_vocab,
+def load_vocabularies(args, parser, model_interface, builder=None):
+    input_vocab, output_vocab = model_interface.get_vocabularies(
+        load_vocabulary_data(args, parser),
+        builder
     )
+    return VocabularyContainer(input_vocab, output_vocab)

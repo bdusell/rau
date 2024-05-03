@@ -53,8 +53,10 @@ def main():
 
     device = model_interface.get_device(args)
     examples = load_prepared_data_file(input_file)
-    vocabs = load_vocabularies(args, parser)
     saver = model_interface.construct_saver(args)
+    # TODO The vocabulary is only used here to figure out the padding index,
+    # which can be inferred from the size of the model alone.
+    vocabs = load_vocabularies(args, parser, model_interface)
     # Create a dummy training loop object so we can reuse the batching and
     # evaluation methods.
     # TODO Refactor this.

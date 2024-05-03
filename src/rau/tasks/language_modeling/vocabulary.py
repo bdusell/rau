@@ -1,35 +1,45 @@
 import dataclasses
+import pathlib
+from typing import Optional
 
 import torch
 
-from rau.vocab import Vocabulary
+from rau.vocab import Vocabulary, VocabularyBuilder, ToStringVocabularyBuilder
 
-def build_softmax_vocab(builder, tokens, allow_unk):
+@dataclasses.dataclass
+class VocabularyData:
+    tokens: list[str]
+    allow_unk: bool
+
+    def size(self):
+        return len(self.tokens) + int(self.allow_unk)
+
+def load_vocabulary_data_from_file(path: pathlib.Path) -> VocabularyData:
+    data = torch.load(path)
+    return VocabularyData(data['tokens'], data['allow_unk'])
+
+def get_vocabularies(
+    vocabulary_data: VocabularyData,
+    use_bos: bool,
+    builder: Optional[VocabularyBuilder]=None
+) -> tuple[Vocabulary, Vocabulary]:
+    if builder is None:
+        builder = ToStringVocabularyBuilder()
+    softmax_vocab = build_softmax_vocab(vocabulary_data.tokens, vocabulary_data.allow_unk, builder)
+    embedding_vocab = build_embedding_vocab(softmax_vocab, use_bos, builder)
+    return embedding_vocab, softmax_vocab
+
+def build_softmax_vocab(tokens, allow_unk, builder):
     result = builder.content(tokens)
     if allow_unk:
         result = result + builder.catchall('unk')
     return result + builder.reserved(['eos'])
 
-def build_embedding_vocab(builder, softmax_vocab):
-    return (
-        softmax_vocab +
-        builder.reserved(['bos'])
-    )
-
-@dataclasses.dataclass
-class SharedVocabularies:
-    softmax_vocab: Vocabulary
-    embedding_vocab: Vocabulary
-
-def build_shared_vocabularies(builder, tokens, allow_unk):
-    softmax_vocab = build_softmax_vocab(builder, tokens, allow_unk)
-    embedding_vocab = build_embedding_vocab(builder, softmax_vocab)
-    return SharedVocabularies(softmax_vocab, embedding_vocab)
-
-def load_shared_vocabularies(path, builder):
-    data = torch.load(path)
-    return build_shared_vocabularies(
-        builder,
-        data['tokens'],
-        data['allow_unk']
-    )
+def build_embedding_vocab(softmax_vocab, use_bos, builder):
+    if use_bos:
+        return (
+            softmax_vocab +
+            builder.reserved(['bos'])
+        )
+    else:
+        return softmax_vocab
