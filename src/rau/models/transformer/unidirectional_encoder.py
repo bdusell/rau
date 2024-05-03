@@ -8,6 +8,7 @@ from rau.unidirectional import (
     ForwardResult,
     OutputUnidirectional
 )
+from rau.models.common.shared_embeddings import get_shared_embeddings
 
 from .common import add_tag
 from .positional_encodings import SinusoidalPositionalEncodingCacher
@@ -56,7 +57,8 @@ def get_unidirectional_transformer_encoder(
         OutputUnidirectional(
             input_size=d_model,
             vocabulary_size=output_vocabulary_size,
-            shared_embeddings=shared_embeddings
+            shared_embeddings=shared_embeddings,
+            bias=False
         )
     )
 
@@ -155,7 +157,7 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
                 func(self.previous_inputs)
             )
 
-        # TODO
+        # TODO Efficiently implement the methods below.
 
         def fastforward(self, input_sequence: torch.Tensor) -> Unidirectional.State:
             raise NotImplementedError
@@ -189,31 +191,3 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
                 device=tensor.device
             )
         )
-
-def get_shared_embeddings(
-    tie_embeddings,
-    input_vocabulary_size,
-    output_vocabulary_size,
-    d_model,
-    use_padding
-):
-    if tie_embeddings:
-        return construct_shared_embeddings(
-            input_vocabulary_size,
-            output_vocabulary_size,
-            d_model,
-            use_padding
-        )
-    else:
-        return None
-
-def construct_shared_embeddings(
-    input_vocabulary_size,
-    output_vocabulary_size,
-    d_model,
-    use_padding
-):
-    if output_vocabulary_size > input_vocabulary_size:
-        raise ValueError
-    vocab_size = input_vocabulary_size + int(use_padding)
-    return torch.nn.Parameter(torch.zeros(vocab_size, d_model))

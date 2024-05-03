@@ -5,13 +5,11 @@ from rau.models.transformer.unidirectional_encoder import (
     get_unidirectional_transformer_encoder
 )
 from rau.models.rnn import SimpleRNN, LSTM
-from rau.tasks.common.model import pad_sequences
-from .vocabulary import get_vocabularies
-
-# TODO
-from rau.models.transformer.unidirectional_encoder import get_shared_embeddings
+from rau.models.common.shared_embeddings import get_shared_embeddings
 from rau.unidirectional import SimpleLayerUnidirectional, OutputUnidirectional
 from rau.tools.torch.embedding_layer import EmbeddingLayer
+from rau.tasks.common.model import pad_sequences
+from .vocabulary import get_vocabularies
 
 class LanguageModelingModelInterface(ModelInterface):
 
@@ -99,13 +97,11 @@ class LanguageModelingModelInterface(ModelInterface):
                 raise ValueError
             if dropout is None:
                 raise ValueError
-            # TODO move get_shared_embeddings()
             shared_embeddings = get_shared_embeddings(
                 tie_embeddings=True,
                 input_vocabulary_size=input_vocabulary_size,
                 output_vocabulary_size=output_vocabulary_size,
-                # TODO
-                d_model=hidden_units,
+                embedding_size=hidden_units,
                 use_padding=True
             )
             return (
