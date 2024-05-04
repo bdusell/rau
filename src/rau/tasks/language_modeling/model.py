@@ -116,13 +116,13 @@ class LanguageModelingModelInterface(ModelInterface):
                 input_vocabulary_size=input_vocabulary_size,
                 output_vocabulary_size=output_vocabulary_size,
                 embedding_size=hidden_units,
-                use_padding=True
+                use_padding=False
             )
             return (
                 SimpleLayerUnidirectional(EmbeddingLayer(
                     vocabulary_size=input_vocabulary_size,
                     output_size=hidden_units,
-                    use_padding=True,
+                    use_padding=False,
                     shared_embeddings=shared_embeddings
                 )) @
                 core @
@@ -153,30 +153,37 @@ class LanguageModelingModelInterface(ModelInterface):
         return get_vocabularies(vocabulary_data, self.uses_bos, builder)
 
     def prepare_batch(self, batch, device, dataset):
-        # Use the same index for padding symbols in both the input and output
-        # tensor. The padding index needs to be (1) a value unique from all
-        # other indexes used in the output, and (2) a valid index for the
-        # input embedding matrix.
+        # For transformers, use the same index for padding symbols in both the
+        # input and output tensor. The padding index needs to be (1) a value
+        # unique from all other indexes used in the output, and (2) a valid
+        # index for the input embedding matrix.
         # For transformers, because BOS is always in the input vocabulary and
         # never in the output vocabulary, using the size of the output
         # vocabulary satisfies both of these constraints.
-        # For RNNs, we have to use a dummy embedding.
-        # TODO Use packed sequences for RNNs?
-        # Using the same padding symbol in the input and output tensors us to
-        # allocate one tensor and simply slice it, saving memory. The EOS
+        # Using the same padding symbol in the input and output tensors allows
+        # us to allocate one tensor and simply slice it, saving memory. The EOS
         # symbol will appear as an input symbol, but its embedding will never
         # receive gradient, because it will only appear in positions where the
         # output is padding, so it is the same as if padding were given as
         # input.
+        output_padding_index = self.get_output_padding_index(dataset)
         whole_tensor = pad_sequences(
             batch,
             device,
             bos=dataset.input_vocab.bos_index if self.uses_bos else None,
             eos=dataset.output_vocab.eos_index,
-            pad=self.get_output_padding_index(dataset)
+            pad=output_padding_index
         )
         input_tensor = whole_tensor[:, :-1]
         output_tensor = whole_tensor[:, 1:]
+        # For RNNs, the input vocabulary does not contain any symbols that are
+        # not in the output, so the size of the vocabulary is not a valid
+        # embedding index. So, for the input tensor, we create a copy and
+        # change the padding index to 0.
+        # TODO Use packed sequences for RNNs?
+        if not self.uses_bos:
+            input_tensor = input_tensor.clone()
+            input_tensor[input_tensor == output_padding_index] = 0
         return input_tensor, output_tensor
 
     def get_output_padding_index(self, dataset):
