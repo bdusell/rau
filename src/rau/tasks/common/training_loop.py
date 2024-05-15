@@ -283,7 +283,7 @@ class TrainingLoop(Generic[Example]):
                     # Update the learning rate.
                     lr_scheduler.step(validation_score)
                     # Show the current learning rate.
-                    curr_learning_rate = optimizer.param_groups[0]['lr']
+                    curr_learning_rate = lr_scheduler.get_last_lr()[0]
                     console_logger.info(f'    learning rate: {curr_learning_rate}')
                     # Decide whether to save the model parameters and whether to
                     # stop early.
