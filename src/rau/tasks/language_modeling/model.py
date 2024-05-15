@@ -6,8 +6,11 @@ from rau.models.transformer.unidirectional_encoder import (
 )
 from rau.models.rnn import SimpleRNN, LSTM
 from rau.models.common.shared_embeddings import get_shared_embeddings
-from rau.unidirectional import SimpleLayerUnidirectional, OutputUnidirectional
-from rau.tools.torch.embedding_layer import EmbeddingLayer
+from rau.unidirectional import (
+    EmbeddingUnidirectional,
+    DropoutUnidirectional,
+    OutputUnidirectional
+)
 from rau.tasks.common.model import pad_sequences
 from .vocabulary import get_vocabularies
 
@@ -31,8 +34,9 @@ class LanguageModelingModelInterface(ModelInterface):
             help='(transformer) The dropout rate used throughout the '
                  'transformer on input embeddings, sublayer function outputs, '
                  'feedforward hidden layers, and attention weights. '
-                 '(rnn, lstm) The dropout rate used on hidden states '
-                 'connecting to the next layer or the output.')
+                 '(rnn, lstm) The dropout rate used between all layers, '
+                 'including between the input embedding layer and the first '
+                 'layer, and between the last layer and the output layer.')
         group.add_argument('--hidden-units', type=int,
             help='(rnn, lstm) Number of hidden units to use in the hidden '
                  'state.')
@@ -97,6 +101,7 @@ class LanguageModelingModelInterface(ModelInterface):
                 raise ValueError
             if dropout is None:
                 raise ValueError
+            # First, construct the recurrent hidden state module.
             if architecture == 'rnn':
                 core = SimpleRNN(
                     input_size=hidden_units,
@@ -111,6 +116,8 @@ class LanguageModelingModelInterface(ModelInterface):
                     layers=num_layers,
                     dropout=dropout
                 )
+            # Now, sandwich the recurrent hidden state between an input
+            # embedding layer and an output layer.
             shared_embeddings = get_shared_embeddings(
                 tie_embeddings=True,
                 input_vocabulary_size=input_vocabulary_size,
@@ -119,13 +126,15 @@ class LanguageModelingModelInterface(ModelInterface):
                 use_padding=False
             )
             return (
-                SimpleLayerUnidirectional(EmbeddingLayer(
+                EmbeddingUnidirectional(
                     vocabulary_size=input_vocabulary_size,
                     output_size=hidden_units,
                     use_padding=False,
                     shared_embeddings=shared_embeddings
-                )) @
+                ) @
+                DropoutUnidirectional(dropout) @
                 core @
+                DropoutUnidirectional(dropout) @
                 OutputUnidirectional(
                     input_size=hidden_units,
                     vocabulary_size=output_vocabulary_size,
