@@ -45,10 +45,12 @@ def add_training_loop_arguments(
              'gradients are never clipped.')
     group.add_argument('--early-stopping-patience', type=int, required=True,
         help='The allowed number of epochs of no improvement in performance '
-             'on the validation data before training stops early.')
+             'on the validation data before training stops early. The minimum '
+             'value is 1 (immediate).')
     group.add_argument('--learning-rate-patience', type=int, required=True,
         help='The allowed number of epochs of no improvement in performance '
-             'on the validation data before the learning rate is reduced.')
+             'on the validation data before the learning rate is reduced. The '
+             'minimum value is 1 (immediate).')
     group.add_argument('--learning-rate-decay-factor', type=float, required=True,
         help='A value between 0 and 1 that the learning rate will be '
              'multiplied by whenever it should be decreased.')
@@ -163,10 +165,16 @@ class TrainingLoop(Generic[Example]):
             validation_metric_mode,
             patience=self.early_stopping_patience
         )
+        if self.learning_rate_patience < 1:
+            raise ValueError('learning rate patience must be at least 1')
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode=validation_metric_mode,
-            patience=self.learning_rate_patience,
+            # According to PyTorch, a patience of 0 means we reduce the LR as
+            # soon as performance does not improve, and a patience of 1 means
+            # we wait one checkpoint. We subtract 1 so that the patience means
+            # the number of epochs without improvement before reducing the LR.
+            patience=self.learning_rate_patience - 1,
             factor=self.learning_rate_decay_factor
         )
         console_logger.info(f'training examples: {len(dataset.training_data)}')
