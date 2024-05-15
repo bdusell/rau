@@ -52,10 +52,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         self._hidden_units = hidden_units
         self._layers = layers
 
-    def _initial_tensors(self,
-        batch_size: int,
-        first_layer: Optional[torch.Tensor]
-    ) -> Any:
+    def _initial_tensors(self, batch_size: int) -> Any:
         raise NotImplementedError
 
     def _apply_to_hidden_state(self,
@@ -162,16 +159,11 @@ class UnidirectionalBuiltinRNN(Unidirectional):
     def initial_state(self,
         batch_size: int,
         *args: Any,
-        first_layer: Optional[torch.Tensor]=None,
         **kwargs: Any
     ) -> Unidirectional.State:
-        r"""
-        :param first_layer: An optional tensor that will be used as the first
-            layer of the initial hidden state.
-        """
         if args or kwargs:
             raise ValueError
-        hidden_state, output = self._initial_tensors(batch_size, first_layer)
+        hidden_state, output = self._initial_tensors(batch_size)
         return self.State(self, hidden_state, output)
 
 def remove_extra_bias_parameters(module: torch.nn.Module):

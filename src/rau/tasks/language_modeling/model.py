@@ -107,14 +107,16 @@ class LanguageModelingModelInterface(ModelInterface):
                     input_size=hidden_units,
                     hidden_units=hidden_units,
                     layers=num_layers,
-                    dropout=dropout
+                    dropout=dropout,
+                    learned_hidden_state=True
                 )
             else:
                 core = LSTM(
                     input_size=hidden_units,
                     hidden_units=hidden_units,
                     layers=num_layers,
-                    dropout=dropout
+                    dropout=dropout,
+                    learned_hidden_state=True
                 )
             # Now, sandwich the recurrent hidden state between an input
             # embedding layer and an output layer.

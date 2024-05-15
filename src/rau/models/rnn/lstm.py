@@ -13,6 +13,7 @@ class LSTM(UnidirectionalBuiltinRNN):
         layers: int=1,
         dropout: Optional[float]=None,
         bias: bool=True,
+        learned_hidden_state: bool=False,
         use_extra_bias: bool=False
     ):
         """
@@ -22,6 +23,11 @@ class LSTM(UnidirectionalBuiltinRNN):
         :param dropout: The amount of dropout applied in between layers. If
             ``layers`` is 1, then this value is ignored.
         :param bias: Whether to use bias terms.
+        :param learned_hidden_state: Whether the initial hidden state should be
+            a learned parameter. If true, the initial hidden state will be the
+            result of passing learned parameters through the tanh activation
+            function. If false, the initial state will be zeros. The initial
+            memory cell is always zeros.
         :param use_extra_bias: The built-in PyTorch implementation of the LSTM
             includes redundant bias terms, resulting in more parameters than
             necessary. If this is true, the extra bias terms are kept.
@@ -35,38 +41,25 @@ class LSTM(UnidirectionalBuiltinRNN):
             bias=bias,
             use_extra_bias=use_extra_bias
         )
+        self.learned_hidden_state = learned_hidden_state
+        if learned_hidden_state:
+            self.initial_hidden_state_inputs = torch.nn.Parameter(torch.zeros(layers, hidden_units))
 
     RNN_CLASS = torch.nn.LSTM
 
-    def _initial_tensors(self, batch_size, first_layer):
-        if first_layer is None:
-            h = c = torch.zeros(
-                self._layers,
-                batch_size,
-                self._hidden_units,
-                device=next(self.parameters()).device
-            )
+    def _initial_tensors(self, batch_size):
+        c = torch.zeros(
+            self._layers,
+            batch_size,
+            self._hidden_units,
+            device=next(self.parameters()).device
+        )
+        if self.learned_hidden_state:
+            h = torch.tanh(
+                self.initial_hidden_state_inputs
+            )[:, None, :].repeat(1, batch_size, 1)
         else:
-            expected_size = (batch_size, self._hidden_units)
-            if first_layer.size() != expected_size:
-                raise ValueError(
-                    f'first_layer should be of size {expected_size}, but '
-                    f'got {first_layer.size()}')
-            h = torch.cat([
-                first_layer[None],
-                torch.zeros(
-                    self._layers - 1,
-                    batch_size,
-                    self._hidden_units,
-                    device=next(self.parameters()).device
-                )
-            ], dim=0)
-            c = torch.zeros(
-                self._layers,
-                batch_size,
-                self._hidden_units,
-                device=next(self.parameters()).device
-            )
+            h = c
         return (h, c), h[-1]
 
     def _apply_to_hidden_state(self, hidden_state, func):
