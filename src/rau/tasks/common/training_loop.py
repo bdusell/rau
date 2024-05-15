@@ -175,7 +175,8 @@ class TrainingLoop(Generic[Example]):
             # we wait one checkpoint. We subtract 1 so that the patience means
             # the number of epochs without improvement before reducing the LR.
             patience=self.learning_rate_patience - 1,
-            factor=self.learning_rate_decay_factor
+            factor=self.learning_rate_decay_factor,
+            threshold=0.0
         )
         console_logger.info(f'training examples: {len(dataset.training_data)}')
         num_validation_examples = len(dataset.validation_data)
