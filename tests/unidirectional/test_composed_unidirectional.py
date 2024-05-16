@@ -5,6 +5,7 @@ from rau.unidirectional import (
     PositionalUnidirectional,
     SimpleLayerUnidirectional
 )
+from rau.tools.torch.compose import Composable
 
 class AdditivePositional(PositionalUnidirectional):
 
@@ -164,3 +165,23 @@ def test_arg_routing_to_tags():
             )
         )
     )
+
+def test_compose_with_non_unidirectional():
+    unidirectional = (
+        AdditivePositional() @
+        MainUnidirectional().main() @
+        MultiplicativePositional()
+    )
+    non_unidirectional = torch.nn.Identity()
+    batch_size = 5
+    sequence_length = 13
+    generator = torch.manual_seed(123)
+    input_sequence = torch.rand((batch_size, sequence_length), generator=generator)
+    x = 'foo'
+    y = 42
+    alpha = 123
+    beta = 'asdf'
+    composed_after = unidirectional @ non_unidirectional
+    output = composed_after(input_sequence, x, y, alpha=alpha, beta=beta, include_first=False)
+    composed_before = Composable(non_unidirectional) @ unidirectional.as_composable()
+    output = composed_before(input_sequence, x, y, alpha=alpha, beta=beta, include_first=False)

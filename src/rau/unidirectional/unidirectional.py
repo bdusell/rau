@@ -1,8 +1,10 @@
 from collections.abc import Callable, Iterable, Sequence
 import dataclasses
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, overload
 
 import torch
+
+from rau.tools.torch.compose import Composable, Composed
 
 @dataclasses.dataclass
 class ForwardResult:
@@ -83,10 +85,26 @@ class Unidirectional(torch.nn.Module):
             include_first=include_first
         )
 
+    @overload
+    def __matmul__(self, other: Any) -> Composed:
+        ...
+    @overload
     def __matmul__(self, other: 'Unidirectional') -> 'Unidirectional':
+        ...
+    def __matmul__(self, other):
         r"""The ``@`` operator is overridden to compose two Unidirectionals."""
-        from .composed import ComposedUnidirectional
-        return ComposedUnidirectional(self, other)
+        if isinstance(other, Unidirectional):
+            from .composed import ComposedUnidirectional
+            return ComposedUnidirectional(self, other)
+        else:
+            return self.as_composable() @ other
+
+    def as_composable(self) -> Composable:
+        return Composable(
+            self,
+            main='main' in self._tags,
+            tags=self._tags - {'main'}
+        )
 
     class State:
         """Represents the hidden state of the module after processing a certain
