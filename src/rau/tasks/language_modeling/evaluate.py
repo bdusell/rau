@@ -51,7 +51,6 @@ def main():
     else:
         parser.error('either --training-data and --input or --input-file is required')
 
-    device = model_interface.get_device(args)
     examples = load_prepared_data_file(input_file)
     saver = model_interface.construct_saver(args)
     # TODO The vocabulary is only used here to figure out the padding index,
