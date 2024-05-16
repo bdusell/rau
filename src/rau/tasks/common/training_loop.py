@@ -386,7 +386,7 @@ class TrainingLoop(Generic[Example]):
                 saver.model,
                 model_interface,
                 dataset,
-                prepared_batch,
+                prepared_batch
             )
             loss = torch.mean(loss_numerators)
             loss_numerator = torch.sum(loss_numerators.detach()).item()
