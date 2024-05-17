@@ -8,6 +8,7 @@ def load_prepared_data_file(path: pathlib.Path) -> list[torch.Tensor]:
 
 Example = TypeVar('Example')
 
+# TODO Is this not used?
 class Dataset(Generic[Example]):
     training_data: list[Example]
     validation_data: list[Example]
