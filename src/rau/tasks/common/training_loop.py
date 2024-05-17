@@ -3,7 +3,7 @@ import dataclasses
 import datetime
 import logging
 import random
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, Generic, Literal, Optional, TypeVar
 
 import humanfriendly
@@ -279,7 +279,7 @@ class TrainingLoop(Generic[Example]):
                         validation_batches
                     )
                     validation_score = validation_scores[validation_metric]
-                    console_logger.info(f'    validation cross entropy: {validation_score:.2f}')
+                    console_logger.info(f'    validation loss ({validation_metric}): {validation_score:.2f}')
                     # Update the learning rate.
                     lr_scheduler.step(validation_score)
                     # Show the current learning rate.
@@ -412,21 +412,17 @@ class TrainingLoop(Generic[Example]):
         model_interface: ModelInterface,
         dataset: Dataset[Example],
         batches: list[Batch]
-    ) -> dict[str, Any]:
-        model.eval()
-        with torch.inference_mode():
-            cumulative_loss = LossAccumulator()
-            for batch in batches:
-                device = model_interface.get_device(None)
-                prepared_batch = model_interface.prepare_batch(batch, device, dataset)
-                numerator, denominator = self.evaluate_batch(
-                    model,
-                    model_interface,
-                    dataset,
-                    prepared_batch
-                )
-                cumulative_loss.update(numerator, denominator)
-        return { self.get_validation_metric_name() : cumulative_loss.get_value() }
+    ) -> dict[str, float]:
+        return {
+            self.get_validation_metric_name() :
+            evaluate(
+                model,
+                model_interface,
+                dataset,
+                batches,
+                self.evaluate_batch
+            )
+        }
 
 def get_random_generator_and_seed(random_seed):
     random_seed = get_random_seed(random_seed)
@@ -439,15 +435,40 @@ class LossAccumulator:
 
     def __init__(self):
         super().__init__()
-        self.numerator = 0.0
+        self.numerator = 0
         self.denominator = 0
 
-    def update(self, numerator: float, denominator: int) -> None:
+    def update(self, numerator: float, denominator: float) -> None:
         self.numerator += numerator
         self.denominator += denominator
 
     def get_value(self) -> float:
         return self.numerator / self.denominator
+
+def evaluate(
+    model: torch.nn.Module,
+    model_interface: ModelInterface,
+    dataset: Dataset[Example],
+    batches: list[Batch],
+    evaluate_batch: Callable[
+        [torch.nn.Module, ModelInterface, Dataset[Example], Any],
+        tuple[float, float]
+    ]
+) -> float:
+    model.eval()
+    with torch.inference_mode():
+        cumulative_loss = LossAccumulator()
+        for batch in batches:
+            device = model_interface.get_device(None)
+            prepared_batch = model_interface.prepare_batch(batch, device, dataset)
+            numerator, denominator = evaluate_batch(
+                model,
+                model_interface,
+                dataset,
+                prepared_batch
+            )
+            cumulative_loss.update(numerator, denominator)
+    return cumulative_loss.get_value()
 
 @dataclasses.dataclass
 class OutOfCUDAMemoryError(RuntimeError):
