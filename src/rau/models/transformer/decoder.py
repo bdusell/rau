@@ -47,7 +47,8 @@ def get_transformer_decoder(
         OutputUnidirectional(
             input_size=d_model,
             vocabulary_size=output_vocabulary_size,
-            shared_embeddings=shared_embeddings
+            shared_embeddings=shared_embeddings,
+            bias=False
         )
     )
 

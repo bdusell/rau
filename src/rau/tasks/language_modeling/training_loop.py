@@ -79,7 +79,9 @@ class LanguageModelingTrainingLoop(TrainingLoop[Example]):
             reduction='sum',
             label_smoothing_factor=0.0
         )
-        return cross_entropy.item(), num_symbols
+        return {
+            'cross_entropy_per_token' : (cross_entropy.item(), num_symbols)
+        }
 
     def get_cross_entropy(self,
         model: torch.nn.Module,

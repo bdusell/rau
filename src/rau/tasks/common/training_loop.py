@@ -1,4 +1,5 @@
 import argparse
+import collections
 import dataclasses
 import datetime
 import logging
@@ -135,7 +136,7 @@ class TrainingLoop(Generic[Example]):
         model_interface: ModelInterface,
         dataset: Dataset[Example],
         prepared_batch: Any
-    ) -> tuple[float, int]:
+    ) -> dict[str, tuple[float, float]]:
         raise NotImplementedError
 
     def run(self,
@@ -279,7 +280,7 @@ class TrainingLoop(Generic[Example]):
                         validation_batches
                     )
                     validation_score = validation_scores[validation_metric]
-                    console_logger.info(f'    validation loss ({validation_metric}): {validation_score:.2f}')
+                    console_logger.info(f'    validation score ({validation_metric}): {validation_score:.2f}')
                     # Update the learning rate.
                     lr_scheduler.step(validation_score)
                     # Show the current learning rate.
@@ -413,16 +414,13 @@ class TrainingLoop(Generic[Example]):
         dataset: Dataset[Example],
         batches: list[Batch]
     ) -> dict[str, float]:
-        return {
-            self.get_validation_metric_name() :
-            evaluate(
-                model,
-                model_interface,
-                dataset,
-                batches,
-                self.evaluate_batch
-            )
-        }
+        return evaluate(
+            model,
+            model_interface,
+            dataset,
+            batches,
+            self.evaluate_batch
+        )
 
 def get_random_generator_and_seed(random_seed):
     random_seed = get_random_seed(random_seed)
@@ -452,23 +450,24 @@ def evaluate(
     batches: list[Batch],
     evaluate_batch: Callable[
         [torch.nn.Module, ModelInterface, Dataset[Example], Any],
-        tuple[float, float]
+        dict[str, tuple[float, float]]
     ]
 ) -> float:
     model.eval()
     with torch.inference_mode():
-        cumulative_loss = LossAccumulator()
+        loss_dict = collections.defaultdict(LossAccumulator)
         for batch in batches:
             device = model_interface.get_device(None)
             prepared_batch = model_interface.prepare_batch(batch, device, dataset)
-            numerator, denominator = evaluate_batch(
+            batch_loss_dict = evaluate_batch(
                 model,
                 model_interface,
                 dataset,
                 prepared_batch
             )
-            cumulative_loss.update(numerator, denominator)
-    return cumulative_loss.get_value()
+            for k, (numerator, denominator) in batch_loss_dict.items():
+                loss_dict[k].update(numerator, denominator)
+    return { k : v.get_value() for k, v in loss_dict.items() }
 
 @dataclasses.dataclass
 class OutOfCUDAMemoryError(RuntimeError):
