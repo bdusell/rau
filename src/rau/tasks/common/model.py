@@ -1,6 +1,15 @@
+from typing import Optional
+
 import torch
 
-def pad_sequences(sequences, device, pad, bos=None, eos=None):
+def pad_sequences(
+    sequences: list[list[int]],
+    device: torch.device,
+    pad: int,
+    bos: Optional[int]=None,
+    eos: Optional[int]=None,
+    return_lengths: bool=False
+) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
     batch_size = len(sequences)
     max_length = max(map(len, sequences))
     add_bos = bos is not None
@@ -16,7 +25,14 @@ def pad_sequences(sequences, device, pad, bos=None, eos=None):
     if add_bos:
         result[:, 0] = bos
     for i, sequence in enumerate(sequences):
-        result[i, bos_offset:bos_offset+len(sequence)] = sequence
+        end_pos = bos_offset + len(sequence)
+        result[i, bos_offset:end_pos] = sequence
         if add_eos:
-            result[i, bos_offset+len(sequence)] = eos
+            result[i, end_pos] = eos
+    if return_lengths:
+        lengths = torch.tensor(
+            [len(sequence) for sequence in sequences],
+            device=device
+        )
+        result = result, lengths
     return result
