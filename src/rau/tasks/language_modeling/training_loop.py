@@ -8,8 +8,8 @@ from rau.tasks.common.training_loop import (
     get_training_loop_kwargs,
     TrainingLoop
 )
-from rau.tasks.common.data import Dataset
 from .batching import group_into_batches
+from .data import VocabularyContainer
 
 def add_training_loop_arguments(parser):
     common_add_training_loop_arguments(parser,
@@ -21,8 +21,13 @@ def add_training_loop_arguments(parser):
     )
 
 Example = torch.Tensor
+PreparedBatch = tuple[torch.Tensor, torch.Tensor]
 
-class LanguageModelingTrainingLoop(TrainingLoop[Example]):
+class LanguageModelingTrainingLoop(TrainingLoop[
+    Example,
+    PreparedBatch,
+    VocabularyContainer
+]):
 
     def get_validation_metric_name(self):
         return 'cross_entropy_per_token'

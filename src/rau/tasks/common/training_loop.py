@@ -16,10 +16,11 @@ from rau.tools.torch.saver import ModelSaver
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.profile import reset_memory_profiler, get_peak_memory
 from rau.training.early_stopping import UpdatesWithoutImprovement
-from .data import Dataset
 
 Example = TypeVar('Example')
 Batch = list[Example]
+PreparedBatch = TypeVar('PreparedBatch')
+VocabularyContainer = TypeVar('VocabularyContainer')
 
 def add_training_loop_arguments(
     parser: argparse.ArgumentParser,
@@ -82,7 +83,7 @@ def get_training_loop_kwargs(
     return result
 
 @dataclasses.dataclass
-class TrainingLoop(Generic[Example]):
+class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
 
     show_progress: bool
     max_epochs: int
@@ -110,12 +111,12 @@ class TrainingLoop(Generic[Example]):
         raise NotImplementedError
 
     def get_prepared_batch_info(self,
-        prepared_batch: Any
+        prepared_batch: PreparedBatch
     ) -> dict[str, Any]:
         raise NotImplementedError
 
     def log_failed_batch(self,
-        dataset: Dataset[Example],
+        vocabulary: VocabularyContainer,
         batch: Batch,
         info: dict[str, Any],
         console_logger: logging.Logger,
@@ -126,21 +127,23 @@ class TrainingLoop(Generic[Example]):
     def get_loss(self,
         model: torch.nn.Module,
         model_interface: ModelInterface,
-        prepared_batch: Any
-    ) -> tuple[torch.Tensor, int, dict[str, Any]]:
+        prepared_batch: PreparedBatch
+    ) -> tuple[torch.Tensor, float]:
         raise NotImplementedError
 
     def evaluate_batch(self,
         model: torch.nn.Module,
         model_interface: ModelInterface,
-        prepared_batch: Any
+        prepared_batch: PreparedBatch
     ) -> dict[str, tuple[float, float]]:
         raise NotImplementedError
 
     def run(self,
         saver: ModelSaver,
         model_interface: ModelInterface,
-        dataset: Dataset[Example],
+        training_data: list[Example],
+        validation_data: list[Example],
+        vocabulary: VocabularyContainer,
         console_logger: logging.Logger,
         event_logger: Logger
     ) -> None:
@@ -177,21 +180,21 @@ class TrainingLoop(Generic[Example]):
             factor=self.learning_rate_decay_factor,
             threshold=0.0
         )
-        console_logger.info(f'training examples: {len(dataset.training_data)}')
-        num_validation_examples = len(dataset.validation_data)
+        console_logger.info(f'training examples: {len(training_data)}')
+        num_validation_examples = len(validation_data)
         console_logger.info(f'validation examples: {num_validation_examples}')
         validation_batches = list(self.generate_batches(
-            dataset.validation_data,
+            validation_data,
             self.max_tokens_per_batch
         ))
         console_logger.info(f'validation batches: {len(validation_batches)}')
         model_interface.on_before_process_pairs(
             saver,
-            [dataset.training_data, dataset.validation_data]
+            [training_data, validation_data]
         )
-        dataset.validation_data = None
+        del validation_data
         event_logger.log('start_training', dict(
-            num_training_examples=len(dataset.training_data),
+            num_training_examples=len(training_data),
             num_validation_examples=num_validation_examples,
             num_validation_batches=len(validation_batches),
             max_epochs=self.max_epochs,
@@ -215,9 +218,9 @@ class TrainingLoop(Generic[Example]):
         for _ in range(self.max_epochs):
             epoch_start_time = datetime.datetime.now()
             console_logger.info(f'epoch #{epoch_no + 1}')
-            random_shuffling_generator.shuffle(dataset.training_data)
+            random_shuffling_generator.shuffle(training_data)
             batches = list(self.generate_batches(
-                dataset.training_data,
+                training_data,
                 self.max_tokens_per_batch
             ))
             random_shuffling_generator.shuffle(batches)
@@ -243,7 +246,7 @@ class TrainingLoop(Generic[Example]):
                         progress_loss.update(loss_numerator, loss_denominator)
                 except OutOfCUDAMemoryError as e:
                     self.handle_out_of_cuda_memory(
-                        dataset,
+                        vocabulary,
                         batch,
                         e.info,
                         device,
@@ -349,7 +352,7 @@ class TrainingLoop(Generic[Example]):
         ))
 
     def handle_out_of_cuda_memory(self,
-        dataset: Dataset[Example],
+        vocabulary: VocabularyContainer,
         batch: Batch,
         info: dict[str, Any],
         device: torch.device,
@@ -360,7 +363,7 @@ class TrainingLoop(Generic[Example]):
         console_logger.info(torch.cuda.memory_summary(device))
         peak_memory = get_peak_memory(device)
         console_logger.info(f'  peak CUDA memory: {humanfriendly.format_size(peak_memory)}')
-        logged_info = self.log_failed_batch(dataset, batch, info, console_logger, event_logger)
+        logged_info = self.log_failed_batch(vocabulary, batch, info, console_logger, event_logger)
         event_logger.log('out_of_cuda_memory', dict(
             peak_memory=peak_memory,
             **logged_info
@@ -440,7 +443,7 @@ def evaluate(
     model_interface: ModelInterface,
     batches: list[Batch],
     evaluate_batch: Callable[
-        [torch.nn.Module, ModelInterface, Any],
+        [torch.nn.Module, ModelInterface, PreparedBatch],
         dict[str, tuple[float, float]]
     ]
 ) -> float:

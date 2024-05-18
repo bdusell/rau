@@ -13,11 +13,7 @@ class VocabularyContainer:
     source_vocab: ToStringVocabulary
     target_input_vocab: ToStringVocabulary
     target_output_vocab: ToStringVocabulary
-
-@dataclasses.dataclass
-class Data(VocabularyContainer):
-    training_data: list
-    validation_data: list
+    is_shared: bool
 
 def add_data_arguments(parser, validation=True):
     group = parser.add_argument_group('Dataset options')
@@ -155,13 +151,15 @@ def load_prepared_data(args, parser, vocabulary_data, model_interface, builder=N
         vocabulary_data,
         builder
     )
-    return Data(
-        training_data=training_data,
-        validation_data=validation_data,
-        source_vocab=source_vocab,
-        target_input_vocab=target_input_vocab,
-        target_output_vocab=target_output_vocab,
-        vocab_is_shared=True
+    return (
+        training_data,
+        validation_data,
+        VocabularyContainer(
+            source_vocab=source_vocab,
+            target_input_vocab=target_input_vocab,
+            target_output_vocab=target_output_vocab,
+            is_shared=True
+        )
     )
 
 def load_prepared_data_files(source_path, target_path):
@@ -183,5 +181,6 @@ def load_vocabularies(args, parser, model_interface, builder=None):
     return VocabularyContainer(
         source_vocab,
         target_input_vocab,
-        target_output_vocab
+        target_output_vocab,
+        is_shared=True
     )

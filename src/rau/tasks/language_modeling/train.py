@@ -70,7 +70,8 @@ def main():
         model_size_in_bytes = None
 
     # Load the data.
-    data = load_prepared_data(args, parser, vocabulary_data, model_interface)
+    training_data, validation_data, vocabulary = \
+        load_prepared_data(args, parser, vocabulary_data, model_interface)
 
     # Start logging events to disk.
     with saver.logger() as event_logger:
@@ -83,7 +84,9 @@ def main():
         training_loop.run(
             saver,
             model_interface,
-            data,
+            training_data,
+            validation_data,
+            vocabulary,
             console_logger,
             event_logger
         )

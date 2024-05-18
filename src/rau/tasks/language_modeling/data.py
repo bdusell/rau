@@ -1,6 +1,8 @@
 import dataclasses
 import pathlib
 
+import torch
+
 from rau.vocab import ToStringVocabulary
 from rau.tasks.common.data import load_prepared_data_file
 from .vocabulary import load_vocabulary_data_from_file, VocabularyData
@@ -9,11 +11,6 @@ from .vocabulary import load_vocabulary_data_from_file, VocabularyData
 class VocabularyContainer:
     input_vocab: ToStringVocabulary
     output_vocab: ToStringVocabulary
-
-@dataclasses.dataclass
-class Data(VocabularyContainer):
-    training_data: list
-    validation_data: list
 
 def add_data_arguments(parser, validation=True):
     group = parser.add_argument_group('Dataset options')
@@ -79,11 +76,10 @@ def load_prepared_data(args, parser, vocabulary_data, model_interface, builder=N
         vocabulary_data,
         builder
     )
-    return Data(
-        training_data=training_data,
-        validation_data=validation_data,
-        input_vocab=input_vocab,
-        output_vocab=output_vocab
+    return (
+        training_data,
+        validation_data,
+        VocabularyContainer(input_vocab, output_vocab)
     )
 
 def load_vocabularies(args, parser, model_interface, builder=None):
