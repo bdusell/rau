@@ -47,9 +47,9 @@ def main():
         memory_before = get_current_memory(device)
     saver = model_interface.construct_saver(
         args,
-        source_vocab_size=len(data.source_vocab),
-        target_input_vocab_size=len(data.target_input_vocab),
-        target_output_vocab_size=len(data.target_output_vocab),
+        source_vocabulary_size=len(data.source_vocab),
+        target_input_vocabulary_size=len(data.target_input_vocab),
+        target_output_vocabulary_size=len(data.target_output_vocab),
         tie_embeddings=data.vocab_is_shared
     )
     if model_interface.parameter_seed is not None:

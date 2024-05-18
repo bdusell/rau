@@ -126,7 +126,6 @@ class TrainingLoop(Generic[Example]):
     def get_loss(self,
         model: torch.nn.Module,
         model_interface: ModelInterface,
-        dataset: Dataset[Example],
         prepared_batch: Any
     ) -> tuple[torch.Tensor, int, dict[str, Any]]:
         raise NotImplementedError
@@ -134,7 +133,6 @@ class TrainingLoop(Generic[Example]):
     def evaluate_batch(self,
         model: torch.nn.Module,
         model_interface: ModelInterface,
-        dataset: Dataset[Example],
         prepared_batch: Any
     ) -> dict[str, tuple[float, float]]:
         raise NotImplementedError
@@ -386,7 +384,6 @@ class TrainingLoop(Generic[Example]):
             loss_numerators, loss_denominator = self.get_loss(
                 saver.model,
                 model_interface,
-                dataset,
                 prepared_batch
             )
             loss = torch.mean(loss_numerators)
@@ -449,7 +446,7 @@ def evaluate(
     dataset: Dataset[Example],
     batches: list[Batch],
     evaluate_batch: Callable[
-        [torch.nn.Module, ModelInterface, Dataset[Example], Any],
+        [torch.nn.Module, ModelInterface, Any],
         dict[str, tuple[float, float]]
     ]
 ) -> float:
@@ -462,7 +459,6 @@ def evaluate(
             batch_loss_dict = evaluate_batch(
                 model,
                 model_interface,
-                dataset,
                 prepared_batch
             )
             for k, (numerator, denominator) in batch_loss_dict.items():

@@ -155,6 +155,8 @@ class LanguageModelingModelInterface(ModelInterface):
     def on_saver_constructed(self, args, saver):
         architecture = saver.kwargs['architecture']
         self.uses_bos = architecture == 'transformer'
+        # See note about padding index in prepare_batch().
+        self.output_padding_index = saver.kwargs['output_vocabulary_size']
 
     def adjust_length(self, length):
         # Add 1 for BOS.
@@ -177,13 +179,13 @@ class LanguageModelingModelInterface(ModelInterface):
         # receive gradient, because it will only appear in positions where the
         # output is padding, so it is the same as if padding were given as
         # input.
-        output_padding_index = self.get_output_padding_index(dataset)
+        output_padding_index = self.output_padding_index
         whole_tensor = pad_sequences(
             batch,
             device,
             bos=dataset.input_vocab.bos_index if self.uses_bos else None,
             eos=dataset.output_vocab.eos_index,
-            pad=output_padding_index
+            pad=self.output_padding_index
         )
         input_tensor = whole_tensor[:, :-1]
         output_tensor = whole_tensor[:, 1:]
@@ -196,9 +198,6 @@ class LanguageModelingModelInterface(ModelInterface):
             input_tensor = input_tensor.clone()
             input_tensor[input_tensor == output_padding_index] = 0
         return input_tensor, output_tensor
-
-    def get_output_padding_index(self, dataset):
-        return len(dataset.output_vocab)
 
     def on_before_process_pairs(self, saver, datasets):
         if saver.kwargs['architecture'] == 'transformer':

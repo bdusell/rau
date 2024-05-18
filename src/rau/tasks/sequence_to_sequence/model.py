@@ -34,9 +34,9 @@ class SequenceToSequenceModelInterface(ModelInterface):
 
     def get_kwargs(self,
         args,
-        source_vocab_size,
-        target_input_vocab_size,
-        target_output_vocab_size,
+        source_vocabulary_size,
+        target_input_vocabulary_size,
+        target_output_vocabulary_size,
         tie_embeddings
     ):
         return dict(
@@ -46,9 +46,9 @@ class SequenceToSequenceModelInterface(ModelInterface):
             num_heads=args.num_heads,
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
-            source_vocab_size=source_vocab_size,
-            target_input_vocab_size=target_input_vocab_size,
-            target_output_vocab_size=target_output_vocab_size,
+            source_vocabulary_size=source_vocabulary_size,
+            target_input_vocabulary_size=target_input_vocabulary_size,
+            target_output_vocabulary_size=target_output_vocabulary_size,
             tie_embeddings=tie_embeddings
         )
 
@@ -59,9 +59,9 @@ class SequenceToSequenceModelInterface(ModelInterface):
         num_heads,
         feedforward_size,
         dropout,
-        source_vocab_size,
-        target_input_vocab_size,
-        target_output_vocab_size,
+        source_vocabulary_size,
+        target_input_vocabulary_size,
+        target_output_vocabulary_size,
         tie_embeddings
     ):
         if num_encoder_layers is None:
@@ -77,9 +77,9 @@ class SequenceToSequenceModelInterface(ModelInterface):
         if dropout is None:
             raise ValueError
         return get_transformer_encoder_decoder(
-            source_vocabulary_size=source_vocab_size,
-            target_input_vocabulary_size=target_input_vocab_size,
-            target_output_vocabulary_size=target_output_vocab_size,
+            source_vocabulary_size=source_vocabulary_size,
+            target_input_vocabulary_size=target_input_vocabulary_size,
+            target_output_vocabulary_size=target_output_vocabulary_size,
             tie_embeddings=tie_embeddings,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
@@ -96,6 +96,10 @@ class SequenceToSequenceModelInterface(ModelInterface):
             raise ValueError
         smart_init(model, generator, fallback=uniform_fallback(args.init_scale))
 
+    def on_saver_constructed(self, args, saver):
+        # See note about padding index in prepare_batch().
+        self.output_padding_index = saver.kwargs['target_output_vocabulary_size']
+
     def adjust_source_length(self, source_length):
         # Add 1 for EOS.
         return source_length + 1
@@ -108,12 +112,13 @@ class SequenceToSequenceModelInterface(ModelInterface):
         model_source = self.prepare_source([s for s, t in batch], device, dataset)
         # See commments in rau/tasks/language_modeling/model.py for
         # prepare_batch().
+        output_padding_index = self.output_padding_index
         whole_tensor = pad_sequences(
             [t for s, t in batch],
             device,
             bos=dataset.target_input_vocab.bos_index,
             eos=dataset.target_output_vocab.eos_index,
-            pad=self.get_output_padding_index(dataset)
+            pad=output_padding_index
         )
         target_input_tensor = whole_tensor[:, :-1]
         target_output_tensor = whole_tensor[:, 1:]
@@ -141,9 +146,6 @@ class SequenceToSequenceModelInterface(ModelInterface):
             source=source,
             source_is_padding_mask=mask
         )
-
-    def get_output_padding_index(self, dataset):
-        return len(dataset.target_output_vocab)
 
     def on_before_process_pairs(self, saver, datasets):
         max_length = max(
