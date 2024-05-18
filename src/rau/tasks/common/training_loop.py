@@ -118,7 +118,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     def log_failed_batch(self,
         vocabulary: VocabularyContainer,
         batch: Batch,
-        info: dict[str, Any],
+        info: Optional[dict[str, Any]],
         console_logger: logging.Logger,
         event_logger: Logger
     ) -> dict[str, Any]:

@@ -45,21 +45,22 @@ class LanguageModelingTrainingLoop(TrainingLoop[
             output_size=tuple(correct_target.size())
         )
 
-    def log_failed_batch(self, dataset, batch, info, console_logger, event_logger):
-        console_logger.info(f'  input size: {info.get("input_size")}')
-        console_logger.info(f'  output size: {info.get("output_size")}')
+    def log_failed_batch(self, vocabulary, batch, info, console_logger, event_logger):
+        if info is not None:
+            console_logger.info(f'  input size: {info.get("input_size")}')
+            console_logger.info(f'  output size: {info.get("output_size")}')
         tokens = sum(map(len, batch))
         console_logger.info(f'  tokens: {tokens}')
         lengths = list(map(len, batch))
         console_logger.info(f'  sequence lengths: {lengths}')
         token_strs = [
-            [dataset.input_vocab.to_string(w) for w in x]
+            [vocabulary.input_vocab.to_string(w) for w in x]
             for x in batch
         ]
         sequences_str = '\n'.join(' '.join(x) for x in token_strs)
         console_logger.info(f'  sequences:\n{sequences_str}')
         return dict(
-            **info,
+            **(info or {}),
             examples=token_strs
         )
 

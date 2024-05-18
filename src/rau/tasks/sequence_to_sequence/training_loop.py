@@ -53,10 +53,11 @@ class SequenceToSequenceTrainingLoop(TrainingLoop[
             target_output_size=tuple(correct_target.size())
         )
 
-    def log_failed_batch(self, dataset, batch, info, console_logger, event_logger):
-        console_logger.info(f'  source input size: {info.get("source_input_size")}')
-        console_logger.info(f'  target input size: {info.get("target_input_size")}')
-        console_logger.info(f'  target output size: {info.get("target_output_size")}')
+    def log_failed_batch(self, vocabulary, batch, info, console_logger, event_logger):
+        if info is not None:
+            console_logger.info(f'  source input size: {info.get("source_input_size")}')
+            console_logger.info(f'  target input size: {info.get("target_input_size")}')
+            console_logger.info(f'  target output size: {info.get("target_output_size")}')
         source_tokens = sum(len(s) for s, t in batch)
         console_logger.info(f'  source tokens: {source_tokens}')
         target_tokens = sum(len(t) for s, t in batch)
@@ -65,15 +66,15 @@ class SequenceToSequenceTrainingLoop(TrainingLoop[
         console_logger.info(f'  sequence lengths: {lengths}')
         token_strs = [
             (
-                [dataset.source_vocab.to_string(w) for w in s],
-                [dataset.target_output_vocab.to_string(w) for w in t]
+                [vocabulary.source_vocab.to_string(w) for w in s],
+                [vocabulary.target_output_vocab.to_string(w) for w in t]
             )
             for s, t in batch
         ]
         sequences_str = '\n'.join(f'{" ".join(s)}\t{" ".join(t)}' for s, t in token_strs)
         console_logger.info(f'  sequences:\n{sequences_str}')
         return dict(
-            **info,
+            **(info or {}),
             examples=token_strs
         )
 
