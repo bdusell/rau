@@ -31,7 +31,7 @@ class LanguageModelingTrainingLoop(TrainingLoop[Example]):
         return 'min'
 
     def generate_batches(self, examples, max_tokens):
-        return group_into_batches(examples, lambda b, n: b * n <= max_tokens)
+        return generate_batches(examples, max_tokens)
 
     def get_prepared_batch_info(self, prepared_batch):
         model_input, correct_target = prepared_batch
@@ -59,7 +59,7 @@ class LanguageModelingTrainingLoop(TrainingLoop[Example]):
         )
 
     def get_loss(self, model, model_interface, dataset, prepared_batch):
-        cross_entropy, num_symbols = self.get_cross_entropy(
+        cross_entropy, num_symbols = get_cross_entropy(
             model,
             model_interface,
             dataset,
@@ -71,36 +71,42 @@ class LanguageModelingTrainingLoop(TrainingLoop[Example]):
         return loss_numerators, num_symbols
 
     def evaluate_batch(self, model, model_interface, dataset, prepared_batch):
-        cross_entropy, num_symbols = self.get_cross_entropy(
-            model,
-            model_interface,
-            dataset,
-            prepared_batch,
-            reduction='sum',
-            label_smoothing_factor=0.0
-        )
-        return {
-            'cross_entropy_per_token' : (cross_entropy.item(), num_symbols)
-        }
+        return evaluate_batch(model, model_interface, dataset, prepared_batch)
 
-    def get_cross_entropy(self,
-        model: torch.nn.Module,
-        model_interface: ModelInterface,
-        dataset: Dataset[Example],
-        prepared_batch: list[Example],
-        reduction: str,
-        label_smoothing_factor: float
-    ) -> tuple[torch.Tensor, int, dict[str, Any]]:
-        model_input, correct_target = prepared_batch
-        # TODO Cache this lookup.
-        pad_index = model_interface.get_output_padding_index(dataset)
-        logits = model_interface.get_logits(model, model_input)
-        cross_entropy = torch.nn.functional.cross_entropy(
-            logits.permute(0, 2, 1),
-            correct_target,
-            ignore_index=pad_index,
-            reduction=reduction,
-            label_smoothing=label_smoothing_factor
-        )
-        num_symbols = torch.sum(correct_target != pad_index).item()
-        return cross_entropy, num_symbols
+def generate_batches(examples, max_tokens):
+    return group_into_batches(examples, lambda b, n: b * n <= max_tokens)
+
+def evaluate_batch(model, model_interface, dataset, prepared_batch):
+    cross_entropy, num_symbols = get_cross_entropy(
+        model,
+        model_interface,
+        dataset,
+        prepared_batch,
+        reduction='sum',
+        label_smoothing_factor=0.0
+    )
+    return {
+        'cross_entropy_per_token' : (cross_entropy.item(), num_symbols)
+    }
+
+def get_cross_entropy(
+    model: torch.nn.Module,
+    model_interface: ModelInterface,
+    dataset: Dataset[Example],
+    prepared_batch: list[Example],
+    reduction: str,
+    label_smoothing_factor: float
+) -> tuple[torch.Tensor, int, dict[str, Any]]:
+    model_input, correct_target = prepared_batch
+    # TODO Cache this lookup.
+    pad_index = model_interface.get_output_padding_index(dataset)
+    logits = model_interface.get_logits(model, model_input)
+    cross_entropy = torch.nn.functional.cross_entropy(
+        logits.permute(0, 2, 1),
+        correct_target,
+        ignore_index=pad_index,
+        reduction=reduction,
+        label_smoothing=label_smoothing_factor
+    )
+    num_symbols = torch.sum(correct_target != pad_index).item()
+    return cross_entropy, num_symbols

@@ -5,9 +5,10 @@ import pathlib
 import sys
 
 from rau.tasks.common.data import load_prepared_data_file
+from rau.tasks.common.training_loop import evaluate
 from rau.tasks.language_modeling.data import load_vocabularies
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
-from rau.tasks.language_modeling.training_loop import LanguageModelingTrainingLoop
+from rau.tasks.language_modeling.training_loop import generate_batches, evaluate_batch
 
 def main():
 
@@ -56,25 +57,8 @@ def main():
     # TODO The vocabulary is only used here to figure out the padding index,
     # which can be inferred from the size of the model alone.
     vocabs = load_vocabularies(args, parser, model_interface)
-    # Create a dummy training loop object so we can reuse the batching and
-    # evaluation methods.
-    # TODO Refactor this.
-    training_loop = LanguageModelingTrainingLoop(
-        show_progress=False,
-        max_epochs=0,
-        random_shuffling_seed=0,
-        max_tokens_per_batch=args.batching_max_tokens,
-        optimizer='SGD',
-        initial_learning_rate=1.0,
-        label_smoothing_factor=None,
-        gradient_clipping_threshold=None,
-        early_stopping_patience=1,
-        learning_rate_patience=1,
-        learning_rate_decay_factor=0.5,
-        examples_per_checkpoint=1
-    )
-    batches = training_loop.generate_batches(examples, args.batching_max_tokens)
-    result = training_loop.evaluate(saver.model, model_interface, vocabs, batches)
+    batches = generate_batches(examples, args.batching_max_tokens)
+    result = evaluate(saver.model, model_interface, vocabs, batches, evaluate_batch)
     result['perplexity'] = math.exp(result['cross_entropy_per_token'])
     json.dump(result, sys.stdout, indent=2)
     print(file=sys.stdout)
