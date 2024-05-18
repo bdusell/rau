@@ -158,9 +158,8 @@ class LanguageModelingModelInterface(ModelInterface):
 
     def on_saver_constructed(self, args, saver):
         # See comments in prepare_batch().
-        architecture = saver.kwargs['architecture']
-        self.uses_bos = architecture == 'transformer'
         self.bos_index = saver.kwargs['bos_index']
+        self.uses_bos = self.bos_index is not None
         self.eos_index = saver.kwargs['eos_index']
         self.output_padding_index = saver.kwargs['output_vocabulary_size']
 
@@ -191,7 +190,7 @@ class LanguageModelingModelInterface(ModelInterface):
             device,
             bos=self.bos_index,
             eos=self.eos_index,
-            pad=self.output_padding_index
+            pad=output_padding_index
         )
         input_tensor = whole_tensor[:, :-1]
         output_tensor = whole_tensor[:, 1:]
