@@ -3,14 +3,16 @@ import pathlib
 
 from rau.vocab import ToStringVocabulary, ToStringVocabularyBuilder
 from rau.tasks.common.data import load_prepared_data_file
-from .vocabulary import load_shared_vocabularies
+from .vocabulary import (
+    load_shared_vocabulary_data_from_file,
+    SharedVocabularyData
+)
 
 @dataclasses.dataclass
 class VocabularyContainer:
     source_vocab: ToStringVocabulary
     target_input_vocab: ToStringVocabulary
     target_output_vocab: ToStringVocabulary
-    vocab_is_shared: bool
 
 @dataclasses.dataclass
 class Data(VocabularyContainer):
@@ -125,7 +127,19 @@ def get_vocabulary_file_paths(args, parser):
             '--shared-vocabulary-file, or --source-vocabulary-file and '
             '--target-vocabulary-file is required')
 
-def load_prepared_data(args, parser):
+    paths = get_vocabulary_file_paths(args, parser)
+    return load_vocabulary_data_from_file(get_vocabulary_file_paths(args, parser))
+
+def load_vocabulary_data(args, parser) -> SharedVocabularyData:
+    file_paths = get_vocabulary_file_paths(args, parser)
+    if len(file_paths) == 1:
+        file_path, = file_paths
+        return load_shared_vocabulary_data_from_file(file_path)
+    else:
+        raise NotImplementedError(
+            'using separate source and target vocabularies is not yet implemented')
+
+def load_prepared_data(args, parser, vocabulary_data, model_interface, builder=None):
     training_data = load_prepared_data_files(
         get_training_data_source_file_path(args, parser),
         get_training_data_target_file_path(args, parser)
@@ -137,30 +151,18 @@ def load_prepared_data(args, parser):
         )
     else:
         validation_data = None
-    vocabs = load_vocabularies(args, parser)
+    source_vocab, target_input_vocab, target_output_vocab = model_interface.get_vocabularies(
+        vocabulary_data,
+        builder
+    )
     return Data(
         training_data=training_data,
         validation_data=validation_data,
-        source_vocab=vocabs.source_vocab,
-        target_input_vocab=vocabs.target_input_vocab,
-        target_output_vocab=vocabs.target_output_vocab,
-        vocab_is_shared=vocabs.vocab_is_shared
+        source_vocab=source_vocab,
+        target_input_vocab=target_input_vocab,
+        target_output_vocab=target_output_vocab,
+        vocab_is_shared=True
     )
-
-def load_vocabularies(args, parser):
-    file_paths = get_vocabulary_file_paths(args, parser)
-    if len(file_paths) == 1:
-        file_path, = file_paths
-        shared_vocabs = load_shared_vocabularies(file_path, ToStringVocabularyBuilder())
-        return VocabularyContainer(
-            source_vocab=shared_vocabs.embedding_vocab,
-            target_input_vocab=shared_vocabs.embedding_vocab,
-            target_output_vocab=shared_vocabs.softmax_vocab,
-            vocab_is_shared=True
-        )
-    else:
-        raise NotImplementedError(
-            'using separate source and target vocabularies is not yet implemented')
 
 def load_prepared_data_files(source_path, target_path):
     return list(zip(
@@ -168,3 +170,18 @@ def load_prepared_data_files(source_path, target_path):
         load_prepared_data_file(target_path),
         strict=True
     ))
+
+def load_vocabularies(args, parser, model_interface, builder=None):
+    (
+        source_vocab,
+        target_input_vocab,
+        target_output_vocab
+    ) = model_interface.get_vocabularies(
+        load_vocabulary_data(args, parser),
+        builder
+    )
+    return VocabularyContainer(
+        source_vocab,
+        target_input_vocab,
+        target_output_vocab
+    )

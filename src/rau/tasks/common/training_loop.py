@@ -235,7 +235,6 @@ class TrainingLoop(Generic[Example]):
                     loss_numerator, loss_denominator = self.run_parameter_update(
                         saver,
                         model_interface,
-                        dataset,
                         optimizer,
                         batch
                     )
@@ -274,7 +273,6 @@ class TrainingLoop(Generic[Example]):
                     validation_scores = self.evaluate(
                         saver.model,
                         model_interface,
-                        dataset,
                         validation_batches
                     )
                     validation_score = validation_scores[validation_metric]
@@ -371,7 +369,6 @@ class TrainingLoop(Generic[Example]):
     def run_parameter_update(self,
         saver: ModelSaver,
         model_interface: ModelInterface,
-        dataset: Dataset[Example],
         optimizer: torch.optim.SGD | torch.optim.Adam,
         batch: Batch
     ) -> tuple[float, int]:
@@ -380,7 +377,7 @@ class TrainingLoop(Generic[Example]):
         prepared_batch = None
         try:
             device = model_interface.get_device(None)
-            prepared_batch = model_interface.prepare_batch(batch, device, dataset)
+            prepared_batch = model_interface.prepare_batch(batch, device)
             loss_numerators, loss_denominator = self.get_loss(
                 saver.model,
                 model_interface,
@@ -408,13 +405,11 @@ class TrainingLoop(Generic[Example]):
     def evaluate(self,
         model: torch.nn.Module,
         model_interface: ModelInterface,
-        dataset: Dataset[Example],
         batches: list[Batch]
     ) -> dict[str, float]:
         return evaluate(
             model,
             model_interface,
-            dataset,
             batches,
             self.evaluate_batch
         )
@@ -443,7 +438,6 @@ class LossAccumulator:
 def evaluate(
     model: torch.nn.Module,
     model_interface: ModelInterface,
-    dataset: Dataset[Example],
     batches: list[Batch],
     evaluate_batch: Callable[
         [torch.nn.Module, ModelInterface, Any],
@@ -455,7 +449,7 @@ def evaluate(
         loss_dict = collections.defaultdict(LossAccumulator)
         for batch in batches:
             device = model_interface.get_device(None)
-            prepared_batch = model_interface.prepare_batch(batch, device, dataset)
+            prepared_batch = model_interface.prepare_batch(batch, device)
             batch_loss_dict = evaluate_batch(
                 model,
                 model_interface,

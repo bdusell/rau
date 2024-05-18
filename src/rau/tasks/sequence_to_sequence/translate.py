@@ -54,7 +54,7 @@ def main():
 
     device = model_interface.get_device(args)
     sources = load_prepared_data_file(args.input)
-    vocabs = load_vocabularies(args, parser)
+    vocabs = load_vocabularies(args, parser, model_interface)
     saver = model_interface.construct_saver(args)
     model_interface.on_before_decode(saver, [sources], args.max_target_length)
     batches = list(group_sources_into_batches(
@@ -65,13 +65,11 @@ def main():
     if show_progress:
         ticker = TimedTicker(len(batches), 1)
     for batch_no, batch in enumerate(batches):
-        source = model_interface.prepare_source([s for i, s in batch], device, vocabs)
+        source = model_interface.prepare_source([s for i, s in batch], device)
         output = model_interface.decode(
             model=saver.model,
             model_source=source,
-            bos_symbol=vocabs.target_input_vocab.bos_index,
             beam_size=args.beam_size,
-            eos_symbol=vocabs.target_output_vocab.eos_index,
             max_length=args.max_target_length
         )
         for (i, s), output_sequence in zip(batch, output, strict=True):

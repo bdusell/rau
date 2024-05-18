@@ -11,9 +11,6 @@ class VocabularyData:
     tokens: list[str]
     allow_unk: bool
 
-    def size(self):
-        return len(self.tokens) + int(self.allow_unk)
-
 def load_vocabulary_data_from_file(path: pathlib.Path) -> VocabularyData:
     data = torch.load(path)
     return VocabularyData(data['tokens'], data['allow_unk'])

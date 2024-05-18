@@ -9,6 +9,8 @@ from rau.models.transformer.positional_encodings import SinusoidalPositionalEnco
 from rau.generation.beam_search import beam_search
 from rau.tasks.common.model import pad_sequences
 
+from .vocabulary import get_vocabularies
+
 class SequenceToSequenceModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
@@ -32,13 +34,12 @@ class SequenceToSequenceModelInterface(ModelInterface):
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
 
-    def get_kwargs(self,
-        args,
-        source_vocabulary_size,
-        target_input_vocabulary_size,
-        target_output_vocabulary_size,
-        tie_embeddings
-    ):
+    def get_kwargs(self, args, vocabulary_data):
+        (
+            source_vocab,
+            target_input_vocab,
+            target_output_vocab
+        ) = get_vocabularies(vocabulary_data)
         return dict(
             num_encoder_layers=args.num_encoder_layers,
             num_decoder_layers=args.num_decoder_layers,
@@ -46,10 +47,13 @@ class SequenceToSequenceModelInterface(ModelInterface):
             num_heads=args.num_heads,
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
-            source_vocabulary_size=source_vocabulary_size,
-            target_input_vocabulary_size=target_input_vocabulary_size,
-            target_output_vocabulary_size=target_output_vocabulary_size,
-            tie_embeddings=tie_embeddings
+            source_vocabulary_size=len(source_vocab),
+            target_input_vocabulary_size=len(target_input_vocab),
+            target_output_vocabulary_size=len(target_output_vocab),
+            tie_embeddings=True,
+            source_eos_index=source_vocab.eos_index,
+            target_input_bos_index=target_input_vocab.bos_index,
+            target_output_eos_index=target_output_vocab.eos_index
         )
 
     def construct_model(self,
@@ -62,7 +66,10 @@ class SequenceToSequenceModelInterface(ModelInterface):
         source_vocabulary_size,
         target_input_vocabulary_size,
         target_output_vocabulary_size,
-        tie_embeddings
+        tie_embeddings,
+        source_eos_index,
+        target_input_bos_index,
+        target_output_eos_index
     ):
         if num_encoder_layers is None:
             raise ValueError
@@ -98,6 +105,9 @@ class SequenceToSequenceModelInterface(ModelInterface):
 
     def on_saver_constructed(self, args, saver):
         # See note about padding index in prepare_batch().
+        self.source_eos_index = saver.kwargs['source_eos_index']
+        self.target_input_bos_index = saver.kwargs['target_input_bos_index']
+        self.target_output_eos_index = saver.kwargs['target_output_eos_index']
         self.output_padding_index = saver.kwargs['target_output_vocabulary_size']
 
     def adjust_source_length(self, source_length):
@@ -108,16 +118,19 @@ class SequenceToSequenceModelInterface(ModelInterface):
         # Add 1 for BOS.
         return target_length + 1
 
-    def prepare_batch(self, batch, device, dataset):
-        model_source = self.prepare_source([s for s, t in batch], device, dataset)
+    def get_vocabularies(self, vocabulary_data, builder=None):
+        return get_vocabularies(vocabulary_data, builder)
+
+    def prepare_batch(self, batch, device):
+        model_source = self.prepare_source([s for s, t in batch], device)
         # See commments in rau/tasks/language_modeling/model.py for
         # prepare_batch().
         output_padding_index = self.output_padding_index
         whole_tensor = pad_sequences(
             [t for s, t in batch],
             device,
-            bos=dataset.target_input_vocab.bos_index,
-            eos=dataset.target_output_vocab.eos_index,
+            bos=self.target_input_bos_index,
+            eos=self.target_output_eos_index,
             pad=output_padding_index
         )
         target_input_tensor = whole_tensor[:, :-1]
@@ -129,11 +142,11 @@ class SequenceToSequenceModelInterface(ModelInterface):
         )
         return model_input, target_output_tensor
 
-    def prepare_source(self, sources, device, dataset):
+    def prepare_source(self, sources, device):
         source = pad_sequences(
             sources,
             device,
-            eos=dataset.source_vocab.eos_index,
+            eos=self.source_eos_index,
             pad=-1
         )
         # Using a reserved -1 padding index lets us compute the mask on GPU.
@@ -189,7 +202,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
             source_is_padding_mask=model_input.source_is_padding_mask
         )
 
-    def decode(self, model, model_source, bos_symbol, beam_size, eos_symbol, max_length):
+    def decode(self, model, model_source, beam_size, max_length):
         model.eval()
         with torch.inference_mode():
             decoder_state = model.initial_decoder_state(
@@ -200,11 +213,17 @@ class SequenceToSequenceModelInterface(ModelInterface):
             # Feed BOS into the model at the first timestep.
             decoder_state = decoder_state.next(torch.full(
                 (decoder_state.batch_size(),),
-                bos_symbol,
+                self.target_input_bos_index,
                 dtype=torch.long,
                 device=device
             ))
-            return beam_search(decoder_state, beam_size, eos_symbol, max_length, device)
+            return beam_search(
+                decoder_state,
+                beam_size,
+                self.target_output_eos_index,
+                max_length,
+                device
+            )
 
 @dataclasses.dataclass
 class ModelSource:

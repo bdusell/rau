@@ -6,7 +6,6 @@ import sys
 
 from rau.tasks.common.data import load_prepared_data_file
 from rau.tasks.common.training_loop import evaluate
-from rau.tasks.language_modeling.data import load_vocabularies
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.training_loop import generate_batches, evaluate_batch
 
@@ -54,11 +53,8 @@ def main():
 
     examples = load_prepared_data_file(input_file)
     saver = model_interface.construct_saver(args)
-    # TODO The vocabulary is only used here to figure out the padding index,
-    # which can be inferred from the size of the model alone.
-    vocabs = load_vocabularies(args, parser, model_interface)
     batches = generate_batches(examples, args.batching_max_tokens)
-    result = evaluate(saver.model, model_interface, vocabs, batches, evaluate_batch)
+    result = evaluate(saver.model, model_interface, batches, evaluate_batch)
     result['perplexity'] = math.exp(result['cross_entropy_per_token'])
     json.dump(result, sys.stdout, indent=2)
     print(file=sys.stdout)

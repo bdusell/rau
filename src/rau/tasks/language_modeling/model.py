@@ -56,7 +56,9 @@ class LanguageModelingModelInterface(ModelInterface):
             dropout=args.dropout,
             hidden_units=args.hidden_units,
             input_vocabulary_size=len(input_vocab),
-            output_vocabulary_size=len(output_vocab)
+            output_vocabulary_size=len(output_vocab),
+            bos_index=input_vocab.bos_index if uses_bos else None,
+            eos_index=output_vocab.eos_index
         )
 
     def construct_model(self,
@@ -68,7 +70,9 @@ class LanguageModelingModelInterface(ModelInterface):
         dropout,
         hidden_units,
         input_vocabulary_size,
-        output_vocabulary_size
+        output_vocabulary_size,
+        bos_index,
+        eos_index
     ):
         if architecture is None:
             raise ValueError
@@ -153,9 +157,11 @@ class LanguageModelingModelInterface(ModelInterface):
         smart_init(model, generator, fallback=uniform_fallback(args.init_scale))
 
     def on_saver_constructed(self, args, saver):
+        # See comments in prepare_batch().
         architecture = saver.kwargs['architecture']
         self.uses_bos = architecture == 'transformer'
-        # See note about padding index in prepare_batch().
+        self.bos_index = saver.kwargs['bos_index']
+        self.eos_index = saver.kwargs['eos_index']
         self.output_padding_index = saver.kwargs['output_vocabulary_size']
 
     def adjust_length(self, length):
@@ -165,7 +171,7 @@ class LanguageModelingModelInterface(ModelInterface):
     def get_vocabularies(self, vocabulary_data, builder=None):
         return get_vocabularies(vocabulary_data, self.uses_bos, builder)
 
-    def prepare_batch(self, batch, device, dataset):
+    def prepare_batch(self, batch, device):
         # For transformers, use the same index for padding symbols in both the
         # input and output tensor. The padding index needs to be (1) a value
         # unique from all other indexes used in the output, and (2) a valid
@@ -183,8 +189,8 @@ class LanguageModelingModelInterface(ModelInterface):
         whole_tensor = pad_sequences(
             batch,
             device,
-            bos=dataset.input_vocab.bos_index if self.uses_bos else None,
-            eos=dataset.output_vocab.eos_index,
+            bos=self.bos_index,
+            eos=self.eos_index,
             pad=self.output_padding_index
         )
         input_tensor = whole_tensor[:, :-1]
