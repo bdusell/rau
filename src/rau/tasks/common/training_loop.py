@@ -2,6 +2,7 @@ import argparse
 import collections
 import dataclasses
 import datetime
+import functools
 import logging
 import random
 from collections.abc import Callable, Iterable
@@ -99,15 +100,21 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     examples_per_checkpoint: int
 
     def get_validation_metric_name(self) -> str:
+        """Return the name of the validation set metric used for early stopping
+        and learning rate scheduling."""
         raise NotImplementedError
 
     def get_validation_metric_mode(self) -> Literal['min', 'max']:
+        """Return whether the validation metric is supposed to go up (max) or
+        down (min)."""
         raise NotImplementedError
 
     def generate_batches(self,
         examples: Iterable[Example],
         max_tokens: int
     ) -> Iterable[Batch]:
+        """Given the full list of examples in a dataset and a maximum size,
+        group those examples into minibatches."""
         raise NotImplementedError
 
     def get_prepared_batch_info(self,
@@ -128,7 +135,12 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         model: torch.nn.Module,
         model_interface: ModelInterface,
         prepared_batch: PreparedBatch
-    ) -> tuple[torch.Tensor, float]:
+    ) -> (
+        tuple[torch.Tensor, float] |
+        dict[str, tuple[torch.Tensor, float] | tuple[torch.Tensor, float, float]]
+    ):
+        """Return a differentiable tensor representing the loss function to be
+        optimized."""
         raise NotImplementedError
 
     def evaluate_batch(self,
@@ -224,9 +236,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 self.max_tokens_per_batch
             ))
             random_shuffling_generator.shuffle(batches)
-            epoch_loss = LossAccumulator()
+            epoch_loss = DictScoreAccumulator()
             if self.show_progress:
-                progress_loss = LossAccumulator()
+                progress_loss = DictScoreAccumulator()
                 progress_num_examples = 0
                 progress_start_time = datetime.datetime.now()
                 ticker = TimedTicker(len(batches), 1)
@@ -235,15 +247,16 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             should_stop = False
             for batch_no, batch in enumerate(batches):
                 try:
-                    loss_numerator, loss_denominator = self.run_parameter_update(
+                    loss_numerator, loss_denominator, loss_terms = self.run_parameter_update(
                         saver,
                         model_interface,
                         optimizer,
                         batch
                     )
-                    epoch_loss.update(loss_numerator, loss_denominator)
+                    loss_terms['loss'] = (loss_numerator, loss_denominator)
+                    epoch_loss.update(loss_terms)
                     if self.show_progress:
-                        progress_loss.update(loss_numerator, loss_denominator)
+                        progress_loss.update(loss_terms)
                 except OutOfCUDAMemoryError as e:
                     self.handle_out_of_cuda_memory(
                         vocabulary,
@@ -259,15 +272,19 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     progress_num_examples += batch_size
                     ticker.progress = batch_no + 1
                     if ticker.tick():
-                        progress_loss_value = progress_loss.get_value()
+                        progress_loss_dict = progress_loss.get_value()
                         progress_duration = datetime.datetime.now() - progress_start_time
                         progress_examples_per_second = progress_num_examples / progress_duration.total_seconds()
-                        console_logger.info(
-                            f'  {ticker.int_percent}% '
-                            f'| loss: {progress_loss_value:.2f} '
-                            f'| examples/s: {progress_examples_per_second:.2f}'
-                        )
-                        progress_loss = LossAccumulator()
+                        progress_parts = [
+                            f'{ticker.int_percent}%',
+                            f'loss: {progress_loss_dict["loss"]:.2f}',
+                            f'examples/s: {progress_examples_per_second:.2f}'
+                        ]
+                        del progress_loss_dict['loss']
+                        for key, value in progress_loss_dict.items():
+                            progress_parts.append(f'{key}: {value:.2f}')
+                        console_logger.info(f'  {" | ".join(progress_parts)}')
+                        progress_loss = DictScoreAccumulator()
                         progress_start_time = datetime.datetime.now()
                         progress_num_examples = 0
                 examples_since_checkpoint += batch_size
@@ -278,8 +295,10 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         model_interface,
                         validation_batches
                     )
+                    console_logger.info(f'    validation scores:')
+                    for key, value in validation_scores.items():
+                        console_logger.info(f'      validation {key}: {value:.2f}')
                     validation_score = validation_scores[validation_metric]
-                    console_logger.info(f'    validation score ({validation_metric}): {validation_score:.2f}')
                     # Update the learning rate.
                     lr_scheduler.step(validation_score)
                     # Show the current learning rate.
@@ -310,9 +329,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         break
             if should_stop:
                 break
-            epoch_loss_value = epoch_loss.get_value()
+            epoch_loss_dict = epoch_loss.get_value()
             epoch_duration = datetime.datetime.now() - epoch_start_time
-            console_logger.info(f'  epoch loss: {epoch_loss_value:.2f}')
+            console_logger.info(f'  epoch loss: {epoch_loss_dict["loss"]:.2f}')
             console_logger.info(f'  epoch duration: {epoch_duration}')
             if do_profile_memory:
                 peak_memory = get_peak_memory(device)
@@ -320,7 +339,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             else:
                 peak_memory = None
             event_logger.log('epoch', dict(
-                loss=epoch_loss_value,
+                loss=epoch_loss_dict,
                 duration=epoch_duration.total_seconds(),
                 peak_memory=peak_memory,
                 num_training_batches=len(batches)
@@ -333,8 +352,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'the maximum number of epochs has been reached, but no '
                 'checkpoints have been made'
             )
-        best_validation_score = best_validation_scores[validation_metric]
-        console_logger.info(f'best validation cross entropy: {best_validation_score:.2f}')
+        console_logger.info(f'best validation scores:')
+        for key, value in best_validation_scores.items():
+            console_logger.info(f'  {key}: {value:.2f}')
         console_logger.info(f'completed epochs: {epoch_no}')
         console_logger.info(f'best epoch: #{best_epoch_no+1}')
         console_logger.info(f'completed checkpoints: {checkpoint_no}')
@@ -374,30 +394,74 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         model_interface: ModelInterface,
         optimizer: torch.optim.SGD | torch.optim.Adam,
         batch: Batch
-    ) -> tuple[float, int]:
+    ) -> tuple[
+        tuple[float, float],
+        dict[str, tuple[float, float]]
+    ]:
+        # Reset the parameters' gradients to 0.
         optimizer.zero_grad()
+        # Activate training mode (activate dropout, etc.).
         saver.model.train()
         prepared_batch = None
         try:
+            # Tensorize the minibatch.
             device = model_interface.get_device(None)
             prepared_batch = model_interface.prepare_batch(batch, device)
-            loss_numerators, loss_denominator = self.get_loss(
+            # Run the forward pass and get the loss (or multiple loss terms).
+            loss_result = self.get_loss(
                 saver.model,
                 model_interface,
                 prepared_batch
             )
-            loss = torch.mean(loss_numerators)
-            loss_numerator = torch.sum(loss_numerators.detach()).item()
-            del loss_numerators
+            extra_loss_terms = {}
+            if isinstance(loss_result, dict):
+                # There are multiple loss terms. Add them together, using
+                # coefficients if given.
+                loss_terms = []
+                loss_numerator = 0
+                loss_denominator = 0
+                for key, value in loss_result.items():
+                    try:
+                        loss_term_numerators, loss_term_denominator, coefficient = value
+                    except ValueError:
+                        loss_term_numerators, loss_term_denominator = value
+                        coefficient = None
+                    loss_term = torch.mean(loss_term_numerators)
+                    loss_term_numerator = torch.sum(loss_term_numerators.detach()).item()
+                    # Return the unweighted numerator/denominator for each loss
+                    # term.
+                    extra_loss_terms[key] = (loss_term_numerator, loss_term_denominator)
+                    # If this loss term has a coefficient, multiply it into the
+                    # loss term, its numerator, and its denominator.
+                    if coefficient is not None:
+                        loss_term = coefficient * loss_term
+                        loss_term_numerator *= coefficient
+                        loss_term_denominator *= coefficient
+                    loss_terms.append(loss_term)
+                    loss_numerator += loss_term_numerator
+                    loss_denominator += loss_term_denominator
+                loss = functools.reduce(lambda x, y: x + y, loss_terms)
+                del loss_term_numerators
+            else:
+                # There is only one loss term.
+                loss_numerators, loss_denominator = loss_result
+                loss = torch.mean(loss_numerators)
+                loss_numerator = torch.sum(loss_numerators.detach()).item()
+                del loss_numerators
+            del loss_result
+            # Run backprop to compute the gradients.
             loss.backward()
+            # Free the computation graph from memory.
             del loss
+            # Do gradient clipping.
             if self.gradient_clipping_threshold is not None:
                 torch.nn.utils.clip_grad_norm_(
                     saver.model.parameters(),
                     self.gradient_clipping_threshold
                 )
+            # Update the parameters using the gradients.
             optimizer.step()
-            return loss_numerator, loss_denominator
+            return loss_numerator, loss_denominator, extra_loss_terms
         except torch.cuda.OutOfMemoryError as e:
             if prepared_batch is not None:
                 info = self.get_prepared_batch_info(prepared_batch)
@@ -424,7 +488,7 @@ def get_random_generator_and_seed(random_seed):
 def get_random_seed(random_seed):
     return random.getrandbits(32) if random_seed is None else random_seed
 
-class LossAccumulator:
+class MicroAveragedScoreAccumulator:
 
     def __init__(self):
         super().__init__()
@@ -438,6 +502,23 @@ class LossAccumulator:
     def get_value(self) -> float:
         return self.numerator / self.denominator
 
+class DictScoreAccumulator:
+
+    def __init__(self):
+        super().__init__()
+        self.loss = None
+
+    def update(self, scores: dict[str, tuple[float, float]]) -> None:
+        if self.loss is None:
+            self.loss = { k : MicroAveragedScoreAccumulator() for k in scores.keys() }
+        elif scores.keys() != self.loss.keys():
+            raise ValueError
+        for key, (numerator, denominator) in scores.items():
+            self.loss[key].update(numerator, denominator)
+
+    def get_value(self) -> dict[str, float]:
+        return { k : v.get_value() for k, v in self.loss.items() }
+
 def evaluate(
     model: torch.nn.Module,
     model_interface: ModelInterface,
@@ -449,7 +530,7 @@ def evaluate(
 ) -> float:
     model.eval()
     with torch.inference_mode():
-        loss_dict = collections.defaultdict(LossAccumulator)
+        accumulator = DictScoreAccumulator()
         for batch in batches:
             device = model_interface.get_device(None)
             prepared_batch = model_interface.prepare_batch(batch, device)
@@ -458,9 +539,8 @@ def evaluate(
                 model_interface,
                 prepared_batch
             )
-            for k, (numerator, denominator) in batch_loss_dict.items():
-                loss_dict[k].update(numerator, denominator)
-    return { k : v.get_value() for k, v in loss_dict.items() }
+            accumulator.update(batch_loss_dict)
+    return accumulator.get_value()
 
 @dataclasses.dataclass
 class OutOfCUDAMemoryError(RuntimeError):
