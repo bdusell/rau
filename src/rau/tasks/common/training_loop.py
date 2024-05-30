@@ -26,7 +26,7 @@ VocabularyContainer = TypeVar('VocabularyContainer')
 def add_training_loop_arguments(
     parser: argparse.ArgumentParser,
     max_tokens_per_batch_help: str
-) -> None:
+):
     group = parser.add_argument_group('Training options')
     group.add_argument('--no-progress', action='store_true', default=False,
         help='Do not print progress messages during training.')
@@ -60,6 +60,7 @@ def add_training_loop_arguments(
     group.add_argument('--examples-per-checkpoint', type=int, required=True,
         help='An evaluation checkpoint will be run on the validation data '
              'every time this many training examples have been processed.')
+    return group
 
 def get_training_loop_kwargs(
     parser: argparse.ArgumentParser,
