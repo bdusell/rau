@@ -274,14 +274,14 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     ticker.progress = batch_no + 1
                     if ticker.tick():
                         progress_loss_dict = progress_loss.get_value()
+                        progress_loss = progress_loss_dict.pop('loss')
                         progress_duration = datetime.datetime.now() - progress_start_time
                         progress_examples_per_second = progress_num_examples / progress_duration.total_seconds()
                         progress_parts = [
                             f'{ticker.int_percent}%',
-                            f'loss: {progress_loss_dict["loss"]:.2f}',
+                            f'loss: {progress_loss:.2f}',
                             f'examples/s: {progress_examples_per_second:.2f}'
                         ]
-                        del progress_loss_dict['loss']
                         for key, value in progress_loss_dict.items():
                             progress_parts.append(f'{key}: {value:.2f}')
                         console_logger.info(f'  {" | ".join(progress_parts)}')
@@ -298,7 +298,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     )
                     console_logger.info(f'    validation scores:')
                     for key, value in validation_scores.items():
-                        console_logger.info(f'      validation {key}: {value:.2f}')
+                        console_logger.info(f'      {key}: {value:.2f}')
                     validation_score = validation_scores[validation_metric]
                     # Update the learning rate.
                     lr_scheduler.step(validation_score)
@@ -331,17 +331,26 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             if should_stop:
                 break
             epoch_loss_dict = epoch_loss.get_value()
+            epoch_loss = epoch_loss_dict.pop('loss')
             epoch_duration = datetime.datetime.now() - epoch_start_time
-            console_logger.info(f'  epoch loss: {epoch_loss_dict["loss"]:.2f}')
+            epoch_duration_seconds = epoch_duration.total_seconds()
+            console_logger.info(f'  epoch loss: {epoch_loss:.2f}')
+            if epoch_loss_dict:
+                console_logger.info('  epoch scores:')
+                for key, value in epoch_loss_dict.items():
+                    console_logger.info(f'    {key}: {value:.2f}')
             console_logger.info(f'  epoch duration: {epoch_duration}')
+            epoch_examples_per_second = len(training_data) / epoch_duration_seconds
+            console_logger.info(f'  examples/s: {epoch_examples_per_second:.2f}')
             if do_profile_memory:
                 peak_memory = get_peak_memory(device)
                 console_logger.info(f'  peak CUDA memory: {humanfriendly.format_size(peak_memory)}')
             else:
                 peak_memory = None
             event_logger.log('epoch', dict(
-                loss=epoch_loss_dict,
-                duration=epoch_duration.total_seconds(),
+                loss=epoch_loss,
+                scores=epoch_loss_dict,
+                duration=epoch_duration_seconds,
                 peak_memory=peak_memory,
                 num_training_batches=len(batches)
             ))
