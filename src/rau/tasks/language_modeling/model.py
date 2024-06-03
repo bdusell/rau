@@ -207,11 +207,11 @@ class LanguageModelingModelInterface(ModelInterface):
     def on_before_process_pairs(self, saver, datasets):
         if saver.kwargs['architecture'] == 'transformer':
             max_length = max(
-                self.adjust_length(len(x))
+                len(x)
                 for dataset in datasets
                 for x in dataset
             )
-            self._preallocate_positional_encodings(saver, max_length)
+            self._preallocate_positional_encodings(saver, self.adjust_length(max_length))
 
     def _preallocate_positional_encodings(self, saver, max_length):
         # Precompute all of the sinusoidal positional encodings up-front based

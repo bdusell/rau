@@ -172,11 +172,11 @@ class SequenceToSequenceModelInterface(ModelInterface):
         self._preallocate_positional_encodings(saver, max_length)
 
     def on_before_decode(self, saver, datasets, max_target_length):
-        data_max_length = max(
-            self.adjust_source_length(len(s))
+        data_max_length = self.adjust_source_length(max(
+            len(s)
             for dataset in datasets
             for s in dataset
-        )
+        ))
         # Subtract 1 because beam search doesn't need the last input.
         max_target_length = self.adjust_target_length(max_target_length) - 1
         max_length = max(max_target_length, data_max_length)
