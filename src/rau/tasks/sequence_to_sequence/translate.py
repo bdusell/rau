@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import logging
 import pathlib
 import sys
@@ -64,6 +65,8 @@ def main():
     ordered_outputs = [None] * len(sources)
     if show_progress:
         ticker = TimedTicker(len(batches), 1)
+        progress_num_sequences = 0
+        start_time = progress_start_time = datetime.datetime.now()
     for batch_no, batch in enumerate(batches):
         source = model_interface.prepare_source([s for i, s in batch], device)
         output = model_interface.decode(
@@ -75,11 +78,24 @@ def main():
         for (i, s), output_sequence in zip(batch, output, strict=True):
             ordered_outputs[i] = output_sequence
         if show_progress:
+            progress_num_sequences += len(batch)
             ticker.progress = batch_no + 1
             if ticker.tick():
-                console_logger.info(f'{ticker.int_percent}%')
+                progress_duration = datetime.datetime.now() - progress_start_time
+                progress_sequences_per_second = progress_num_sequences / progress_duration.total_seconds()
+                console_logger.info(
+                    f'{ticker.int_percent}% | '
+                    f'sequences/s: {progress_sequences_per_second:.2f}'
+                )
+                progress_num_sequences = 0
+                progress_start_time = datetime.datetime.now()
+    if show_progress:
+        duration = datetime.datetime.now() - start_time
     for output_sequence in ordered_outputs:
         print(' '.join(vocabs.target_output_vocab.to_string(w) for w in output_sequence))
+    if show_progress:
+        sequences_per_second = len(ordered_outputs) / duration.total_seconds()
+        console_logger.info(f'duration: {duration} | sequences/s: {sequences_per_second:.2f} | s/sequence: {1/sequences_per_second:.4f}')
 
 if __name__ == '__main__':
     main()
