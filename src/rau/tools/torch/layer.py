@@ -1,5 +1,6 @@
 import math
-import typing
+from collections.abc import Iterable
+from typing import Optional
 
 import torch
 
@@ -48,7 +49,7 @@ class Layer(torch.nn.Module):
         return torch.nn.init.calculate_gain(self.get_nonlinearity_name())
 
     def xavier_uniform_init(self,
-            generator: typing.Optional[torch.Generator]=None) -> None:
+            generator: Optional[torch.Generator]=None) -> None:
         """Initialize the parameters of the layer using Xavier initialization.
         The correct gain is used based on the activation function. The bias
         term, if it exists, will be initialized to 0.
@@ -83,7 +84,7 @@ class FeedForward(torch.nn.Sequential):
     """Multiple :py:class:`Layer`s in serial, forming a feed-forward neural
     network."""
 
-    def __init__(self, input_size: int, layer_sizes: typing.Iterable[int],
+    def __init__(self, input_size: int, layer_sizes: Iterable[int],
             activation: torch.nn.Module, bias: bool=True):
         """
         :param input_size: The number of units in the input to the first layer.
@@ -150,7 +151,7 @@ class MultiLayer(Layer):
     def fan_out_size(self) -> int:
         return self._output_size
 
-    def output_size(self) -> typing.Tuple[int, int]:
+    def output_size(self) -> tuple[int, int]:
         return (self._num_layers, self._output_size)
 
 def xavier_uniform_(
@@ -158,7 +159,7 @@ def xavier_uniform_(
     fan_in: int,
     fan_out: int,
     gain: float,
-    generator: typing.Optional[torch.Generator]
+    generator: Optional[torch.Generator]
 ):
     """A rewrite of :py:func:`~torch.nn.init.xavier_uniform` that accepts a
     RNG and works on multi-dimensional tensors."""
