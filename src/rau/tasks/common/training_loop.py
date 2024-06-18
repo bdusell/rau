@@ -537,19 +537,19 @@ def evaluate(
         [torch.nn.Module, ModelInterface, PreparedBatch],
         dict[str, tuple[float, float]]
     ]
-) -> float:
+) -> dict[str, float]:
+    device = model_interface.get_device(None)
+    accumulator = DictScoreAccumulator()
     model.eval()
     with torch.inference_mode():
-        accumulator = DictScoreAccumulator()
         for batch in batches:
-            device = model_interface.get_device(None)
             prepared_batch = model_interface.prepare_batch(batch, device)
-            batch_loss_dict = evaluate_batch(
+            batch_score_dict = evaluate_batch(
                 model,
                 model_interface,
                 prepared_batch
             )
-            accumulator.update(batch_loss_dict)
+            accumulator.update(batch_score_dict)
     return accumulator.get_value()
 
 @dataclasses.dataclass
