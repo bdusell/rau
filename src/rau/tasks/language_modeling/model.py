@@ -1,3 +1,6 @@
+import humanfriendly
+import torch_semiring_einsum
+
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
@@ -64,6 +67,11 @@ class LanguageModelingModelInterface(ModelInterface):
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
+
+    def add_forward_arguments(self, parser):
+        group = parser.add_argument_group('Model execution')
+        group.add_argument('--einsum-block-size', type=int)
+        group.add_argument('--einsum-max-memory', type=humanfriendly.parse_size)
 
     def get_kwargs(self, args, vocabulary_data):
         uses_bos = args.architecture == 'transformer'
@@ -197,6 +205,19 @@ class LanguageModelingModelInterface(ModelInterface):
         self.uses_bos = self.bos_index is not None
         self.eos_index = saver.kwargs['eos_index']
         self.output_padding_index = saver.kwargs['output_vocabulary_size']
+        # Figure out the block size for semiring einsum operations, which is
+        # used in the nondeterministic stacks.
+        if hasattr(args, 'einsum_block_size') and args.einsum_block_size is not None:
+            block_size = args.einsum_block_size
+        else:
+            block_size = torch_semiring_einsum.AutomaticBlockSize(
+                max_cuda_bytes=getattr(args, 'einsum_max_memory', None)
+            )
+        self.tag_kwargs = dict(
+            nondeterministic=dict(
+                block_size=block_size
+            )
+        )
 
     def adjust_length(self, length):
         # Add 1 for BOS.
@@ -262,4 +283,8 @@ class LanguageModelingModelInterface(ModelInterface):
         # Note that for the transformer, it is unnecessary to pass a padding
         # mask, because padding only occurs at the end of a sequence, and the
         # model is already causally masked.
-        return model(model_input, include_first=not self.uses_bos)
+        return model(
+            model_input,
+            include_first=not self.uses_bos,
+            tag_kwargs=self.tag_kwargs
+        )
