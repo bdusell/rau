@@ -8,10 +8,14 @@ from rau.unidirectional import (
     OutputUnidirectional
 )
 from rau.models.common.shared_embeddings import get_shared_embeddings
+from rau.models.common.add_tag import add_tag
 from rau.models.transformer.input_layer import get_transformer_input_unidirectional
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
 from rau.models.transformer.unidirectional_encoder import UnidirectionalTransformerEncoderLayers
-from .parse import StackTransformerLayers
+
+from .parse import StackTransformerLayers, get_stack_attention_func
+from .sublayer import get_unidirectional_sublayer
+from .feedforward import get_feedforward_sublayer
 
 def get_unidirectional_stack_transformer_encoder(
     input_vocabulary_size: int,
@@ -74,3 +78,23 @@ def get_unidirectional_stack_transformer_encoder(
         )
 
     return functools.reduce(lambda x, y: x @ y, generate_layers())
+
+def get_unidirectional_encoder_layer_with_custom_attention(
+    attention_func: Unidirectional,
+    d_model: int,
+    feedforward_size: int,
+    dropout: float | None,
+    tag: str | None=None
+) -> Unidirectional:
+    return (
+        add_tag(get_unidirectional_sublayer(
+            attention_func,
+            d_model,
+            dropout
+        ), tag) @
+        get_feedforward_sublayer(
+            d_model,
+            feedforward_size,
+            dropout
+        )
+    )

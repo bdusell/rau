@@ -1,6 +1,8 @@
 import re
 
-StackAttention = None # TODO FIXME
+from .stack_attention import StackAttention
+from .superposition import SuperpositionStackAttention
+from .nondeterministic import NondeterministicStackAttention
 
 LAYER_RE = re.compile(r'^(\d+)|superposition-(\d+)|nondeterministic-(\d+)-(\d+)-(\d+)$')
 

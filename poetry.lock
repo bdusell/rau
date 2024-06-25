@@ -705,6 +705,17 @@ plugins = ["importlib-metadata"]
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pynvml"
+version = "11.5.0"
+description = "Python Bindings for the NVIDIA Management Library"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "pynvml-11.5.0-py3-none-any.whl", hash = "sha256:5cce014ac01b098d08f06178f86c37be409b80b2e903a5a03ce15eed60f55e25"},
+    {file = "pynvml-11.5.0.tar.gz", hash = "sha256:d027b21b95b1088b9fc278117f9f61b7c67f8e33a787e9f83f735f0f71ac32d0"},
+]
+
+[[package]]
 name = "pyreadline3"
 version = "3.4.1"
 description = "A python implementation of GNU readline."
@@ -996,6 +1007,22 @@ opt-einsum = ["opt-einsum (>=3.3)"]
 optree = ["optree (>=0.9.1)"]
 
 [[package]]
+name = "torch-semiring-einsum"
+version = "1.2.0"
+description = "Extensible PyTorch implementation of einsum that supports multiple semirings"
+optional = false
+python-versions = "<4.0.0,>=3.6.1"
+files = [
+    {file = "torch_semiring_einsum-1.2.0-py3-none-any.whl", hash = "sha256:c947244fa076d51ab493c8228f72764b91b0125eed6692bb0f76b581ae16a188"},
+    {file = "torch_semiring_einsum-1.2.0.tar.gz", hash = "sha256:ab9a49c9757d1e6d4bf8fc002ccfec365b76c3e88c57f446982068610de8a8ed"},
+]
+
+[package.dependencies]
+pynvml = ">=11.0.0,<12.0.0"
+torch = ">=1.1.0,<3"
+typing-extensions = ">=4.0.0,<5.0.0"
+
+[[package]]
 name = "triton"
 version = "2.3.0"
 description = "A language and compiler for custom Deep Learning operations"
@@ -1049,4 +1076,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "02d41ccefcf91540fa25d889570dd3f93aa9dfe4ca09102c2773e4faddc20583"
+content-hash = "f98159a050fded5bce6f70d97770bc2973b791d9ffe2db029c4a36713a4ccf24"
