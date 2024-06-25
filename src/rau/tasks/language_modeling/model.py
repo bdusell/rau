@@ -6,6 +6,10 @@ from rau.models.transformer.unidirectional_encoder import (
 )
 from rau.models.rnn import SimpleRNN, LSTM
 from rau.models.common.shared_embeddings import get_shared_embeddings
+from rau.models.stack_nn.transformer.parse import parse_stack_transformer_layers
+from rau.models.stack_nn.transformer.unidirectional_encoder import (
+    get_unidirectional_stack_transformer_encoder
+)
 from rau.unidirectional import (
     EmbeddingUnidirectional,
     DropoutUnidirectional,
@@ -17,29 +21,46 @@ from .vocabulary import get_vocabularies
 class LanguageModelingModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
-        group.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm'],
+        group.add_argument('--architecture',
+            choices=['transformer', 'rnn', 'lstm', 'stack-transformer'],
             help='The type of neural network architecture to use.')
         group.add_argument('--num-layers', type=int,
             help='(transformer, rnn, lstm) Number of layers.')
         group.add_argument('--d-model', type=int,
-            help='(transformer) The size of the vector representations used '
-                 'in the transformer.')
+            help='(transformer, stack-transformer) The size of the vector '
+                 'representations used in the transformer.')
         group.add_argument('--num-heads', type=int,
-            help='(transformer) The number of attention heads used in each '
-                 'layer.')
+            help='(transformer, stack-transformer) The number of attention '
+                 'heads used in each scaled dot-product attention layer.')
         group.add_argument('--feedforward-size', type=int,
-            help='(transformer) The size of the hidden layer of the '
-                 'feedforward network in each feedforward sublayer.')
+            help='(transformer, stack-transformer) The size of the hidden '
+                 'layer of the feedforward network in each feedforward '
+                 'sublayer.')
         group.add_argument('--dropout', type=float,
-            help='(transformer) The dropout rate used throughout the '
-                 'transformer on input embeddings, sublayer function outputs, '
-                 'feedforward hidden layers, and attention weights. '
+            help='(transformer, stack-transformer) The dropout rate used '
+                 'throughout the transformer on input embeddings, sublayer '
+                 'function outputs, feedforward hidden layers, and attention '
+                 'weights. '
                  '(rnn, lstm) The dropout rate used between all layers, '
                  'including between the input embedding layer and the first '
                  'layer, and between the last layer and the output layer.')
         group.add_argument('--hidden-units', type=int,
             help='(rnn, lstm) Number of hidden units to use in the hidden '
                  'state.')
+        group.add_argument('--stack-transformer-layers', type=parse_stack_transformer_layers,
+            help='(stack-transformer) A string describing which layers to use '
+                 'in a transformer. The transformer can be a mix of standard '
+                 'layers and stack attention layers, in any order. Layers are '
+                 'separated by `.` characters. A layer can be: '
+                 '(1) an integer n, which indicates n standard attention '
+                 'layers in a row '
+                 '(2) superposition-<m>, where <m> is an integer, indicating '
+                 'a superposition stack attention layer with stack embedding '
+                 'size <m> '
+                 '(3) nondeterministic-<q>-<s>-<m>, where <q>, <s>, <m> are '
+                 'integers, indicating a nondeterministic stack attention '
+                 'layer with <q> PDA states, <s> stack symbol types, and '
+                 'stack embedding size <m>.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
@@ -55,6 +76,7 @@ class LanguageModelingModelInterface(ModelInterface):
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
             hidden_units=args.hidden_units,
+            stack_transformer_layers=args.stack_transformer_layers,
             input_vocabulary_size=len(input_vocab),
             output_vocabulary_size=len(output_vocab),
             bos_index=input_vocab.bos_index if uses_bos else None,
@@ -69,6 +91,7 @@ class LanguageModelingModelInterface(ModelInterface):
         feedforward_size,
         dropout,
         hidden_units,
+        stack_transformer_layers,
         input_vocabulary_size,
         output_vocabulary_size,
         bos_index,
@@ -147,6 +170,18 @@ class LanguageModelingModelInterface(ModelInterface):
                     shared_embeddings=shared_embeddings,
                     bias=False
                 )
+            )
+        elif architecture == 'stack-transformer':
+            return get_unidirectional_stack_transformer_encoder(
+                input_vocabulary_size=input_vocabulary_size,
+                output_vocabulary_size=output_vocabulary_size,
+                tie_embeddings=True,
+                layers=stack_transformer_layers,
+                d_model=d_model,
+                num_heads=num_heads,
+                feedforward_size=feedforward_size,
+                dropout=dropout,
+                use_padding=False
             )
         else:
             raise ValueError
