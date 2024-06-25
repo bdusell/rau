@@ -3,8 +3,8 @@ from typing import Optional
 import torch
 
 from rau.tools.torch.compose import Composable
+from rau.models.common.add_tag import add_tag
 
-from .common import add_tag
 from .positional_encodings import SinusoidalPositionalEncodingCacher
 from .input_layer import get_transformer_input_unidirectional
 
@@ -18,7 +18,7 @@ def get_transformer_encoder(
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
-    tag: Optional[str]=None
+    tag: str | None=None,
 ) -> torch.nn.Module:
     return (
         Composable(

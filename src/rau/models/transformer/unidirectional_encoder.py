@@ -9,8 +9,8 @@ from rau.unidirectional import (
     OutputUnidirectional
 )
 from rau.models.common.shared_embeddings import get_shared_embeddings
+from rau.models.common.add_tag import add_tag
 
-from .common import add_tag
 from .positional_encodings import SinusoidalPositionalEncodingCacher
 from .input_layer import get_transformer_input_unidirectional
 from .mask import make_causal_attention_mask
