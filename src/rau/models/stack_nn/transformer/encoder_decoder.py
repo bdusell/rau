@@ -1,27 +1,14 @@
-import functools
 from typing import Any
 
 import torch
 
-from rau.unidirectional import (
-    Unidirectional,
-    SimpleLayerUnidirectional,
-    OutputUnidirectional
-)
-from rau.tools.torch.compose import Composable
+from rau.unidirectional import Unidirectional
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
-from rau.models.transformer.input_layer import get_transformer_input_unidirectional
-from rau.models.transformer.encoder import TransformerEncoderLayers
-from rau.models.transformer.decoder import TransformerDecoderLayers
 from rau.models.transformer.encoder_decoder import get_shared_embeddings
 
-from .parse import (
-    StackTransformerLayers,
-    get_stack_attention_func
-)
-from .unidirectional_encoder import (
-    get_unidirectional_encoder_layer_with_custom_attention
-)
+from .parse import StackTransformerLayers
+from .encoder import get_stack_transformer_encoder
+from .decoder import get_stack_transformer_decoder
 
 class EncoderDecoder(torch.nn.Module):
 
@@ -106,99 +93,3 @@ def get_stack_transformer_encoder_decoder(
             use_padding=use_target_padding
         )
     )
-
-def get_stack_transformer_encoder(
-    vocabulary_size,
-    shared_embeddings,
-    positional_encoding_cacher,
-    layers,
-    d_model,
-    num_heads,
-    feedforward_size,
-    dropout,
-    use_padding
-):
-
-    def generate_layers():
-        yield Composable(get_transformer_input_unidirectional(
-            vocabulary_size=vocabulary_size,
-            d_model=d_model,
-            dropout=dropout,
-            use_padding=use_padding,
-            shared_embeddings=shared_embeddings,
-            positional_encoding_cacher=positional_encoding_cacher
-        )).kwargs(include_first=False)
-        for layer_type, layer_args in layers:
-            if layer_type == 'transformer':
-                num_layers, = layer_args
-                yield Composable(TransformerEncoderLayers(
-                    num_layers=num_layers,
-                    d_model=d_model,
-                    num_heads=num_heads,
-                    feedforward_size=feedforward_size,
-                    dropout=dropout,
-                    use_final_layer_norm=False
-                )).tag(layer_type)
-            else:
-                yield Composable(get_unidirectional_encoder_layer_with_custom_attention(
-                    get_stack_attention_func(layer_type, layer_args, d_model),
-                    d_model=d_model,
-                    feedforward_size=feedforward_size,
-                    dropout=dropout
-                )).kwargs(include_first=False).tag(layer_type)
-        yield Composable(torch.nn.LayerNorm(d_model))
-
-    return functools.reduce(lambda x, y: x @ y, generate_layers())
-
-def get_stack_transformer_decoder(
-    input_vocabulary_size,
-    output_vocabulary_size,
-    shared_embeddings,
-    positional_encoding_cacher,
-    layers,
-    d_model,
-    num_heads,
-    feedforward_size,
-    dropout,
-    use_padding
-):
-
-    def generate_layers():
-        yield get_transformer_input_unidirectional(
-            vocabulary_size=input_vocabulary_size,
-            d_model=d_model,
-            dropout=dropout,
-            use_padding=use_padding,
-            shared_embeddings=shared_embeddings,
-            positional_encoding_cacher=positional_encoding_cacher
-        )
-        for layer_type, layer_args in layers:
-            if layer_type == 'transformer':
-                num_layers, = layer_args
-                yield TransformerDecoderLayers(
-                    num_layers=num_layers,
-                    d_model=d_model,
-                    num_heads=num_heads,
-                    feedforward_size=feedforward_size,
-                    dropout=dropout,
-                    use_final_layer_norm=False
-                ).tag(layer_type)
-            else:
-                yield get_decoder_layer_with_custom_attention(
-                    get_stack_attention_func(layer_type, layer_args, d_model),
-                    d_model=d_model,
-                    feedforward_size=feedforward_size,
-                    dropout=dropout,
-                    num_cross_attention_heads=num_heads,
-                    tag=layer_type,
-                    cross_attention_tag='transformer'
-                )
-        yield SimpleLayerUnidirectional(torch.nn.LayerNorm(d_model))
-        yield OutputUnidirectional(
-            input_size=d_model,
-            vocabulary_size=output_vocabulary_size,
-            shared_embeddings=shared_embeddings,
-            bias=False
-        )
-
-    return functools.reduce(lambda x, y: x @ y, generate_layers())
