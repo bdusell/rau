@@ -1,6 +1,3 @@
-import humanfriendly
-import torch_semiring_einsum
-
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
@@ -22,6 +19,11 @@ from rau.unidirectional import (
     OutputUnidirectional
 )
 from rau.tasks.common.model import pad_sequences
+from rau.tasks.common.einsum import (
+    add_einsum_forward_arguments,
+    get_einsum_block_size
+)
+
 from .vocabulary import get_vocabularies
 
 class LanguageModelingModelInterface(ModelInterface):
@@ -62,12 +64,11 @@ class LanguageModelingModelInterface(ModelInterface):
                  'certain parameters are initialized.')
 
     def add_forward_arguments(self, parser):
-        group = parser.add_argument_group('Model execution')
-        group.add_argument('--einsum-block-size', type=int)
-        group.add_argument('--einsum-max-memory', type=humanfriendly.parse_size)
+        group = parser.add_argument_group('Model Execution')
+        add_einsum_forward_arguments(group)
 
     def get_kwargs(self, args, vocabulary_data):
-        uses_bos = args.architecture == 'transformer'
+        uses_bos = args.architecture in ('transformer', 'stack-transformer')
         input_vocab, output_vocab = get_vocabularies(vocabulary_data, uses_bos)
         return dict(
             architecture=args.architecture,
@@ -198,17 +199,9 @@ class LanguageModelingModelInterface(ModelInterface):
         self.uses_bos = self.bos_index is not None
         self.eos_index = saver.kwargs['eos_index']
         self.output_padding_index = saver.kwargs['output_vocabulary_size']
-        # Figure out the block size for semiring einsum operations, which is
-        # used in the nondeterministic stacks.
-        if hasattr(args, 'einsum_block_size') and args.einsum_block_size is not None:
-            block_size = args.einsum_block_size
-        else:
-            block_size = torch_semiring_einsum.AutomaticBlockSize(
-                max_cuda_bytes=getattr(args, 'einsum_max_memory', None)
-            )
         self.tag_kwargs = dict(
             nondeterministic=dict(
-                block_size=block_size
+                block_size=get_einsum_block_size(args)
             )
         )
 
@@ -254,7 +247,7 @@ class LanguageModelingModelInterface(ModelInterface):
         return input_tensor, output_tensor
 
     def on_before_process_pairs(self, saver, datasets):
-        if saver.kwargs['architecture'] == 'transformer':
+        if saver.kwargs['architecture'] in ('transformer', 'stack-transformer'):
             max_length = max(
                 len(x)
                 for dataset in datasets
