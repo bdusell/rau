@@ -10,8 +10,15 @@ from rau.models.stack_nn.transformer.parse import (
     parse_stack_transformer_layers,
     STACK_TRANSFORMER_LAYERS_HELP_MESSAGE
 )
+from rau.models.stack_nn.transformer.encoder_decoder import (
+    get_stack_transformer_encoder_decoder
+)
 from rau.generation.beam_search import beam_search
 from rau.tasks.common.model import pad_sequences
+from rau.tasks.common.einsum import (
+    add_einsum_forward_arguments,
+    get_einsum_block_size
+)
 
 from .vocabulary import get_vocabularies
 
@@ -53,6 +60,10 @@ class SequenceToSequenceModelInterface(ModelInterface):
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
+
+    def add_forward_arguments(self, parser):
+        group = parser.add_argument_group('Model Execution')
+        add_einsum_forward_arguments(group)
 
     def get_kwargs(self, args, vocabulary_data):
         (
@@ -165,6 +176,11 @@ class SequenceToSequenceModelInterface(ModelInterface):
         self.target_input_bos_index = saver.kwargs['target_input_bos_index']
         self.target_output_eos_index = saver.kwargs['target_output_eos_index']
         self.output_padding_index = saver.kwargs['target_output_vocabulary_size']
+        if saver.kwargs['architecture'] == 'transformer':
+            self.get_forward_kwargs = self.get_transformer_forward_kwargs
+        else:
+            self.get_forward_kwargs = self.get_stack_transformer_forward_kwargs
+            self.block_size = get_einsum_block_size(args)
 
     def adjust_source_length(self, source_length):
         # Add 1 for EOS.
@@ -255,7 +271,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
         return model(
             source_sequence=model_input.source,
             target_sequence=model_input.target,
-            source_is_padding_mask=model_input.source_is_padding_mask
+            **self.get_forward_kwargs(model_input)
         )
 
     def decode(self, model, model_source, beam_size, max_length):
@@ -263,7 +279,7 @@ class SequenceToSequenceModelInterface(ModelInterface):
         with torch.inference_mode():
             decoder_state = model.initial_decoder_state(
                 source_sequence=model_source.source,
-                source_is_padding_mask=model_source.source_is_padding_mask
+                **self.get_forward_kwargs(model_source)
             )
             device = model_source.source.device
             # Feed BOS into the model at the first timestep.
@@ -280,6 +296,35 @@ class SequenceToSequenceModelInterface(ModelInterface):
                 max_length,
                 device
             )
+
+    def get_transformer_forward_kwargs(self, model_input):
+        return dict(
+            source_is_padding_mask=model_input.source_is_padding_mask
+        )
+
+    def get_stack_transformer_forward_kwargs(self, model_source):
+        return dict(
+            encoder_kwargs=dict(
+                tag_kwargs=dict(
+                    transformer=dict(
+                        is_padding_mask=model_source.source_is_padding_mask
+                    ),
+                    nondeterministic=dict(
+                        block_size=self.block_size
+                    )
+                )
+            ),
+            decoder_kwargs=dict(
+                tag_kwargs=dict(
+                    transformer=dict(
+                        encoder_is_padding_mask=model_source.source_is_padding_mask
+                    ),
+                    nondeterministic=dict(
+                        block_size=self.block_size
+                    )
+                )
+            )
+        )
 
 @dataclasses.dataclass
 class ModelSource:
