@@ -15,7 +15,13 @@ from rau.models.transformer.encoder import TransformerEncoderLayers
 from rau.models.transformer.decoder import TransformerDecoderLayers
 from rau.models.transformer.encoder_decoder import get_shared_embeddings
 
-from .parse import StackTransformerLayers
+from .parse import (
+    StackTransformerLayers,
+    get_stack_attention_func
+)
+from .unidirectional_encoder import (
+    get_unidirectional_encoder_layer_with_custom_attention
+)
 
 class EncoderDecoder(torch.nn.Module):
 
@@ -138,8 +144,7 @@ def get_stack_transformer_encoder(
                     get_stack_attention_func(layer_type, layer_args, d_model),
                     d_model=d_model,
                     feedforward_size=feedforward_size,
-                    dropout=dropout,
-                    main=True
+                    dropout=dropout
                 )).kwargs(include_first=False).tag(layer_type)
         yield Composable(torch.nn.LayerNorm(d_model))
 
