@@ -4,19 +4,16 @@ from rau.models.transformer.positional_encodings import SinusoidalPositionalEnco
 from rau.models.transformer.unidirectional_encoder import (
     get_unidirectional_transformer_encoder
 )
-from rau.models.rnn import SimpleRNN, LSTM
-from rau.models.common.shared_embeddings import get_shared_embeddings
+from rau.models.rnn.language_model import (
+    get_simple_rnn_language_model,
+    get_lstm_language_model
+)
 from rau.models.stack_nn.transformer.parse import (
     parse_stack_transformer_layers,
     STACK_TRANSFORMER_LAYERS_HELP_MESSAGE
 )
 from rau.models.stack_nn.transformer.unidirectional_encoder import (
     get_unidirectional_stack_transformer_encoder
-)
-from rau.unidirectional import (
-    EmbeddingUnidirectional,
-    DropoutUnidirectional,
-    OutputUnidirectional
 )
 from rau.tasks.common.model import pad_sequences
 from rau.tasks.common.einsum import (
@@ -130,49 +127,26 @@ class LanguageModelingModelInterface(ModelInterface):
                 raise ValueError
             if dropout is None:
                 raise ValueError
-            # First, construct the recurrent hidden state module.
             if architecture == 'rnn':
-                core = SimpleRNN(
-                    input_size=hidden_units,
+                return get_simple_rnn_language_model(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
                     hidden_units=hidden_units,
                     layers=num_layers,
                     dropout=dropout,
-                    learned_hidden_state=True
+                    learned_hidden_state=True,
+                    use_padding=False
                 )
             else:
-                core = LSTM(
-                    input_size=hidden_units,
+                return get_lstm_language_model(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
                     hidden_units=hidden_units,
                     layers=num_layers,
                     dropout=dropout,
-                    learned_hidden_state=True
+                    learned_hidden_state=True,
+                    use_padding=False
                 )
-            # Now, sandwich the recurrent hidden state between an input
-            # embedding layer and an output layer.
-            shared_embeddings = get_shared_embeddings(
-                tie_embeddings=True,
-                input_vocabulary_size=input_vocabulary_size,
-                output_vocabulary_size=output_vocabulary_size,
-                embedding_size=hidden_units,
-                use_padding=False
-            )
-            return (
-                EmbeddingUnidirectional(
-                    vocabulary_size=input_vocabulary_size,
-                    output_size=hidden_units,
-                    use_padding=False,
-                    shared_embeddings=shared_embeddings
-                ) @
-                DropoutUnidirectional(dropout) @
-                core @
-                DropoutUnidirectional(dropout) @
-                OutputUnidirectional(
-                    input_size=hidden_units,
-                    vocabulary_size=output_vocabulary_size,
-                    shared_embeddings=shared_embeddings,
-                    bias=False
-                )
-            )
         elif architecture == 'stack-transformer':
             return get_unidirectional_stack_transformer_encoder(
                 input_vocabulary_size=input_vocabulary_size,
