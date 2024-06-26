@@ -9,7 +9,10 @@ from rau.models.transformer.unidirectional_encoder import (
 )
 from rau.models.rnn import SimpleRNN, LSTM
 from rau.models.common.shared_embeddings import get_shared_embeddings
-from rau.models.stack_nn.transformer.parse import parse_stack_transformer_layers
+from rau.models.stack_nn.transformer.parse import (
+    parse_stack_transformer_layers,
+    STACK_TRANSFORMER_LAYERS_HELP_MESSAGE
+)
 from rau.models.stack_nn.transformer.unidirectional_encoder import (
     get_unidirectional_stack_transformer_encoder
 )
@@ -51,19 +54,9 @@ class LanguageModelingModelInterface(ModelInterface):
             help='(rnn, lstm) Number of hidden units to use in the hidden '
                  'state.')
         group.add_argument('--stack-transformer-layers', type=parse_stack_transformer_layers,
-            help='(stack-transformer) A string describing which layers to use '
-                 'in a transformer. The transformer can be a mix of standard '
-                 'layers and stack attention layers, in any order. Layers are '
-                 'separated by `.` characters. A layer can be: '
-                 '(1) an integer n, which indicates n standard attention '
-                 'layers in a row '
-                 '(2) superposition-<m>, where <m> is an integer, indicating '
-                 'a superposition stack attention layer with stack embedding '
-                 'size <m> '
-                 '(3) nondeterministic-<q>-<s>-<m>, where <q>, <s>, <m> are '
-                 'integers, indicating a nondeterministic stack attention '
-                 'layer with <q> PDA states, <s> stack symbol types, and '
-                 'stack embedding size <m>.')
+            help='(stack-transformer) A string describing which layers to '
+                 'use. ' +
+                 STACK_TRANSFORMER_LAYERS_HELP_MESSAGE)
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')

@@ -6,6 +6,10 @@ from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
 from rau.models.transformer.encoder_decoder import get_transformer_encoder_decoder
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
+from rau.models.stack_nn.transformer.parse import (
+    parse_stack_transformer_layers,
+    STACK_TRANSFORMER_LAYERS_HELP_MESSAGE
+)
 from rau.generation.beam_search import beam_search
 from rau.tasks.common.model import pad_sequences
 
@@ -14,22 +18,38 @@ from .vocabulary import get_vocabularies
 class SequenceToSequenceModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
+        group.add_argument('--architecture',
+            choices=['transformer', 'stack-transformer'],
+            help='The type of neural network architecture to use.')
         group.add_argument('--num-encoder-layers', type=int,
-            help='Number of layers in the transformer encoder.')
+            help='(transformer) Number of layers in the encoder.')
         group.add_argument('--num-decoder-layers', type=int,
-            help='Number of layers in the transformer decoder.')
+            help='(transformer) Number of layers in the decoder.')
         group.add_argument('--d-model', type=int,
-            help='The size of the vector representations used in the '
-                 'transformer.')
+            help='(transformer, stack-transformer) The size of the vector '
+                 'representations used in the transformer.')
         group.add_argument('--num-heads', type=int,
-            help='The number of attention heads used in each layer.')
+            help='(transformer, stack-transformer) The number of attention '
+                 'heads used in each scaled dot-product attention layer.')
         group.add_argument('--feedforward-size', type=int,
-            help='The size of the hidden layer of the feedforward network in '
-                 'each feedforward sublayer.')
+            help='(transformer, stack-transformer) The size of the hidden '
+                 'layer of the feedforward network in each feedforward '
+                 'sublayer.')
         group.add_argument('--dropout', type=float,
-            help='The dropout rate used throughout the transformer on input '
-                 'embeddings, sublayer function outputs, feedforward hidden '
-                 'layers, and attention weights.')
+            help='(transformer, stack-transformer) The dropout rate used '
+                 'throughout the transformer on input embeddings, sublayer '
+                 'function outputs, feedforward hidden layers, and attention '
+                 'weights.')
+        group.add_argument('--stack-transformer-encoder-layers',
+            type=parse_stack_transformer_layers,
+            help='(stack-transformer) A string describing which layers to use '
+                 'in the encoder. ' +
+                 STACK_TRANSFORMER_LAYERS_HELP_MESSAGE)
+        group.add_argument('--stack-transformer-decoder-layers',
+            type=parse_stack_transformer_layers,
+            help='(stack-transformer) A string describing which layers to use '
+                 'in the encoder. ' +
+                 STACK_TRANSFORMER_LAYERS_HELP_MESSAGE)
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
@@ -41,12 +61,15 @@ class SequenceToSequenceModelInterface(ModelInterface):
             target_output_vocab
         ) = get_vocabularies(vocabulary_data)
         return dict(
+            architecture=args.architecture,
             num_encoder_layers=args.num_encoder_layers,
             num_decoder_layers=args.num_decoder_layers,
             d_model=args.d_model,
             num_heads=args.num_heads,
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
+            stack_transformer_encoder_layers=args.stack_transformer_encoder_layers,
+            stack_transformer_decoder_layers=args.stack_transformer_decoder_layers,
             source_vocabulary_size=len(source_vocab),
             target_input_vocabulary_size=len(target_input_vocab),
             target_output_vocabulary_size=len(target_output_vocab),
@@ -57,12 +80,15 @@ class SequenceToSequenceModelInterface(ModelInterface):
         )
 
     def construct_model(self,
+        architecture,
         num_encoder_layers,
         num_decoder_layers,
         d_model,
         num_heads,
         feedforward_size,
         dropout,
+        stack_transformer_encoder_layers,
+        stack_transformer_decoder_layers,
         source_vocabulary_size,
         target_input_vocabulary_size,
         target_output_vocabulary_size,
@@ -71,32 +97,62 @@ class SequenceToSequenceModelInterface(ModelInterface):
         target_input_bos_index,
         target_output_eos_index
     ):
-        if num_encoder_layers is None:
+        if architecture is None:
             raise ValueError
-        if num_decoder_layers is None:
-            raise ValueError
-        if d_model is None:
-            raise ValueError
-        if num_heads is None:
-            raise ValueError
-        if feedforward_size is None:
-            raise ValueError
-        if dropout is None:
-            raise ValueError
-        return get_transformer_encoder_decoder(
-            source_vocabulary_size=source_vocabulary_size,
-            target_input_vocabulary_size=target_input_vocabulary_size,
-            target_output_vocabulary_size=target_output_vocabulary_size,
-            tie_embeddings=tie_embeddings,
-            num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
-            d_model=d_model,
-            num_heads=num_heads,
-            feedforward_size=feedforward_size,
-            dropout=dropout,
-            use_source_padding=False,
-            use_target_padding=False
-        )
+        if architecture == 'transformer':
+            if num_encoder_layers is None:
+                raise ValueError
+            if num_decoder_layers is None:
+                raise ValueError
+            if d_model is None:
+                raise ValueError
+            if num_heads is None:
+                raise ValueError
+            if feedforward_size is None:
+                raise ValueError
+            if dropout is None:
+                raise ValueError
+            return get_transformer_encoder_decoder(
+                source_vocabulary_size=source_vocabulary_size,
+                target_input_vocabulary_size=target_input_vocabulary_size,
+                target_output_vocabulary_size=target_output_vocabulary_size,
+                tie_embeddings=tie_embeddings,
+                num_encoder_layers=num_encoder_layers,
+                num_decoder_layers=num_decoder_layers,
+                d_model=d_model,
+                num_heads=num_heads,
+                feedforward_size=feedforward_size,
+                dropout=dropout,
+                use_source_padding=False,
+                use_target_padding=False
+            )
+        else:
+            if stack_transformer_encoder_layers is None:
+                raise ValueError
+            if stack_transformer_decoder_layers is None:
+                raise ValueError
+            if d_model is None:
+                raise ValueError
+            if num_heads is None:
+                raise ValueError
+            if feedforward_size is None:
+                raise ValueError
+            if dropout is None:
+                raise ValueError
+            return get_stack_transformer_encoder_decoder(
+                source_vocabulary_size=source_vocabulary_size,
+                target_input_vocabulary_size=target_input_vocabulary_size,
+                target_output_vocabulary_size=target_output_vocabulary_size,
+                tie_embeddings=tie_embeddings,
+                encoder_layers=stack_transformer_encoder_layers,
+                decoder_layers=stack_transformer_decoder_layers,
+                d_model=d_model,
+                num_heads=num_heads,
+                feedforward_size=feedforward_size,
+                dropout=dropout,
+                use_source_padding=False,
+                use_target_padding=False
+            )
 
     def initialize(self, args, model, generator):
         if args.init_scale is None:

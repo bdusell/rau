@@ -4,6 +4,17 @@ from .stack_attention import StackAttention
 from .superposition import SuperpositionStackAttention
 from .nondeterministic import NondeterministicStackAttention
 
+STACK_TRANSFORMER_LAYERS_HELP_MESSAGE = (
+    'This can be a mix of standard layers and stack attention layers, in any '
+    'order. Layers are separated by `.` characters. A layer can be: '
+    '(1) an integer n, which indicates n standard attention layers in a row '
+    '(2) superposition-<m>, where <m> is an integer, indicating a '
+    'superposition stack attention layer with stack embedding size <m> '
+    '(3) nondeterministic-<q>-<s>-<m>, where <q>, <s>, <m> are integers, '
+    'indicating a nondeterministic stack attention layer with <q> PDA states, '
+    '<s> stack symbol types, and stack embedding size <m>.'
+)
+
 LAYER_RE = re.compile(r'^(\d+)|superposition-(\d+)|nondeterministic-(\d+)-(\d+)-(\d+)$')
 
 StackTransformerLayers = list[tuple[str, tuple]]
