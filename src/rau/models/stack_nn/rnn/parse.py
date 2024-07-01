@@ -1,4 +1,7 @@
 import re
+from typing import Literal
+
+StackRNNController = Literal['rnn', 'lstm']
 
 STACK_RE = re.compile(r'^stratification-(\d+)|superposition-(\d+)|nondeterministic-(\d+)-(\d+)|vector-nondeterministic-(\d+)-(\d+)-(\d+)$')
 

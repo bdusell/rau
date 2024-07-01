@@ -18,6 +18,9 @@ from rau.models.stack_nn.transformer.unidirectional_encoder import (
 from rau.models.stack_nn.rnn.parse import (
     parse_stack_rnn_stack
 )
+from rau.models.stack_nn.rnn.language_model import (
+    get_stack_rnn_language_model
+)
 from rau.tasks.common.model import pad_sequences
 from rau.tasks.common.einsum import (
     add_einsum_forward_arguments,
@@ -107,6 +110,8 @@ class LanguageModelingModelInterface(ModelInterface):
             dropout=args.dropout,
             hidden_units=args.hidden_units,
             stack_transformer_layers=args.stack_transformer_layers,
+            stack_rnn_controller=args.stack_rnn_controller,
+            stack_rnn_stack=args.stack_rnn_stack,
             input_vocabulary_size=len(input_vocab),
             output_vocabulary_size=len(output_vocab),
             bos_index=input_vocab.bos_index if uses_bos else None,
@@ -122,6 +127,8 @@ class LanguageModelingModelInterface(ModelInterface):
         dropout,
         hidden_units,
         stack_transformer_layers,
+        stack_rnn_controller,
+        stack_rnn_stack,
         input_vocabulary_size,
         output_vocabulary_size,
         bos_index,
@@ -188,6 +195,18 @@ class LanguageModelingModelInterface(ModelInterface):
                 num_heads=num_heads,
                 feedforward_size=feedforward_size,
                 dropout=dropout,
+                use_padding=False
+            )
+        elif architecture == 'stack-rnn':
+            return get_stack_rnn_language_model(
+                input_vocabulary_size=input_vocabulary_size,
+                output_vocabulary_size=output_vocabulary_size,
+                hidden_units=hidden_units,
+                layers=num_layers,
+                controller=stack_rnn_controller,
+                stack=stack_rnn_stack,
+                dropout=dropout,
+                learned_hidden_state=True,
                 use_padding=False
             )
         else:
