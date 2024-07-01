@@ -15,6 +15,9 @@ from rau.models.stack_nn.transformer.parse import (
 from rau.models.stack_nn.transformer.unidirectional_encoder import (
     get_unidirectional_stack_transformer_encoder
 )
+from rau.models.stack_nn.rnn.parse import (
+    parse_stack_rnn_stack
+)
 from rau.tasks.common.model import pad_sequences
 from rau.tasks.common.einsum import (
     add_einsum_forward_arguments,
@@ -27,10 +30,20 @@ class LanguageModelingModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
         group.add_argument('--architecture',
-            choices=['transformer', 'rnn', 'lstm', 'stack-transformer'],
-            help='The type of neural network architecture to use.')
+            choices=['transformer', 'rnn', 'lstm', 'stack-transformer', 'stack-rnn'],
+            help='The type of neural network architecture to use. '
+                 'transformer: Standard transformer architecture with '
+                 'sinusoidal positional encodings, based on the PyTorch '
+                 'implementation. '
+                 'rnn: Simple RNN (a.k.a. Elman RNN) with tanh activations. '
+                 'lstm: LSTM. '
+                 'stack-transformer: A transformer that can contain stack '
+                 'attention layers. '
+                 'stack-rnn: An RNN controller augmented with a '
+                 'differentiable stack.')
         group.add_argument('--num-layers', type=int,
-            help='(transformer, rnn, lstm) Number of layers.')
+            help='(transformer, rnn, lstm) Number of layers. '
+                 '(stack-rnn) Number of layers in the recurrent controller.')
         group.add_argument('--d-model', type=int,
             help='(transformer, stack-transformer) The size of the vector '
                  'representations used in the transformer.')
@@ -48,14 +61,32 @@ class LanguageModelingModelInterface(ModelInterface):
                  'weights. '
                  '(rnn, lstm) The dropout rate used between all layers, '
                  'including between the input embedding layer and the first '
-                 'layer, and between the last layer and the output layer.')
+                 'layer, and between the last layer and the output layer. '
+                 '(stack-rnn) Same as rnn and lstm. Stack actions are '
+                 'computed from the dropped-out hidden state.')
         group.add_argument('--hidden-units', type=int,
-            help='(rnn, lstm) Number of hidden units to use in the hidden '
-                 'state.')
+            help='(rnn, lstm, stack-rnn) Number of hidden units to use in '
+                 'the hidden state.')
         group.add_argument('--stack-transformer-layers', type=parse_stack_transformer_layers,
             help='(stack-transformer) A string describing which layers to '
                  'use. ' +
                  STACK_TRANSFORMER_LAYERS_HELP_MESSAGE)
+        group.add_argument('--stack-rnn-controller', choices=['rnn', 'lstm'],
+            help='(stack-rnn) The type of RNN to use as the controller.')
+        group.add_argument('--stack-rnn-stack', type=parse_stack_rnn_stack,
+            help='(stack-rnn) The type of differentiable stack to connect to '
+                 'the RNN controller. Options are: '
+                 '(1) stratification-<m>, where <m> is an integer, indicating '
+                 'a stratification stack with stack embedding size <m> '
+                 '(2) superposition-<m>, where <m> is an integer, indicating '
+                 'a superposition stack with stack embedding size <m> '
+                 '(3) nondeterministic-<q>-<s>, where <q>, <s> are integers, '
+                 'indicating a nondeterministic stack with <q> states and <s> '
+                 'stack symbol types '
+                 '(4) vector-nondeterministic-<q>-<s>-<m>, where <q>, <s>, '
+                 '<m> are integers, indicating a vector nondeterministic '
+                 'stack with <q> states, <s> stack symbol types, and stack '
+                 'embedding type <m>.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
