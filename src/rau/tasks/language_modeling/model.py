@@ -186,6 +186,16 @@ class LanguageModelingModelInterface(ModelInterface):
                     use_padding=False
                 )
         elif architecture == 'stack-transformer':
+            if stack_transformer_layers is None:
+                raise ValueError
+            if d_model is None:
+                raise ValueError
+            if num_heads is None:
+                raise ValueError
+            if feedforward_size is None:
+                raise ValueError
+            if dropout is None:
+                raise ValueError
             return get_unidirectional_stack_transformer_encoder(
                 input_vocabulary_size=input_vocabulary_size,
                 output_vocabulary_size=output_vocabulary_size,
@@ -198,6 +208,16 @@ class LanguageModelingModelInterface(ModelInterface):
                 use_padding=False
             )
         elif architecture == 'stack-rnn':
+            if hidden_units is None:
+                raise ValueError
+            if num_layers is None:
+                raise ValueError
+            if stack_rnn_controller is None:
+                raise ValueError
+            if stack_rnn_stack is None:
+                raise ValueError
+            if dropout is None:
+                raise ValueError
             return get_stack_rnn_language_model(
                 input_vocabulary_size=input_vocabulary_size,
                 output_vocabulary_size=output_vocabulary_size,
