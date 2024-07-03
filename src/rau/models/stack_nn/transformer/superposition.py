@@ -5,9 +5,7 @@ import torch
 
 from rau.unidirectional import ForwardResult
 from rau.models.stack_nn.differentiable_stacks.stack import DifferentiableStack
-from rau.models.stack_nn.differentiable_stacks.superposition import (
-    construct_empty_superposition_stack
-)
+from rau.models.stack_nn.differentiable_stacks.superposition import SuperpositionStack
 from .stack_attention import StackAttention
 
 class SuperpositionStackAttention(StackAttention):
@@ -39,14 +37,16 @@ class SuperpositionStackAttention(StackAttention):
         sequence_length: Union[int, Literal[math.inf]]=math.inf,
         **kwargs: Any
     ) -> DifferentiableStack:
-        return construct_empty_superposition_stack(
+        t = next(self.parameters())
+        return SuperpositionStack.new_empty(
             batch_size=batch_size,
-            reading_size=self.stack_embedding_size,
+            stack_embedding_size=self.stack_embedding_size,
             # NOTE The +1 is necessary because, unlike an RNN, the last stack
             # reading is actually used.
             max_sequence_length=sequence_length + 1,
             max_depth=math.inf,
-            device=next(self.parameters()).device
+            dtype=t.dtype,
+            device=t.device
         )
 
     def next_stack(self,

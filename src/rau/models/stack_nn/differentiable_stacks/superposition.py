@@ -4,20 +4,6 @@ from rau.tools.torch.layer import Layer, MultiLayer
 
 from .stack import DifferentiableStack
 
-def construct_empty_superposition_stack(
-    batch_size,
-    reading_size,
-    max_sequence_length,
-    max_depth,
-    device
-):
-    return SuperpositionStack(
-        elements=torch.zeros(batch_size, reading_size, 0, device=device),
-        timestep=0,
-        max_sequence_length=max_sequence_length,
-        max_depth=max_depth
-    )
-
 class SuperpositionStack(DifferentiableStack):
 
     def __init__(self, elements, timestep, max_sequence_length, max_depth):
@@ -26,6 +12,22 @@ class SuperpositionStack(DifferentiableStack):
         self.timestep = timestep
         self.max_sequence_length = max_sequence_length
         self.max_depth = max_depth
+
+    @staticmethod
+    def new_empty(
+        batch_size: int,
+        stack_embedding_size: int,
+        max_sequence_length: int,
+        max_depth: int,
+        dtype: torch.dtype,
+        device: torch.device
+    ) -> 'SuperpositionStack':
+        return SuperpositionStack(
+            elements=torch.zeros((batch_size, stack_embedding_size, 0), dtype=dtype, device=device),
+            timestep=0,
+            max_sequence_length=max_sequence_length,
+            max_depth=max_depth
+        )
 
     def reading(self):
         batch_size, reading_size, num_elements = self.elements.size()
