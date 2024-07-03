@@ -1,4 +1,6 @@
+import dataclasses
 from collections.abc import Callable
+from typing import Any
 
 import torch
 
@@ -75,29 +77,20 @@ class StackRNN(Unidirectional):
             **kwargs
         )
 
+    @dataclasses.dataclass
     class State(Unidirectional.State):
 
-        def __init__(self,
-            rnn,
-            num_inputs_read,
-            sequence_length,
-            hidden_state,
-            previous_stack,
-            return_actions,
-            return_readings,
-            stack_args,
-            stack_kwargs
-        ):
-            super().__init__()
-            self.rnn = rnn
-            self.num_inputs_read = num_inputs_read
-            self.sequence_length = sequence_length
-            self.hidden_state = hidden_state
-            self.previous_stack = previous_stack
-            self.return_actions = return_actions
-            self.return_readings = return_readings
-            self.stack_args = stack_args
-            self.stack_kwargs = stack_kwargs
+        rnn: 'StackRNN'
+        num_inputs_read: int
+        sequence_length: int
+        hidden_state: Unidirectional.State
+        previous_stack: DifferentiableStack | None
+        return_actions: bool
+        return_readings: bool
+        stack_args: list[Any]
+        stack_kwargs: dict[str, Any]
+
+        def __post_init__(self):
             self._cached_tensors = {}
 
         def next(self, input_tensor):
@@ -105,14 +98,11 @@ class StackRNN(Unidirectional):
             reading_layer_output = self.get_reading_layer_output()
             controller_input = torch.cat((input_tensor, reading_layer_output), dim=1)
             next_hidden_state = self.hidden_state.next(controller_input)
-            return self.rnn.State(
-                rnn=self.rnn,
+            return dataclasses.replace(
+                self,
                 num_inputs_read=self.num_inputs_read + 1,
-                sequence_length=self.sequence_length,
                 hidden_state=next_hidden_state,
                 previous_stack=stack,
-                return_actions=self.return_actions,
-                return_readings=self.return_readings,
                 stack_args=None,
                 stack_kwargs=None
             )
@@ -190,18 +180,14 @@ class StackRNN(Unidirectional):
             return self.hidden_state.batch_size()
 
         def transform_tensors(self, func):
-            return self.rnn.State(
-                rnn=self.rnn,
-                num_inputs_read=self.num_inputs_read,
-                sequence_length=self.sequence_length,
+            result = dataclasses.replace(
+                self,
                 hidden_state=self.hidden_state.transform_tensors(func),
-                previous_stack=self.previous_stack.transform_tensors(func) if self.previous_stack is not None else None,
-                return_actions=self.return_actions,
-                return_readings=self.return_readings,
-                stack_args=self.stack_args,
-                stack_kwargs=self.stack_kwargs
-                # TODO transform cached tensors
+                previous_stack=self.previous_stack.transform_tensors(func) if self.previous_stack is not None else None
             )
+            for k, v in self._cached_tensors.items():
+                result._cached_tensors[k] = func(v)
+            return result
 
         def compute_stack(self, hidden_state, stack):
             raise NotImplementedError
