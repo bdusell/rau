@@ -5,7 +5,7 @@ from rau.models.rnn.lstm import LSTM
 
 from .parse import StackRNNController, StackRNNStack
 from .stratification import StratificationStackRNN
-#from .superposition import SuperpositionStackRNN
+from .superposition import SuperpositionStackRNN
 #from .nondeterministic import NondeteterministicStackRNN
 #from .vector_nondeterministic import VectorNondeterministicStackRNN
 
@@ -87,6 +87,7 @@ def get_stack_rnn_recurrence(
         return SuperpositionStackRNN(
             input_size=input_size,
             stack_embedding_size=stack_embedding_size,
+            push_hidden_state=False,
             controller=controller,
             controller_output_size=controller_output_size,
             include_reading_in_output=include_reading_in_output,

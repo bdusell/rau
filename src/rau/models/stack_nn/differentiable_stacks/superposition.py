@@ -1,3 +1,6 @@
+import math
+from typing import Literal
+
 import torch
 
 from rau.tools.torch.layer import Layer, MultiLayer
@@ -18,7 +21,7 @@ class SuperpositionStack(DifferentiableStack):
         batch_size: int,
         stack_embedding_size: int,
         max_sequence_length: int,
-        max_depth: int,
+        max_depth: int | Literal[math.inf],
         dtype: torch.dtype,
         device: torch.device
     ) -> 'SuperpositionStack':
