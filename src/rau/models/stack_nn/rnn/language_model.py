@@ -8,7 +8,7 @@ from .parse import StackRNNController, StackRNNStack
 from .stratification import StratificationStackRNN
 from .superposition import SuperpositionStackRNN
 from .nondeterministic import NondeterministicStackRNN
-#from .vector_nondeterministic import VectorNondeterministicStackRNN
+from .vector_nondeterministic import VectorNondeterministicStackRNN
 
 def get_stack_rnn_language_model(
     input_vocabulary_size: int,

@@ -6,7 +6,9 @@ from torch_semiring_einsum import AutomaticBlockSize
 from rau.unidirectional import ForwardResult
 from rau.models.stack_nn.differentiable_stacks.semiring import log
 from rau.models.stack_nn.differentiable_stacks.stack import DifferentiableStack
-from rau.models.stack_nn.differentiable_stacks.vector_nondeterministic import get_vector_nondeterministic_stack
+from rau.models.stack_nn.differentiable_stacks.vector_nondeterministic import (
+    VectorNondeterministicStack
+)
 from rau.models.stack_nn.differentiable_stacks.nondeterministic import logits_to_actions
 from .stack_attention import StackAttention
 
@@ -51,7 +53,7 @@ class NondeterministicStackAttention(StackAttention):
         **kwargs: Any
     ) -> DifferentiableStack:
         tensor = next(self.parameters())
-        return get_vector_nondeterministic_stack(
+        return VectorNondeterministicStack.new_empty(
             batch_size=batch_size,
             num_states=self.num_states,
             stack_alphabet_size=self.stack_alphabet_size,

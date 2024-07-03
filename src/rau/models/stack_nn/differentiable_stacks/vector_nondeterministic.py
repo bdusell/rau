@@ -45,6 +45,39 @@ class VectorNondeterministicStack(NondeterministicStack):
         self.zeta_j = zeta_j
         self.stack_embedding_size = semiring.get_tensor(zeta).size(7)
 
+    @staticmethod
+    def new_empty(
+        batch_size: int,
+        num_states: int,
+        stack_alphabet_size: int,
+        stack_embedding_size: int,
+        sequence_length: Optional[int],
+        bottom_vector: Optional[torch.Tensor],
+        block_size: Union[int, AutomaticBlockSize],
+        dtype: torch.dtype,
+        device: torch.device,
+        semiring: Semiring
+    ) -> 'VectorNondeterministicStack':
+        B = batch_size
+        Q = num_states
+        S = stack_alphabet_size
+        n = sequence_length
+        m = stack_embedding_size
+        gamma = get_initial_gamma(B, Q, S, n, dtype, device, semiring)
+        alpha, alpha_j = get_initial_alpha(B, Q, S, n, dtype, device, semiring)
+        zeta, zeta_j = get_initial_zeta(B, Q, S, n, m, bottom_vector, dtype, device, semiring)
+        return VectorNondeterministicStack(
+            gamma=gamma,
+            alpha=alpha,
+            alpha_j=alpha_j,
+            zeta=zeta,
+            zeta_j=zeta_j,
+            timestep=0,
+            sequence_length=sequence_length,
+            block_size=block_size,
+            semiring=semiring
+        )
+
     def update(self, push, repl, pop, pushed_vector):
         # push : B x Q x S x Q x S
         # repl : B x Q x S x Q x S
@@ -112,38 +145,6 @@ class VectorNondeterministicStack(NondeterministicStack):
             self.block_size,
             self.semiring
         )
-
-def get_vector_nondeterministic_stack(
-    batch_size: int,
-    num_states: int,
-    stack_alphabet_size: int,
-    stack_embedding_size: int,
-    sequence_length: Optional[int],
-    bottom_vector: Optional[torch.Tensor],
-    block_size: Union[int, AutomaticBlockSize],
-    dtype: torch.dtype,
-    device: torch.device,
-    semiring: Semiring
-) -> VectorNondeterministicStack:
-    B = batch_size
-    Q = num_states
-    S = stack_alphabet_size
-    n = sequence_length
-    m = stack_embedding_size
-    gamma = get_initial_gamma(B, Q, S, n, dtype, device, semiring)
-    alpha, alpha_j = get_initial_alpha(B, Q, S, n, dtype, device, semiring)
-    zeta, zeta_j = get_initial_zeta(B, Q, S, n, m, bottom_vector, dtype, device, semiring)
-    return VectorNondeterministicStack(
-        gamma=gamma,
-        alpha=alpha,
-        alpha_j=alpha_j,
-        zeta=zeta,
-        zeta_j=zeta_j,
-        timestep=0,
-        sequence_length=sequence_length,
-        block_size=block_size,
-        semiring=semiring
-    )
 
 def get_initial_zeta(B, Q, S, n, m, bottom_vector, dtype, device, semiring):
     # zeta[:, i+1, j, q, x, r, y] contains the value of
