@@ -1,8 +1,10 @@
 from rau.unidirectional import Unidirectional
-from rau.models.rnn.language_model import get_rnn_language_model_no_output_dropout
+from rau.models.rnn.language_model import get_rnn_language_model
+from rau.models.rnn.simple_rnn import SimpleRNN
+from rau.models.rnn.lstm import LSTM
 
 from .parse import StackRNNController, StackRNNStack
-#from .stratification import StratificationStackRNN
+from .stratification import StratificationStackRNN
 #from .superposition import SuperpositionStackRNN
 #from .nondeterministic import NondeteterministicStackRNN
 #from .vector_nondeterministic import VectorNondeterministicStackRNN
@@ -18,10 +20,11 @@ def get_stack_rnn_language_model(
     learned_hidden_state: bool,
     use_padding: bool
 ) -> Unidirectional:
-    return get_rnn_language_model_no_output_dropout(
+    return get_rnn_language_model(
         get_stack_rnn_recurrence(
             controller=controller,
             stack=stack,
+            input_size=hidden_units,
             hidden_units=hidden_units,
             layers=layers,
             dropout=dropout,
@@ -37,54 +40,80 @@ def get_stack_rnn_language_model(
 def get_stack_rnn_recurrence(
     controller: StackRNNController,
     stack: StackRNNStack,
+    input_size: int,
     hidden_units: int,
     layers: int,
     dropout: float,
     learned_hidden_state: bool
 ) -> Unidirectional:
+
+    if controller == 'rnn':
+        def controller(input_size):
+            return SimpleRNN(
+                input_size=input_size,
+                hidden_units=hidden_units,
+                layers=layers,
+                dropout=dropout,
+                learned_hidden_state=learned_hidden_state
+            )
+    elif controller == 'lstm':
+        def controller(input_size):
+            return LSTM(
+                input_size=input_size,
+                hidden_units=hidden_units,
+                layers=layers,
+                dropout=dropout,
+                learned_hidden_state=learned_hidden_state
+            )
+    else:
+        raise ValueError
+    controller_output_size = hidden_units
+    include_reading_in_output = False
+    reading_layer_sizes = None
+
     stack_name, stack_args = stack
     if stack_name == 'stratification':
         stack_embedding_size, = stack_args
         return StratificationStackRNN(
+            input_size=input_size,
+            stack_embedding_size=stack_embedding_size,
             controller=controller,
-            hidden_units=hidden_units,
-            layers=layers,
-            learned_hidden_state=learned_hidden_state,
-            dropout=dropout,
-            stack_embedding_size=stack_embedding_size
+            controller_output_size=controller_output_size,
+            include_reading_in_output=include_reading_in_output,
+            reading_layer_sizes=reading_layer_sizes
         )
     elif stack_name == 'superposition':
         stack_embedding_size, = stack_args
         return SuperpositionStackRNN(
+            input_size=input_size,
+            stack_embedding_size=stack_embedding_size,
             controller=controller,
-            hidden_units=hidden_units,
-            layers=layers,
-            learned_hidden_state=learned_hidden_state,
-            dropout=dropout,
-            stack_embedding_size=stack_embedding_size
+            controller_output_size=controller_output_size,
+            include_reading_in_output=include_reading_in_output,
+            reading_layer_sizes=reading_layer_sizes
         )
     elif stack_name == 'nondeterministic':
         num_states, stack_alphabet_size = stack_args
         return NondeterministicStackRNN(
-            controller=controller,
-            hidden_units=hidden_units,
-            layers=layers,
-            learned_hidden_state=learned_hidden_state,
-            dropout=dropout,
+            input_size=input_size,
             num_states=num_states,
-            stack_alphabet_size=stack_alphabet_size
+            stack_alphabet_size=stack_alphabet_size,
+            controller=controller,
+            controller_output_size=controller_output_size,
+            include_reading_in_output=include_reading_in_output,
+            reading_layer_sizes=reading_layer_sizes
         )
     elif stack_name == 'vector-nondeterministic':
         num_states, stack_alphabet_size, stack_embedding_size = stack_args
         return VectorNondeterministicStackRNN(
-            controller=controller,
-            hidden_units=hidden_units,
-            layers=layers,
-            learned_hidden_state=learned_hidden_state,
-            dropout=dropout,
+            input_size=input_size,
             num_states=num_states,
             stack_alphabet_size=stack_alphabet_size,
-            stack_embedding_size=stack_embedding_size
+            stack_embedding_size=stack_embedding_size,
+            controller=controller,
+            controller_output_size=controller_output_size,
+            include_reading_in_output=include_reading_in_output,
+            reading_layer_sizes=reading_layer_sizes
         )
     else:
         raise ValueError

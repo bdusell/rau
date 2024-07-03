@@ -67,23 +67,6 @@ def get_rnn_language_model(
     dropout: float,
     use_padding: bool
 ):
-    return get_rnn_language_model_no_output_dropout(
-        recurrence @ DropoutUnidirectional(dropout),
-        input_vocabulary_size=input_vocabulary_size,
-        output_vocabulary_size=output_vocabulary_size,
-        hidden_units=hidden_units,
-        dropout=dropout,
-        use_padding=use_padding
-    )
-
-def get_rnn_language_model_no_output_dropout(
-    recurrence: Unidirectional,
-    input_vocabulary_size: int,
-    output_vocabulary_size: int,
-    hidden_units: int,
-    dropout: float,
-    use_padding: bool
-):
     shared_embeddings = get_shared_embeddings(
         tie_embeddings=True,
         input_vocabulary_size=input_vocabulary_size,
@@ -100,6 +83,7 @@ def get_rnn_language_model_no_output_dropout(
         ) @
         DropoutUnidirectional(dropout) @
         recurrence @
+        DropoutUnidirectional(dropout) @
         OutputUnidirectional(
             input_size=hidden_units,
             vocabulary_size=output_vocabulary_size,
