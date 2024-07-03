@@ -70,6 +70,37 @@ class NondeterministicStack(DifferentiableStack):
         self.stack_alphabet_size = gamma_tensor.size(4)
         self.device = gamma_tensor.device
 
+    @staticmethod
+    def new_empty(
+        batch_size: int,
+        num_states: int,
+        stack_alphabet_size: int,
+        sequence_length: Optional[int],
+        include_states_in_reading: bool,
+        normalize_reading: bool,
+        block_size: Union[int, AutomaticBlockSize],
+        dtype: torch.dtype,
+        device: torch.device,
+        semiring: Semiring
+    ) -> 'NondeterministicStack':
+        B = batch_size
+        Q = num_states
+        S = stack_alphabet_size
+        n = sequence_length
+        gamma = get_initial_gamma(B, Q, S, n, dtype, device, semiring)
+        alpha, alpha_j = get_initial_alpha(B, Q, S, n, dtype, device, semiring)
+        return NondeterministicStack(
+            gamma=gamma,
+            alpha=alpha,
+            alpha_j=alpha_j,
+            timestep=0,
+            sequence_length=sequence_length,
+            include_states_in_reading=include_states_in_reading,
+            normalize_reading=normalize_reading,
+            block_size=block_size,
+            semiring=semiring
+        )
+
     def update(self, push, repl, pop, return_gamma_prime=False):
         # push : B x Q x S x Q x S
         # repl : B x Q x S x Q x S
@@ -185,36 +216,6 @@ class NondeterministicStack(DifferentiableStack):
             self.block_size,
             self.semiring
         )
-
-def get_nondeterministic_stack(
-    batch_size: int,
-    num_states: int,
-    stack_alphabet_size: int,
-    sequence_length: Optional[int],
-    include_states_in_reading: bool,
-    normalize_reading: bool,
-    block_size: Union[int, AutomaticBlockSize],
-    dtype: torch.dtype,
-    device: torch.device,
-    semiring: Semiring
-) -> NondeterministicStack:
-    B = batch_size
-    Q = num_states
-    S = stack_alphabet_size
-    n = sequence_length
-    gamma = get_initial_gamma(B, Q, S, n, dtype, device, semiring)
-    alpha, alpha_j = get_initial_alpha(B, Q, S, n, dtype, device, semiring)
-    return NondeterministicStack(
-        gamma=gamma,
-        alpha=alpha,
-        alpha_j=alpha_j,
-        timestep=0,
-        sequence_length=sequence_length,
-        include_states_in_reading=include_states_in_reading,
-        normalize_reading=normalize_reading,
-        block_size=block_size,
-        semiring=semiring
-    )
 
 def get_initial_gamma(B, Q, S, n, dtype, device, semiring):
     # gamma[:, i+1, j, q, x, r, y] contains the value of

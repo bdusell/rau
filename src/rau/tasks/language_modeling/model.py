@@ -227,7 +227,12 @@ class LanguageModelingModelInterface(ModelInterface):
                 stack=stack_rnn_stack,
                 dropout=dropout,
                 learned_hidden_state=True,
-                use_padding=False
+                use_padding=False,
+                tag=(
+                    'nondeterministic'
+                    if stack_rnn_stack[0] in ('nondeterministic', 'vector-nondeterministic')
+                    else None
+                )
             )
         else:
             raise ValueError

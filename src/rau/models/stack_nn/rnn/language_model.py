@@ -2,11 +2,12 @@ from rau.unidirectional import Unidirectional
 from rau.models.rnn.language_model import get_rnn_language_model
 from rau.models.rnn.simple_rnn import SimpleRNN
 from rau.models.rnn.lstm import LSTM
+from rau.models.common.add_tag import add_tag
 
 from .parse import StackRNNController, StackRNNStack
 from .stratification import StratificationStackRNN
 from .superposition import SuperpositionStackRNN
-#from .nondeterministic import NondeteterministicStackRNN
+from .nondeterministic import NondeterministicStackRNN
 #from .vector_nondeterministic import VectorNondeterministicStackRNN
 
 def get_stack_rnn_language_model(
@@ -18,10 +19,11 @@ def get_stack_rnn_language_model(
     stack: StackRNNStack,
     dropout: float,
     learned_hidden_state: bool,
-    use_padding: bool
+    use_padding: bool,
+    tag: str | None=None
 ) -> Unidirectional:
     return get_rnn_language_model(
-        get_stack_rnn_recurrence(
+        add_tag(get_stack_rnn_recurrence(
             controller=controller,
             stack=stack,
             input_size=hidden_units,
@@ -29,7 +31,7 @@ def get_stack_rnn_language_model(
             layers=layers,
             dropout=dropout,
             learned_hidden_state=learned_hidden_state
-        ),
+        ), tag),
         input_vocabulary_size=input_vocabulary_size,
         output_vocabulary_size=output_vocabulary_size,
         hidden_units=hidden_units,
