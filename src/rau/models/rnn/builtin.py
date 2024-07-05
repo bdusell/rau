@@ -1,3 +1,4 @@
+import dataclasses
 from collections.abc import Callable
 from typing import Any, Optional
 
@@ -52,7 +53,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         self._hidden_units = hidden_units
         self._layers = layers
 
-    def _initial_tensors(self, batch_size: int) -> Any:
+    def _initial_tensors(self, batch_size: int) -> tuple[Any, torch.Tensor]:
         raise NotImplementedError
 
     def _apply_to_hidden_state(self,
@@ -61,12 +62,12 @@ class UnidirectionalBuiltinRNN(Unidirectional):
     ) -> Any:
         raise NotImplementedError
 
+    @dataclasses.dataclass
     class State(Unidirectional.State):
 
-        def __init__(self, rnn, hidden_state, output):
-            self.rnn = rnn
-            self.hidden_state = hidden_state
-            self._output = output
+        rnn: 'UnidirectionalBuiltinRNN'
+        hidden_state: Any
+        _output: torch.Tensor
 
         def next(self, input_tensor):
             # input_tensor : batch_size x input_size
@@ -87,13 +88,18 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         def batch_size(self):
             return self._output.size(0)
 
-        def slice_batch(self, s):
-            return self.transform_tensors(lambda x: x[..., s, :].contiguous())
-
         def transform_tensors(self, func):
             return self.rnn.State(
                 self.rnn,
-                self.rnn._apply_to_hidden_state(self.hidden_state, func),
+                self.rnn._apply_to_hidden_state(
+                    self.hidden_state,
+                    # The builtin hidden states always have batch size as
+                    # dim 1 instead of dim 0. So, temporarily move it to dim 0
+                    # when func is called for compatibility.
+                    # The builtin hidden states also need to be contiguous when
+                    # they are used as inputs to the builtin module.
+                    lambda x: func(x.transpose(0, 1)).transpose(0, 1).contiguous()
+                ),
                 func(self._output))
 
         def fastforward(self, input_sequence):
