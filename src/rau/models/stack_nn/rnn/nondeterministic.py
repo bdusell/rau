@@ -6,7 +6,8 @@ from rau.models.stack_nn.differentiable_stacks.semiring import (
 )
 from rau.models.stack_nn.differentiable_stacks.nondeterministic import (
     NondeterministicStack,
-    logits_to_actions
+    logits_to_actions,
+    ViterbiDecoder
 )
 
 from .stack_rnn import StackRNN, StackRNNController, ReadingLayerSizes
