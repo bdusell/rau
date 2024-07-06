@@ -692,6 +692,3 @@ class ReferenceNondeterministicStack(RealSemiring):
             ]
             for b in range(B)
         ]), dim=1)
-
-if __name__ == '__main__':
-    unittest.main()
