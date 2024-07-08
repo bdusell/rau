@@ -11,7 +11,10 @@ from rau.tasks.common.data_preparation import (
     get_token_types_in_file,
     prepare_file
 )
-from rau.tasks.sequence_to_sequence.vocabulary import build_shared_vocabularies
+from rau.tasks.sequence_to_sequence.vocabulary import (
+    SharedVocabularyData,
+    get_vocabularies
+)
 
 def add_vocabulary_type_to_extension(path, vocabulary_type):
     return path.with_suffix(f'.{vocabulary_type}{path.suffix}')
@@ -200,18 +203,20 @@ def main():
 
         tokens_in_target = sorted(target_token_types)
         tokens_only_in_source = sorted(source_token_types - target_token_types)
-        vocabs = build_shared_vocabularies(
-            ToIntVocabularyBuilder(),
-            tokens_in_target,
-            tokens_only_in_source,
-            allow_unk
+        embedding_vocab, _, softmax_vocab = get_vocabularies(
+            SharedVocabularyData(
+                tokens_in_target,
+                tokens_only_in_source,
+                allow_unk
+            ),
+            ToIntVocabularyBuilder()
         )
 
         print(f'vocabulary type: shared')
         print(f'token types in target: {len(tokens_in_target)}', file=sys.stderr)
         print(f'token types only in source: {len(tokens_only_in_source)}', file=sys.stderr)
-        print(f'embedding vocabulary size: {len(vocabs.embedding_vocab)}', file=sys.stderr)
-        print(f'softmax vocabulary size: {len(vocabs.softmax_vocab)}', file=sys.stderr)
+        print(f'embedding vocabulary size: {len(embedding_vocab)}', file=sys.stderr)
+        print(f'softmax vocabulary size: {len(softmax_vocab)}', file=sys.stderr)
         print(f'source has {unk_string}: {source_has_unk}', file=sys.stderr)
         print(f'target has {unk_string}: {target_has_unk}', file=sys.stderr)
         print(f'allow unk: {allow_unk}', file=sys.stderr)
@@ -223,9 +228,9 @@ def main():
             'allow_unk' : allow_unk
         }, vocab_output_file)
         for pair in prepared_source_files:
-            prepare_file(vocabs.embedding_vocab, pair)
+            prepare_file(embedding_vocab, pair)
         for pair in prepared_target_files:
-            prepare_file(vocabs.softmax_vocab, pair)
+            prepare_file(softmax_vocab, pair)
 
 if __name__ == '__main__':
     main()
