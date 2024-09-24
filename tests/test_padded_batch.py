@@ -50,12 +50,6 @@ def test_single_matches_batched():
     )
     saver = model_interface.construct_saver(args, vocabulary_data)
 
-    #initial_state = clone_state_dict(saver.model.state_dict())
-    #optimizer = torch.optim.SGD(
-    #    saver.model.parameters(),
-    #    lr=training_loop.initial_learning_rate
-    #)
-
     generator = random.Random(123)
     lengths = [0, 1, 3, 7, 10, 13, 23]
     vocab_size = len(vocabulary_data.tokens)
