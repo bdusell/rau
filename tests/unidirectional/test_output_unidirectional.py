@@ -12,7 +12,8 @@ def test_forward_and_iterative():
     model = OutputUnidirectional(
         input_size=input_size,
         vocabulary_size=vocabulary_size,
-        shared_embeddings=shared_embeddings
+        shared_embeddings=shared_embeddings,
+        bias=False
     )
     for p in model.parameters():
         p.data.uniform_(generator=generator)
