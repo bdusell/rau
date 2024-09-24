@@ -405,13 +405,55 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         optimizer: torch.optim.SGD | torch.optim.Adam,
         batch: Batch
     ) -> tuple[
-        tuple[float, float],
+        float,
+        float,
         dict[str, tuple[float, float]]
     ]:
         # Reset the parameters' gradients to 0.
         optimizer.zero_grad()
         # Activate training mode (activate dropout, etc.).
         saver.model.train()
+        # Tensorize the batch, run the forward pass, and get the loss.
+        (
+            prepared_batch,
+            loss,
+            loss_numerator,
+            loss_denominator,
+            extra_loss_terms
+        ) = self.get_prepared_batch_and_loss(
+            saver,
+            model_interface,
+            batch
+        )
+        try:
+            # Run backprop to compute the gradients.
+            loss.backward()
+            # Free the computation graph from memory.
+            del loss
+            # Do gradient clipping.
+            if self.gradient_clipping_threshold is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    saver.model.parameters(),
+                    self.gradient_clipping_threshold
+                )
+            # Update the parameters using the gradients.
+            optimizer.step()
+        except torch.cuda.OutOfMemoryError as e:
+            info = self.get_prepared_batch_info(prepared_batch)
+            raise OutOfCUDAMemoryError(info) from e
+        return loss_numerator, loss_denominator, extra_loss_terms
+
+    def get_prepared_batch_and_loss(self,
+        saver: ModelSaver,
+        model_interface: ModelInterface,
+        batch: Batch
+    ) -> tuple[
+        PreparedBatch,
+        torch.Tensor,
+        float,
+        float,
+        dict[str, tuple[float, float]]
+    ]:
         prepared_batch = None
         try:
             # Tensorize the minibatch.
@@ -459,25 +501,19 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 loss_numerator = torch.sum(loss_numerators.detach()).item()
                 del loss_numerators
             del loss_result
-            # Run backprop to compute the gradients.
-            loss.backward()
-            # Free the computation graph from memory.
-            del loss
-            # Do gradient clipping.
-            if self.gradient_clipping_threshold is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    saver.model.parameters(),
-                    self.gradient_clipping_threshold
-                )
-            # Update the parameters using the gradients.
-            optimizer.step()
-            return loss_numerator, loss_denominator, extra_loss_terms
         except torch.cuda.OutOfMemoryError as e:
             if prepared_batch is not None:
                 info = self.get_prepared_batch_info(prepared_batch)
             else:
                 info = None
             raise OutOfCUDAMemoryError(info) from e
+        return (
+            prepared_batch,
+            loss,
+            loss_numerator,
+            loss_denominator,
+            extra_loss_terms
+        )
 
     def evaluate(self,
         model: torch.nn.Module,
