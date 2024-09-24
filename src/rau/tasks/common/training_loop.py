@@ -478,25 +478,33 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     except ValueError:
                         loss_term_numerators, loss_term_denominator = value
                         coefficient = None
-                    loss_term = torch.mean(loss_term_numerators)
-                    loss_term_numerator = torch.sum(loss_term_numerators.detach()).item()
+                    # Sum up all of the numerators. We will divide all of the
+                    # numereators by the number of examples in the batch at the
+                    # end to get the average. Not all loss terms necessarily
+                    # have a value for every example.
+                    loss_term_sum = torch.sum(loss_term_numerators)
                     # Return the unweighted numerator/denominator for each loss
                     # term.
+                    loss_term_numerator = loss_term_sum.item()
                     extra_loss_terms[key] = (loss_term_numerator, loss_term_denominator)
                     # If this loss term has a coefficient, multiply it into the
                     # loss term, its numerator, and its denominator.
                     if coefficient is not None:
-                        loss_term = coefficient * loss_term
+                        loss_term_sum = loss_term_sum * coefficient
                         loss_term_numerator *= coefficient
                         loss_term_denominator *= coefficient
-                    loss_terms.append(loss_term)
+                    loss_terms.append(loss_term_sum)
                     loss_numerator += loss_term_numerator
                     loss_denominator += loss_term_denominator
-                loss = functools.reduce(lambda x, y: x + y, loss_terms)
+                # Divide the sum of all the numerators by the number of examples
+                # in the batch in order to get the mean loss. Not all loss
+                # terms necessarily have a value for every example.
+                loss = functools.reduce(lambda x, y: x + y, loss_terms) / len(batch)
                 del loss_term_numerators
             else:
                 # There is only one loss term.
                 loss_numerators, loss_denominator = loss_result
+                # Get the mean loss.
                 loss = torch.mean(loss_numerators)
                 loss_numerator = torch.sum(loss_numerators.detach()).item()
                 del loss_numerators
