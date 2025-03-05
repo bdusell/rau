@@ -1,7 +1,7 @@
 Rau
 ===
 
-Rau (rhymes with "cow") is a Python module that provides PyTorch
+Rau (rhymes with "now") is a Python module that provides PyTorch
 implementations of neural language modeling and sequence-to-sequence
 transduction. Out of the box, it provides implementations of the simple
 recurrent neural network (RNN), long short-term memory (LSTM), and transformer
@@ -300,6 +300,6 @@ TODO
 What does the name "Rau" mean?
 ------------------------------
 
-The name is pronounced /ɹaʊ/ (rhymes with "cow"). It's named after a
+The name is pronounced /ɹaʊ/ (rhymes with "now"). It's named after a
 `magical mask <https://biomediaproject.com/bmp/data/sites/bionicle/2001/kanohi-noble.html>`_
 that gives the person who wears it the ability to translate languages.
