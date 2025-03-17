@@ -9,6 +9,7 @@ def beam_search(
     max_length: int,
     device: torch.device
 ) -> list[list[int]]:
+    # TODO Would torch.unravel_index help for parallelizing this?
     batch_size = initial_state.batch_size()
     return [
         beam_search_single(
