@@ -25,8 +25,7 @@ def main():
     parser.add_argument('--training-data', type=pathlib.Path,
         help='A directory containing training data. The file '
              '<training-data>/datasets/<input>/main.prepared will be used as '
-             'input, and the file '
-             '<training-data>/main.vocab will be used as the vocabulary.')
+             'input.')
     parser.add_argument('--input',
         help='Name of a dataset in the training data directory that will be '
              'used as input. The file '
@@ -35,9 +34,6 @@ def main():
     parser.add_argument('--input-file', type=pathlib.Path,
         help='A .prepared file to be used as input. This overrides '
              '--training-data and --input.')
-    parser.add_argument('--vocabulary-file', type=pathlib.Path,
-        help='A .vocab file containing the token vocabulary. This overrides '
-             '--training-data.')
     parser.add_argument('--batching-max-tokens', type=int, required=True,
         help='The maximum number of tokens allowed per batch.')
     model_interface.add_arguments(parser)
