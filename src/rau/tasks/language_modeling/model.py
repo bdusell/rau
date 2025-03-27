@@ -139,7 +139,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     shared_embeddings=shared_embeddings
                 ) @
                 DropoutUnidirectional(dropout) @
-                core @
+                core.main() @
                 DropoutUnidirectional(dropout) @
                 OutputUnidirectional(
                     input_size=hidden_units,
@@ -193,7 +193,11 @@ class LanguageModelingModelInterface(ModelInterface):
             pad=output_padding_index
         )
         input_tensor = whole_tensor[:, :-1]
-        output_tensor = whole_tensor[:, 1:]
+        # Remove BOS from the expected output tensor.
+        if self.uses_bos:
+            output_tensor = whole_tensor[:, 1:]
+        else:
+            output_tensor = whole_tensor
         # For RNNs, the input vocabulary does not contain any symbols that are
         # not in the output, so the size of the vocabulary is not a valid
         # embedding index. So, for the input tensor, we create a copy and
