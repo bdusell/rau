@@ -405,13 +405,55 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         optimizer: torch.optim.SGD | torch.optim.Adam,
         batch: Batch
     ) -> tuple[
-        tuple[float, float],
+        float,
+        float,
         dict[str, tuple[float, float]]
     ]:
         # Reset the parameters' gradients to 0.
         optimizer.zero_grad()
         # Activate training mode (activate dropout, etc.).
         saver.model.train()
+        # Tensorize the batch, run the forward pass, and get the loss.
+        (
+            prepared_batch,
+            loss,
+            loss_numerator,
+            loss_denominator,
+            extra_loss_terms
+        ) = self.get_prepared_batch_and_loss(
+            saver,
+            model_interface,
+            batch
+        )
+        try:
+            # Run backprop to compute the gradients.
+            loss.backward()
+            # Free the computation graph from memory.
+            del loss
+            # Do gradient clipping.
+            if self.gradient_clipping_threshold is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    saver.model.parameters(),
+                    self.gradient_clipping_threshold
+                )
+            # Update the parameters using the gradients.
+            optimizer.step()
+        except torch.cuda.OutOfMemoryError as e:
+            info = self.get_prepared_batch_info(prepared_batch)
+            raise OutOfCUDAMemoryError(info) from e
+        return loss_numerator, loss_denominator, extra_loss_terms
+
+    def get_prepared_batch_and_loss(self,
+        saver: ModelSaver,
+        model_interface: ModelInterface,
+        batch: Batch
+    ) -> tuple[
+        PreparedBatch,
+        torch.Tensor,
+        float,
+        float,
+        dict[str, tuple[float, float]]
+    ]:
         prepared_batch = None
         try:
             # Tensorize the minibatch.
@@ -436,48 +478,50 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     except ValueError:
                         loss_term_numerators, loss_term_denominator = value
                         coefficient = None
-                    loss_term = torch.mean(loss_term_numerators)
-                    loss_term_numerator = torch.sum(loss_term_numerators.detach()).item()
+                    # Sum up all of the numerators. We will divide all of the
+                    # numereators by the number of examples in the batch at the
+                    # end to get the average. Not all loss terms necessarily
+                    # have a value for every example.
+                    loss_term_sum = torch.sum(loss_term_numerators)
                     # Return the unweighted numerator/denominator for each loss
                     # term.
+                    loss_term_numerator = loss_term_sum.item()
                     extra_loss_terms[key] = (loss_term_numerator, loss_term_denominator)
                     # If this loss term has a coefficient, multiply it into the
                     # loss term, its numerator, and its denominator.
                     if coefficient is not None:
-                        loss_term = coefficient * loss_term
+                        loss_term_sum = loss_term_sum * coefficient
                         loss_term_numerator *= coefficient
                         loss_term_denominator *= coefficient
-                    loss_terms.append(loss_term)
+                    loss_terms.append(loss_term_sum)
                     loss_numerator += loss_term_numerator
                     loss_denominator += loss_term_denominator
-                loss = functools.reduce(lambda x, y: x + y, loss_terms)
+                # Divide the sum of all the numerators by the number of examples
+                # in the batch in order to get the mean loss. Not all loss
+                # terms necessarily have a value for every example.
+                loss = functools.reduce(lambda x, y: x + y, loss_terms) / len(batch)
                 del loss_term_numerators
             else:
                 # There is only one loss term.
                 loss_numerators, loss_denominator = loss_result
+                # Get the mean loss.
                 loss = torch.mean(loss_numerators)
                 loss_numerator = torch.sum(loss_numerators.detach()).item()
                 del loss_numerators
             del loss_result
-            # Run backprop to compute the gradients.
-            loss.backward()
-            # Free the computation graph from memory.
-            del loss
-            # Do gradient clipping.
-            if self.gradient_clipping_threshold is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    saver.model.parameters(),
-                    self.gradient_clipping_threshold
-                )
-            # Update the parameters using the gradients.
-            optimizer.step()
-            return loss_numerator, loss_denominator, extra_loss_terms
         except torch.cuda.OutOfMemoryError as e:
             if prepared_batch is not None:
                 info = self.get_prepared_batch_info(prepared_batch)
             else:
                 info = None
             raise OutOfCUDAMemoryError(info) from e
+        return (
+            prepared_batch,
+            loss,
+            loss_numerator,
+            loss_denominator,
+            extra_loss_terms
+        )
 
     def evaluate(self,
         model: torch.nn.Module,

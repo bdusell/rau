@@ -14,10 +14,26 @@ def test_unidirectional_language_model():
     to_int = ToIntVocabularyBuilder()
     to_string = ToStringVocabularyBuilder()
     vocab_content = ['a', 'b', 'c']
-    softmax_to_int_vocab = build_softmax_vocab(to_int, vocab_content, allow_unk=True)
-    embedding_to_int_vocab = build_embedding_vocab(to_int, softmax_to_int_vocab)
-    softmax_to_string_vocab = build_softmax_vocab(to_string, vocab_content, allow_unk=True)
-    embedding_to_string_vocab = build_embedding_vocab(to_string, softmax_to_string_vocab)
+    softmax_to_int_vocab = build_softmax_vocab(
+        tokens=vocab_content,
+        allow_unk=True,
+        builder=to_int
+    )
+    embedding_to_int_vocab = build_embedding_vocab(
+        softmax_vocab=softmax_to_int_vocab,
+        use_bos=True,
+        builder=to_int
+    )
+    softmax_to_string_vocab = build_softmax_vocab(
+        tokens=vocab_content,
+        allow_unk=True,
+        builder=to_string
+    )
+    embedding_to_string_vocab = build_embedding_vocab(
+        softmax_vocab=softmax_to_string_vocab,
+        use_bos=True,
+        builder=to_string
+    )
     kwargs = dict(
         input_vocabulary_size=len(embedding_to_string_vocab),
         output_vocabulary_size=len(softmax_to_string_vocab),

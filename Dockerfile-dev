@@ -1,7 +1,7 @@
 FROM python:3.11.7-bookworm
 # UTF-8 encoding is necessary for printing non-ASCII characters to the
 # terminal.
-ENV LC_ALL C.UTF-8
+ENV LC_ALL=C.UTF-8
 # Install Poetry.
 # See https://python-poetry.org/docs/#installing-with-the-official-installer
 RUN POETRY_VERSION=1.7.0 && \
@@ -17,14 +17,14 @@ RUN POETRY_VERSION=1.7.0 && \
         curl \
         && \
     rm -rf /var/lib/apt/lists/*
-ENV PATH /usr/local/poetry/bin:${PATH}
+ENV PATH=/usr/local/poetry/bin:${PATH}
 # Stores Python packages in the local directory.
 # See https://python-poetry.org/docs/configuration/#virtualenvsin-project-boolean
-ENV POETRY_VIRTUALENVS_IN_PROJECT true
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 # Install curl.
 RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 # Add src/ to PYTHONPATH.
-ENV PYTHONPATH /app/src:${PYTHONPATH}
+ENV PYTHONPATH=/app/src:${PYTHONPATH}
 WORKDIR /app/
