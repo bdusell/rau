@@ -19,7 +19,11 @@ Options:
 }
 
 get_options=()
-start_options=(--gpus all --privileged)
+if [[ -f /etc/NIXOS ]]; then
+  start_options=(--device=nvidia.com/gpu=all)
+else
+  start_options=(--gpus all --privileged)
+fi
 while [[ $# -gt 0 ]]; do
   case $1 in
     --pull|--build) get_options+=("$1") ;;
@@ -32,7 +36,6 @@ done
 
 bash scripts/get_docker_dev_image.bash "${get_options[@]}"
 dockerdev_ensure_dev_container_started "$DOCKER_DEV_IMAGE" \
-  --x11 \
   -- \
   -v "$PWD":/app/ \
   "${start_options[@]}"

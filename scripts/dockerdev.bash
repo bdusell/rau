@@ -64,7 +64,7 @@
 if [[ ! ${_DOCKERDEV_INCLUDED-} ]]; then
 _DOCKERDEV_INCLUDED=1
 
-DOCKERDEV_VERSION='0.5.2'
+DOCKERDEV_VERSION='0.5.4'
 
 # dockerdev_container_info <container-name>
 #   Get the image name and status of a container.
@@ -100,13 +100,18 @@ _dockerdev_add_user() {
   groupname=$(id -gn "$USER" | tr '[A-Z]' '[a-z]' | sed 's/[^-a-z0-9_.@]/-/g') &&
   echo "
     if addgroup --help 2>&1 | head -1 | grep -i busybox > /dev/null; then
-      addgroup -g $groupid $(printf %q "$groupname") && \
+      if ! result=\`addgroup -g $groupid $(printf %q "$groupname") 2>&1\`; then
+        echo \"\$result\" | grep 'addgroup: .* in use'
+      else
+        echo \"\$result\" >&2
+        false
+      fi &&
       adduser -u $userid -G $(printf %q "$groupname") -D -g '' $(printf %q "$USER")
     elif addgroup --help 2>&1 | grep -F -- '--gid ID' > /dev/null; then
       addgroup --gid $groupid $(printf %q "$groupname") && \
       adduser --uid $userid --gid $groupid --disabled-password --gecos '' $(printf %q "$USER")
     else
-      echo 'error: Could not figure out how to add a new user.'
+      echo 'error: Could not figure out how to add a new user.' >&2
       false
     fi
   "
@@ -235,7 +240,8 @@ dockerdev_start_new_dev_container() {
 #   Start a container with a certain image if it is not already running.
 #   Optionally accepts the name of a command to be called just after the
 #   container is started (--on-start). It will not be called if the container
-#   is already running.
+#   is already running. The command will receive one argument: the name of the
+#   container.
 dockerdev_ensure_container_started() {
   _dockerdev_ensure_container_started_impl \
     --start dockerdev_start_new_container "$@"
@@ -250,7 +256,8 @@ dockerdev_ensure_container_started() {
 #   use to create a container for your development environment.
 #   Optionally accepts the name of a command to be called just after the
 #   container is started (--on-start). It will not be called if the container
-#   is already running.
+#   is already running. The command will receive one argument: the name of the
+#   container.
 #   If --x11 is used, then the X server of the host will be made accessible to
 #   the container so that GUI programs can be used.
 dockerdev_ensure_dev_container_started() {
