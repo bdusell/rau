@@ -64,7 +64,7 @@
 if [[ ! ${_DOCKERDEV_INCLUDED-} ]]; then
 _DOCKERDEV_INCLUDED=1
 
-DOCKERDEV_VERSION='0.5.4'
+DOCKERDEV_VERSION='0.5.5'
 
 # dockerdev_container_info <container-name>
 #   Get the image name and status of a container.
@@ -101,14 +101,19 @@ _dockerdev_add_user() {
   echo "
     if addgroup --help 2>&1 | head -1 | grep -i busybox > /dev/null; then
       if ! result=\`addgroup -g $groupid $(printf %q "$groupname") 2>&1\`; then
-        echo \"\$result\" | grep 'addgroup: .* in use'
+        echo \"\$result\" | grep '^addgroup: .* in use$'
       else
         echo \"\$result\" >&2
         false
       fi &&
       adduser -u $userid -G $(printf %q "$groupname") -D -g '' $(printf %q "$USER")
     elif addgroup --help 2>&1 | grep -F -- '--gid ID' > /dev/null; then
-      addgroup --gid $groupid $(printf %q "$groupname") && \
+      if ! result=\`addgroup --gid $groupid $(printf %q "$groupname") 2>&1\`; then
+        echo \"\$result\" | grep '^addgroup: The group \`.*'\\'' already exists\\.$'
+      else
+        echo \"\$result\" >&2
+        false
+      fi && \
       adduser --uid $userid --gid $groupid --disabled-password --gecos '' $(printf %q "$USER")
     else
       echo 'error: Could not figure out how to add a new user.' >&2
