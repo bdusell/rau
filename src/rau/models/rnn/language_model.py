@@ -82,7 +82,7 @@ def get_rnn_language_model(
             shared_embeddings=shared_embeddings
         ) @
         DropoutUnidirectional(dropout) @
-        recurrence @
+        recurrence.main() @
         DropoutUnidirectional(dropout) @
         OutputUnidirectional(
             input_size=hidden_units,
