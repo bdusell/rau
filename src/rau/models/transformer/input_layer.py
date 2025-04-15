@@ -72,11 +72,11 @@ def get_transformer_input_unidirectional(
             output_size=d_model,
             use_padding=use_padding,
             shared_embeddings=shared_embeddings
-        )) @
+        )) |
         SinusoidalPositionalEncodingLayer(
             positional_encoding_cacher
         )
     )
     if dropout:
-        result = result @ DropoutUnidirectional(dropout)
+        result = result | DropoutUnidirectional(dropout)
     return result

@@ -15,7 +15,7 @@ def get_unidirectional_sublayer(
     dropout: Optional[float]
 ) -> Unidirectional:
     return ResidualUnidirectional(
-        SimpleLayerUnidirectional(torch.nn.LayerNorm(d_model)) @
-        sublayer_func.main() @
+        SimpleLayerUnidirectional(torch.nn.LayerNorm(d_model)) |
+        sublayer_func.main() |
         DropoutUnidirectional(dropout)
     )

@@ -67,7 +67,7 @@ def get_stack_transformer_decoder(
             bias=False
         )
 
-    return functools.reduce(lambda x, y: x @ y, generate_layers())
+    return functools.reduce(lambda x, y: x | y, generate_layers())
 
 def get_decoder_layer_with_custom_attention(
     attention_func: Unidirectional,
@@ -83,7 +83,7 @@ def get_decoder_layer_with_custom_attention(
             attention_func,
             d_model,
             dropout
-        ), tag) @
+        ), tag) |
         get_unidirectional_sublayer(
             CrossAttentionUnidirectional(
                 d_model,
@@ -92,7 +92,7 @@ def get_decoder_layer_with_custom_attention(
             ),
             d_model,
             dropout
-        ).tag(cross_attention_tag) @
+        ).tag(cross_attention_tag) |
         get_feedforward_sublayer(
             d_model,
             feedforward_size,

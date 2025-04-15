@@ -30,7 +30,7 @@ def get_transformer_encoder(
                 shared_embeddings,
                 positional_encoding_cacher
             )
-        ).kwargs(include_first=False) @
+        ).kwargs(include_first=False) |
         add_tag(Composable(
             TransformerEncoderLayers(
                 num_layers,

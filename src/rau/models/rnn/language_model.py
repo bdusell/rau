@@ -80,10 +80,10 @@ def get_rnn_language_model(
             output_size=hidden_units,
             use_padding=use_padding,
             shared_embeddings=shared_embeddings
-        ) @
-        DropoutUnidirectional(dropout) @
-        recurrence.main() @
-        DropoutUnidirectional(dropout) @
+        ) |
+        DropoutUnidirectional(dropout) |
+        recurrence.main() |
+        DropoutUnidirectional(dropout) |
         OutputUnidirectional(
             input_size=hidden_units,
             vocabulary_size=output_vocabulary_size,

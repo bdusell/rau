@@ -74,8 +74,8 @@ class MainUnidirectional(SimpleLayerUnidirectional):
 
 def test_arg_routing_to_main():
     model = (
-        AdditivePositional() @
-        MainUnidirectional().main() @
+        AdditivePositional() |
+        MainUnidirectional().main() |
         MultiplicativePositional()
     )
     batch_size = 5
@@ -111,11 +111,11 @@ class YetAnotherUnidirectional(SimpleLayerUnidirectional):
 
 def test_arg_routing_to_tags():
     model = (
-        AdditivePositional() @
-        MainUnidirectional().main() @
-        AdditivePositional() @
-        OtherUnidirectional().tag('other') @
-        MultiplicativePositional() @
+        AdditivePositional() |
+        MainUnidirectional().main() |
+        AdditivePositional() |
+        OtherUnidirectional().tag('other') |
+        MultiplicativePositional() |
         YetAnotherUnidirectional().tag('yetanother')
     )
     batch_size = 5
@@ -168,8 +168,8 @@ def test_arg_routing_to_tags():
 
 def test_compose_with_non_unidirectional():
     unidirectional = (
-        AdditivePositional() @
-        MainUnidirectional().main() @
+        AdditivePositional() |
+        MainUnidirectional().main() |
         MultiplicativePositional()
     )
     non_unidirectional = torch.nn.Identity()
@@ -181,7 +181,7 @@ def test_compose_with_non_unidirectional():
     y = 42
     alpha = 123
     beta = 'asdf'
-    composed_after = unidirectional @ non_unidirectional
+    composed_after = unidirectional | non_unidirectional
     output = composed_after(input_sequence, x, y, alpha=alpha, beta=beta, include_first=False)
-    composed_before = Composable(non_unidirectional) @ unidirectional.as_composable()
+    composed_before = Composable(non_unidirectional) | unidirectional.as_composable()
     output = composed_before(input_sequence, x, y, alpha=alpha, beta=beta, include_first=False)

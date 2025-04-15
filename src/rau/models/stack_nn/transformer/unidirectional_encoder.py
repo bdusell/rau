@@ -77,7 +77,7 @@ def get_unidirectional_stack_transformer_encoder(
             bias=False
         )
 
-    return functools.reduce(lambda x, y: x @ y, generate_layers())
+    return functools.reduce(lambda x, y: x | y, generate_layers())
 
 def get_unidirectional_encoder_layer_with_custom_attention(
     attention_func: Unidirectional,
@@ -91,7 +91,7 @@ def get_unidirectional_encoder_layer_with_custom_attention(
             attention_func,
             d_model,
             dropout
-        ), tag) @
+        ), tag) |
         get_feedforward_sublayer(
             d_model,
             feedforward_size,

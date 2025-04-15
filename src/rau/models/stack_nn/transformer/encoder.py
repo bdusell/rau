@@ -52,4 +52,4 @@ def get_stack_transformer_encoder(
                 )).kwargs(include_first=False).tag(layer_type)
         yield Composable(torch.nn.LayerNorm(d_model))
 
-    return functools.reduce(lambda x, y: x @ y, generate_layers())
+    return functools.reduce(lambda x, y: x | y, generate_layers())
