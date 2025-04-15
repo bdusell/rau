@@ -11,7 +11,10 @@ from rau.tasks.common.data_preparation import (
     get_token_types_in_file,
     prepare_file
 )
-from rau.tasks.language_modeling.vocabulary import build_softmax_vocab
+from rau.tasks.language_modeling.vocabulary import (
+    load_vocabulary_data_from_file,
+    build_softmax_vocab
+)
 
 def main():
 
@@ -23,7 +26,7 @@ def main():
         '(.prepared) and a vocabulary file (.vocab) will be written.'
     )
     parser.add_argument('--training-data', type=pathlib.Path,
-        help='A directory containing training data. The file '
+        help='An optional directory containing training data. The file '
              '<training-data>/main.tok will be used as input, and the file '
              '<training-data>/main.prepared will be used as output. '
              'The vocabulary will be saved to the file '
@@ -33,7 +36,8 @@ def main():
              'data. Overrides --training-data.')
     parser.add_argument('--vocabulary-file', type=pathlib.Path,
         help='A .vocab file where the vocabulary will be saved. Overrides '
-             '--training-data.')
+             '--training-data. If --training-data is not given, the '
+             'vocabulary is loaded from this file instead.')
     parser.add_argument('--more-data', action='append', default=[],
         help='Name of an additional dataset in the training data directory '
              'that will be prepared using the training data. This option can '
@@ -67,14 +71,17 @@ def main():
         training_data_input_file = args.training_data / 'main.tok'
         training_data_output_file = args.training_data / 'main.prepared'
     else:
-        parser.error('either --training-data or --training-data-files is required')
+        training_data_input_file = None
+        training_data_output_file = None
     if args.vocabulary_file is not None:
-        vocab_output_file = args.vocabulary_file
+        vocab_file = args.vocabulary_file
     elif args.training_data is not None:
-        vocab_output_file = args.training_data / 'main.vocab'
+        vocab_file = args.training_data / 'main.vocab'
     else:
         parser.error('either --training-data or --vocabulary-file is required')
-    prepared_files = [(training_data_input_file, training_data_output_file)]
+    prepared_files = []
+    if training_data_input_file is not None:
+        prepared_files.append((training_data_input_file, training_data_output_file))
     for arg in args.more_data:
         if isinstance(arg, str):
             if args.training_data is not None:
@@ -87,23 +94,29 @@ def main():
             input_file, output_file = arg
         prepared_files.append((input_file, output_file))
 
-    unk_string = None if args.never_allow_unk else args.unk_string
-    token_types, has_unk = get_token_types_in_file(training_data_input_file, unk_string)
-    allow_unk = (args.always_allow_unk or has_unk) and not args.never_allow_unk
-
-    tokens = sorted(token_types)
-    vocab = build_softmax_vocab(tokens, allow_unk, ToIntVocabularyBuilder())
-
-    print(f'token types: {len(token_types)}', file=sys.stderr)
-    print(f'vocabulary size: {len(vocab)}', file=sys.stderr)
-    print(f'has unk ({unk_string}): {has_unk}', file=sys.stderr)
-    print(f'allow unk: {allow_unk}', file=sys.stderr)
-    print(f'writing {vocab_output_file}', file=sys.stderr)
-    vocab_output_file.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({
-        'tokens' : tokens,
-        'allow_unk' : allow_unk
-    }, vocab_output_file)
+    if training_data_input_file is not None:
+        unk_string = None if args.never_allow_unk else args.unk_string
+        token_types, has_unk = get_token_types_in_file(training_data_input_file, unk_string)
+        allow_unk = (args.always_allow_unk or has_unk) and not args.never_allow_unk
+        tokens = sorted(token_types)
+        vocab = build_softmax_vocab(tokens, allow_unk, ToIntVocabularyBuilder())
+        print(f'token types: {len(token_types)}', file=sys.stderr)
+        print(f'vocabulary size: {len(vocab)}', file=sys.stderr)
+        print(f'has unk ({unk_string}): {has_unk}', file=sys.stderr)
+        print(f'allow unk: {allow_unk}', file=sys.stderr)
+        print(f'writing {vocab_file}', file=sys.stderr)
+        vocab_file.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            'tokens' : tokens,
+            'allow_unk' : allow_unk
+        }, vocab_file)
+    else:
+        vocab_data = load_vocabulary_data_from_file(vocab_file)
+        vocab = build_softmax_vocab(
+            vocab_data.tokens,
+            vocab_data.allow_unk,
+            ToIntVocabularyBuilder()
+        )
     for pair in prepared_files:
         prepare_file(vocab, pair)
 
