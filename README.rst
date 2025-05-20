@@ -308,12 +308,31 @@ deciding if Rau is up to snuff.
 * All language models and decoders operate exclusively on whole sequences
   ending in EOS, without truncation, and without assigning any probability to
   tokens that cannot be generated, namely padding and BOS. This means that,
-  mathematically, Rau's language models always define tight probability
-  distributions over the set of all strings of tokens. Training examples are
-  never truncated, split across multiple minibatches, or shifted to different
-  positions. This is in contrast to other setups that treat the training data
-  as one long sequence and split it into chunks of fixed size.
+  mathematically, Rau's language models always define tight language models,
+  i.e., probability distributions over the set of all strings of tokens.
+  Training examples are never truncated, split across multiple minibatches, or
+  shifted to different positions. This is in contrast to other setups that
+  treat the training data as one long sequence and split it into chunks of
+  fixed size.
 * The RNN and LSTM use learned initial hidden states.
+* During training, checkpoints are taken every :math:`N` examples, where
+  :math:`N` can be configured by ``--examples-per-checkpoint``. At each
+  checkpoint, the model is evaluated on the validation set. The model's
+  performance on the validation set controls the learning rate schedule and
+  early stopping.
+* When training ends, the parameters of the best checkpoint have been saved to
+  disk.
+* Parameters can be optimized using either simple gradient descent or Adam.
+  This can be configured with ``--optimizer``.
+* An initial learning rate can be set with ``--initial-learning-rate``. The
+  learning rate is reduced every time the validation performance does not
+  improve after a certain number of epochs, which can be configured with
+  ``--learning-rate-patience``. It is reduced by multiplying it by a number in
+  :math:`(0, 1)`, which can be configured with
+  ``--learning-rate-decay-factor``.
+* Training stops early when the validation performance does not improve after a
+  certain number of epochs, which can be configured with
+  ``--early-stopping-patience``.
 
 Features
 --------
@@ -377,14 +396,14 @@ Features
    elements).
 #. Beam search terminates as soon as EOS is the top beam element, rather than
    waiting for the beam to fill up with EOS. This is correct because the
-   probabilities of beam elements cannot increase. The latter approach is only
-   required if the scores can increase, e.g., when using certain kinds of
-   length normalization.
+   a beam element can never have a descendant with higher probability than
+   itself. The latter approach is only required if the scores can increase,
+   e.g., when using certain kinds of length normalization.
 
 Composable Neural Networks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-TODO
+This section is yet to be written.
 
 Limitations
 -----------
@@ -399,8 +418,7 @@ Limitations
 #. The only algorithm currently implemented for generating outputs is beam
    search. In the future, other generation algorithms such as ancestral
    sampling, greedy decoding, and constrained ancestral sampling may be added.
-#. Beam search is not parallelized across minibatch elements (but Hugging
-   Face recommends not doing this anyway). TODO include link
+#. Beam search is not parallelized across minibatch elements.
 #. Due to limitations in the API for PyTorch's transformer implementation,
    decoding for transformers is very inefficient. At every step of decoding,
    all of the hidden representations are re-computed from scratch, and the
