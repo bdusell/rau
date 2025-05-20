@@ -17,10 +17,16 @@ features and avoids some pitfalls that I have not seen handled well in other
 codebases. To see if using Rau is a good idea for you, see
 `Technical Details`_, `Features`_, and `Limitations`_.
 
-Rau is based on code that was originally used for
-`adding stack data structures to LSTMs and transformers <https://github.com/bdusell/stack-attention>`_. Rau has been used to great effect in the following papers:
+Rau has been used in the following papers:
 
-* `Training Neural Networks as Recognizers of Formal Languages <https://openreview.net/forum?id=aWLQTbfFgV>`_ (Alexandra Butoi, Ghazal Khalighinejad, Anej Svete, Josef Valvoda, Ryan Cotterell, Brian DuSell). ICLR 2025.
+* Alexandra Butoi, Ghazal Khalighinejad, Anej Svete, Josef Valvoda, Ryan Cotterell, Brian DuSell. `Training Neural Networks as Recognizers of Formal Languages. <https://openreview.net/forum?id=aWLQTbfFgV>`_ ICLR 2025.
+* Taiga Someya, Anej Svete, Brian DuSell, Timothy J. O'Donnell, Mario Giulianelli, Ryan Cotterell. Learnability on the Information-Theoretic Continuum: Inductive Bias for Information Locality in Neural Language Models. ACL 2025.
+
+Rau is based on code that was originally used for
+`adding stack data structures to LSTMs and transformers <https://github.com/bdusell/stack-attention>`_.
+A version of Rau that includes implementations of stack-augmented neural
+network architectures can be found on
+`this branch <https://github.com/bdusell/rau/tree/differentiable-stacks>`_.
 
 How to Use Rau
 --------------
