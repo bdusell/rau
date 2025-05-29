@@ -22,7 +22,7 @@ jobs:
       - name: Install Python packages
         run: bash scripts/install_python_packages.bash
       - name: Run unit tests
-        run: poetry run pytest tests
+        run: bash scripts/run_tests.bash
       - name: Build test distributions
         run: poetry build
       - name: Upload test distributions
