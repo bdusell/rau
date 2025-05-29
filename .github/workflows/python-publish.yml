@@ -22,14 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # See https://github.com/actions/setup-python/blob/main/docs/advanced-usage.md#caching-packages
-      - name: Install poetry
-        run: pipx install poetry
+      - name: Install Poetry
+        run: pipx install poetry==1.7.0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: 'poetry'
+          python-version: "3.11.7"
+          cache: poetry
       - name: Install Python packages
-        run: poetry install
+        run: bash scripts/install_python_packages.bash
       - name: Run unit tests
         run: poetry run pytest tests
       - name: Build release distributions
