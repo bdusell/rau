@@ -25,6 +25,4 @@ ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
-# Add src/ to PYTHONPATH.
-ENV PYTHONPATH=/app/src:${PYTHONPATH}
 WORKDIR /app/

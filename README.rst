@@ -65,6 +65,9 @@ container::
 
     bash scripts/docker_shell.bash --build
 
+(If you don't have an NVIDIA GPU, don't install the NVIDIA Container Toolkit,
+and run the above command with the flag ``--cpu`` added.)
+
 Install Python dependencies. This can be done by installing the package manager
 `Poetry <https://python-poetry.org/docs/#installation>`_
 (it's already installed in the Docker container) and running this script::
@@ -73,7 +76,7 @@ Install Python dependencies. This can be done by installing the package manager
 
 Start a shell inside the Python virtual environment using Poetry::
 
-    poetry shell
+    bash scripts/poetry_shell.bash
 
 You are now ready to use Rau.
     
