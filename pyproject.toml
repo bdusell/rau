@@ -19,12 +19,18 @@ dependencies = [
 repository = "https://github.com/bdusell/rau"
 
 [tool.poetry]
-version = "0.1.0"
 classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence"
 ]
+version = "0.0.0"
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
+
+[tool.poetry-dynamic-versioning]
+enable = true
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.1"
@@ -35,5 +41,5 @@ sphinx = "^7.2.6"
 sphinx-autodoc-typehints = "^1.25.2"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=2.0.0,<3.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
