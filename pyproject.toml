@@ -3,6 +3,7 @@ name = "rau"
 version = "0.1.0"
 description = "Neural language modeling and sequence-to-sequence transduction in PyTorch."
 authors = ["Brian DuSell <brian.dusell@inf.ethz.ch>"]
+readme = "README.rst"
 
 [tool.poetry.dependencies]
 python = "^3.11"
