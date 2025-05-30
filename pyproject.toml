@@ -1,23 +1,39 @@
-[tool.poetry]
+[project]
 name = "rau"
-version = "0.1.0"
+dynamic = ["version", "classifiers"]
 description = "Neural language modeling and sequence-to-sequence transduction in PyTorch."
-authors = ["Brian DuSell <brian.dusell@inf.ethz.ch>"]
+license = { text = "MIT" }
 readme = "README.rst"
+requires-python = ">=3.11"
+authors = [
+    { name = "Brian DuSell", email = "brian.dusell@inf.ethz.ch" }
+]
+dependencies = [
+    "humanfriendly (>=10.0,<11.0)",
+    "more-itertools (>=10.1.0,<11.0.0)",
+    "torch (>=2.1.0,<3.0.0)",
+    "numpy (>=1.26.4,<2.0.0)"
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-humanfriendly = "^10.0"
-more-itertools = "^10.1.0"
-torch = "^2.1.0"
-numpy = "^1.26.4"
+[project.urls]
+repository = "https://github.com/bdusell/rau"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry]
+version = "0.1.0"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+
+[tool.poetry.group.dev.dependencies]
 mypy = "^1.7.1"
 pytest = "^7.4.3"
+
+[tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
 sphinx-autodoc-typehints = "^1.25.2"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
