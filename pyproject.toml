@@ -31,6 +31,11 @@ poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
 
 [tool.poetry-dynamic-versioning]
 enable = true
+vcs = "git"
+metadata = false
+
+[tool.poetry-dynamic-versioning.substitution]
+files = []
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.1"
