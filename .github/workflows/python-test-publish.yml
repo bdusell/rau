@@ -12,15 +12,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       # See https://github.com/actions/setup-python/blob/main/docs/advanced-usage.md#caching-packages
-      - name: Install Poetry
-        run: pipx install poetry==2.1.3
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.12"
           cache: poetry
+      - name: Install Poetry
+        run: pipx install poetry==2.1.3
+      - name: Set package version
+        run: |
+          version=0.0.0.$(date +%s)
+          echo "version: $version"
+          poetry version "$version"
       - name: Install Python packages
         run: bash scripts/install_python_packages.bash
       - name: Run unit tests

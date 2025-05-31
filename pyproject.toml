@@ -24,18 +24,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence"
 ]
-version = "0.0.0"
-
-[tool.poetry.requires-plugins]
-poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
-
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-metadata = false
-
-[tool.poetry-dynamic-versioning.substitution]
-files = []
+version = "0.0.0+placeholder"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.1"
@@ -46,5 +35,5 @@ sphinx = "^7.2.6"
 sphinx-autodoc-typehints = "^1.25.2"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
