@@ -1,5 +1,4 @@
-set -e
-set -u
+set -euo pipefail
 
 . scripts/variables.bash
 
