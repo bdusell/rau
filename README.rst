@@ -8,7 +8,7 @@ researchers. Out of the box, it provides implementations of the simple
 recurrent neural network (RNN), long short-term memory (LSTM), and transformer
 architectures. It includes extensible Python APIs and command-line tools for
 data preprocessing, training, and evaluation. It is very easy to get started
-with the command-line tools quickly if you provide your data as pretokenized
+with the command-line tools if you provide your data as pretokenized
 (space-separated) plaintext.
 
 There are, of course, many excellent implementations of neural network training
@@ -251,7 +251,7 @@ be treated as errors at inference time.
 
 Note the new files generated:
 
-* ``language-modeling-example/``
+* ``sequence-to-sequence-example/``
 
   * ``source.shared.prepared``
   * ``target.shared.prepared``
@@ -354,7 +354,7 @@ Features
    timestep-parallel training and autoregressive decoding. If you have two
    ``Unidirectional`` models that support both of these modes, you can compose
    them into a model that feeds the outputs of the first model as inputs to the
-   seconds, and the composite model will also support both modes efficiently,
+   second, and the composite model will also support both modes efficiently,
    for free. See `Composable Neural Networks`_.
 #. The RNN and LSTM use learned initial hidden states.
 #. None of the architectures have upper limits on sequence length. This
