@@ -1,1 +1,1 @@
-PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring poetry sync --no-root
+PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring poetry sync

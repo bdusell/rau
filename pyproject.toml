@@ -18,6 +18,9 @@ dependencies = [
 [project.urls]
 repository = "https://github.com/bdusell/rau"
 
+[project.scripts]
+rau = "rau.cli:main"
+
 [tool.poetry]
 classifiers = [
     "Intended Audience :: Developers",

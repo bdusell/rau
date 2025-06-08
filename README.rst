@@ -121,7 +121,7 @@ Note the directory structure:
 Now, "prepare" the data by figuring out the vocabulary of the training data and
 converting all tokens to integers::
 
-    python src/rau/tasks/language_modeling/prepare_data.py \
+    rau lm prepare \
       --training-data language-modeling-example \
       --more-data validation \
       --more-data test \
@@ -152,7 +152,7 @@ Note the new files generated:
 
 Now, train a transformer language model::
 
-    python src/rau/tasks/language_modeling/train.py \
+    rau lm train \
       --training-data language-modeling-example \
       --architecture transformer \
       --num-layers 6 \
@@ -177,7 +177,7 @@ This saves a transformer language model to the directory
 
 Finally, calculate the perplexity of this language model on the test set::
 
-    python src/rau/tasks/language_modeling/evaluate.py \
+    rau lm evaluate \
       --load-model saved-language-model \
       --training-data language-modeling-example \
       --input test \
@@ -229,7 +229,7 @@ Note the directory structure:
 Now, "prepare" the data by figuring out the vocabulary of the training data and
 converting all tokens to integers::
 
-    python src/rau/tasks/sequence_to_sequence/prepare_data.py \
+    rau ss prepare \
       --training-data sequence-to-sequence-example \
       --vocabulary-types shared \
       --more-data validation \
@@ -271,7 +271,7 @@ Note the new files generated:
 
 Now, train a transformer encoder-decoder model::
 
-    python src/rau/tasks/sequence_to_sequence/train.py \
+    rau ss train \
       --training-data sequence-to-sequence-example \
       --vocabulary-type shared \
       --num-encoder-layers 6 \
@@ -297,7 +297,7 @@ This saves a model to the directory ``saved-sequence-to-sequence-model``.
 
 Finally, translate the source sequences in the test data using beam search::
 
-    python src/rau/tasks/sequence_to_sequence/translate.py \
+    rau ss translate \
       --load-model saved-sequence-to-sequence-model \
       --input sequence-to-sequence-example/datasets/test/source.shared.prepared \
       --beam-size 4 \
