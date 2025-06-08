@@ -24,16 +24,34 @@ def main():
     # Language Modeling
     lm_parser = subparsers.add_parser('lm', help='Language modeling.')
     lm_subparsers = lm_parser.add_subparsers(dest='lm_command')
-    lm_prepare_command.add_arguments(lm_subparsers.add_parser('prepare', help=lm_prepare_command.description()))
-    lm_train_command.add_arguments(lm_subparsers.add_parser('train', help=lm_train_command.description()))
-    lm_evaluate_command.add_arguments(lm_subparsers.add_parser('evaluate', help=lm_evaluate_command.description()))
+    lm_prepare_command.add_arguments(lm_subparsers.add_parser('prepare',
+        help='Prepare data for use by a neural language model.',
+        description=lm_prepare_command.description()
+    ))
+    lm_train_command.add_arguments(lm_subparsers.add_parser('train',
+        help='Train a neural language model.',
+        description=lm_train_command.description()
+    ))
+    lm_evaluate_command.add_arguments(lm_subparsers.add_parser('evaluate',
+        help='Evaluate a neural language model.',
+        description=lm_evaluate_command.description()
+    ))
 
     # Sequence-to-Sequence
     ss_parser = subparsers.add_parser('ss', help='Sequence-to-sequence transduction.')
     ss_subparsers = ss_parser.add_subparsers(dest='ss_command')
-    ss_prepare_command.add_arguments(ss_subparsers.add_parser('prepare', help=ss_prepare_command.description()))
-    ss_train_command.add_arguments(ss_subparsers.add_parser('train', help=ss_train_command.description()))
-    ss_translate_command.add_arguments(ss_subparsers.add_parser('translate', help=ss_translate_command.description()))
+    ss_prepare_command.add_arguments(ss_subparsers.add_parser('prepare',
+        help='Prepare data for use by a neural sequence-to-sequence model.',
+        description=ss_prepare_command.description()
+    ))
+    ss_train_command.add_arguments(ss_subparsers.add_parser('train',
+        help='Train a neural sequence-to-sequence model.',
+        description=ss_train_command.description()
+    ))
+    ss_translate_command.add_arguments(ss_subparsers.add_parser('translate',
+        help='Translate input sequences to output sequences using a neural sequence-to-sequence model.',
+        description=ss_translate_command.description()
+    ))
 
     args = parser.parse_args()
 
