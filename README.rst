@@ -50,36 +50,13 @@ user only needs to deal with sequences of whitespace-separated tokens.
 Quickstart
 ----------
 
-Clone the repo::
+Install Rau from PyPI using your favorite package manager::
 
-    git clone git@github.com:bdusell/rau.git
-    cd rau
+    pip install rau
 
-Optional: To simplify software installation, set up the pre-made Docker
-container defined in this repo. To do this, install
-`Docker <https://www.docker.com/get-started>`_
-and the
-`NVIDIA Container Toolkit <https://www.docker.com/get-started>`_
-(for GPU support), then run this script in order to start a shell inside of the
-container::
+This should install the command ``rau``, which serves as the library's
+command-line interface.
 
-    bash scripts/docker_shell.bash --build
-
-(If you don't have an NVIDIA GPU, don't install the NVIDIA Container Toolkit,
-and run the above command with the flag ``--cpu`` added.)
-
-Install Python dependencies. This can be done by installing the package manager
-`Poetry <https://python-poetry.org/docs/#installation>`_
-(it's already installed in the Docker container) and running this script::
-
-    bash scripts/install_python_packages.bash
-
-Start a shell inside the Python virtual environment using Poetry::
-
-    bash scripts/poetry_shell.bash
-
-You are now ready to use Rau.
-    
 Below are some quick examples of setting up pipelines for language modeling and
 sequence-to-sequence transduction. We will use the pretokenized datasets from
 `McCoy et al., 2020 <https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00304/43542/Does-Syntax-Need-to-Grow-on-Trees-Sources-of>`_;
@@ -442,6 +419,39 @@ Limitations
    the future.
 #. Training cannot be stopped and restarted, so it cannot recover from crashes.
    This feature might be added in the future.
+
+Setting up a Development Environment
+------------------------------------
+
+Clone the repo::
+
+    git clone git@github.com:bdusell/rau.git
+    cd rau
+
+Optional: To simplify software installation, set up the pre-made Docker
+container defined in this repo. To do this, install
+`Docker <https://www.docker.com/get-started>`_
+and the
+`NVIDIA Container Toolkit <https://www.docker.com/get-started>`_
+(for GPU support), then run this script in order to start a shell inside of the
+container::
+
+    bash scripts/docker_shell.bash --build
+
+(If you don't have an NVIDIA GPU, don't install the NVIDIA Container Toolkit,
+and run the above command with the flag ``--cpu`` added.)
+
+Install Python dependencies. This can be done by installing the package manager
+`Poetry <https://python-poetry.org/docs/#installation>`_
+(it's already installed in the Docker container) and running this script::
+
+    bash scripts/install_python_packages.bash
+
+Start a shell inside the Python virtual environment using Poetry::
+
+    bash scripts/poetry_shell.bash
+
+You are now ready to use Rau.
 
 What does the name "Rau" mean?
 ------------------------------
