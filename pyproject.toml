@@ -29,13 +29,16 @@ classifiers = [
 ]
 version = "0.0.0+placeholder"
 
-[tool.poetry.group.dev.dependencies]
+[tool.poetry.group.test.dependencies]
 mypy = "^1.7.1"
 pytest = "^7.4.3"
 
 [tool.poetry.group.docs.dependencies]
-sphinx = "^7.2.6"
-sphinx-autodoc-typehints = "^1.25.2"
+sphinx = "^8.2.3"
+sphinx-autodoc-typehints = "^3.2.0"
+sphinx-multiversion = "^0.2.4"
+sphinxcontrib-bibtex = "^2.6.3"
+setuptools = "^80.9.0" # Required by sphinxcontrib-bibtex
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
