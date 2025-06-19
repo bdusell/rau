@@ -11,7 +11,7 @@ from rau.tasks.sequence_to_sequence.translate import SequenceToSequenceTranslate
 
 def main():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title='Subcommands for tasks', dest='task_command')
+    subparsers = parser.add_subparsers(title='Subcommands for tasks', dest='task_command', required=True)
 
     console_logger = get_logger()
     lm_prepare_command = LanguageModelingPrepareDataCommand()
@@ -23,7 +23,7 @@ def main():
 
     # Language Modeling
     lm_parser = subparsers.add_parser('lm', help='Language modeling.')
-    lm_subparsers = lm_parser.add_subparsers(dest='lm_command')
+    lm_subparsers = lm_parser.add_subparsers(dest='lm_command', required=True)
     lm_prepare_command.add_arguments(lm_subparsers.add_parser('prepare',
         help='Prepare data for use by a neural language model.',
         description=lm_prepare_command.description()
@@ -39,7 +39,7 @@ def main():
 
     # Sequence-to-Sequence
     ss_parser = subparsers.add_parser('ss', help='Sequence-to-sequence transduction.')
-    ss_subparsers = ss_parser.add_subparsers(dest='ss_command')
+    ss_subparsers = ss_parser.add_subparsers(dest='ss_command', required=True)
     ss_prepare_command.add_arguments(ss_subparsers.add_parser('prepare',
         help='Prepare data for use by a neural sequence-to-sequence model.',
         description=ss_prepare_command.description()
