@@ -260,11 +260,11 @@ class Unidirectional(torch.nn.Module):
         """
         raise NotImplementedError
 
-    def tag(self, tag):
+    def tag(self, tag: str) -> 'Unidirectional':
         self._tags.add(tag)
         return self
 
-    def main(self):
+    def main(self) -> 'Unidirectional':
         return self.tag('main')
 
 def _stack_outputs(
