@@ -26,6 +26,10 @@ def construct_shared_embeddings(
     use_padding: bool
 ) -> torch.Tensor:
     if output_vocabulary_size > input_vocabulary_size:
-        raise ValueError
+        raise ValueError(
+            f'output_vocabulary_size ({output_vocabulary_size}) cannot be '
+            f'greater than input_vocabulary_size ({input_vocabulary_size}) '
+            f'when using shared embeddings'
+        )
     vocab_size = input_vocabulary_size + int(use_padding)
     return torch.nn.Parameter(torch.zeros(vocab_size, embedding_size))
