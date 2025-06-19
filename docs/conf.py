@@ -46,3 +46,4 @@ intersphinx_mapping = {
 
 # Bibtex.
 bibtex_bibfiles = ['bibliography.bib']
+bibtex_reference_style = 'author_year'
