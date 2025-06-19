@@ -29,7 +29,7 @@ class PositionalUnidirectional(Unidirectional):
     ) -> torch.Tensor:
         r"""Compute the output for a single input at a certain position.
 
-        :param input_tensor: A tensor of size :math:`B \times cdots`
+        :param input_tensor: A tensor of size :math:`B \times \cdots`
             representing an input tensor for a single timestep.
         :param position: An index indicating the current timestep. The first
             timestep has index 0.
