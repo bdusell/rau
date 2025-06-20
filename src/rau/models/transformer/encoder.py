@@ -21,8 +21,11 @@ def get_transformer_encoder(
     r"""Construct a bidirectional transformer
     :cite:p:`vaswani-etal-2017-attention` encoder.
 
+    The transformer uses pre-norm instead of post-norm
+    :cite:p:`wang-etal-2019-learning,nguyen-salazar-2019-transformers`.
+
     :param vocabulary_size: The size of the input vocabulary.
-    :param shared_emeddings: An optional matrix of input embeddings that can be
+    :param shared_embeddings: An optional matrix of input embeddings that can be
         shared elsewhere.
     :param positional_encoding_cacher: Optional cache for computing positional
         encodings.
@@ -32,9 +35,15 @@ def get_transformer_encoder(
     :param num_heads: Number of attention heads per layer.
     :param feedforward_size: Number of hidden units in each feedforward
         sublayer.
-    :param dropout: Dropout rate used throughout the transformer.
-    :param use_padding:
-    :param tag:
+    :param dropout: Dropout rate used throughout the transformer. Dropout is
+        applied to the same places as in :cite:p:`vaswani-etal-2017-attention`
+        and also to the hidden units of feedforward sublayers and the attention
+        probabilities of the attention mechanism.
+    :param use_padding: Whether to add a reserved padding index automatically.
+    :param tag: An optional tag to add to the inner
+        :py:class:`TransformerEncoderLayers` for argument routing.
+    :return: A module. Unless ``tag`` is given, it accepts the same arguments as
+        :py:class:`TransformerEncoderLayers`.
     """
     return (
         Composable(
@@ -60,6 +69,7 @@ def get_transformer_encoder(
     )
 
 class TransformerEncoderLayers(torch.nn.Module):
+    r"""A cascade of transformer layers."""
 
     def __init__(self,
         num_layers: int,
@@ -89,4 +99,9 @@ class TransformerEncoderLayers(torch.nn.Module):
         source_sequence: torch.Tensor,
         is_padding_mask: torch.Tensor | None = None
     ) -> torch.Tensor:
+        r"""
+        :param source_sequence: Input tensor.
+        :param is_padding_mask: A Boolean tensor indicating which positions in
+            the input should be treated as padding symbols and ignored.
+        """
         return self.layers(source_sequence, src_key_padding_mask=is_padding_mask)

@@ -33,7 +33,8 @@ html_static_path = ['_static']
 autodoc_default_options = {
     'member-order' : 'bysource',
     'members' : True,
-    'imported-members' : True
+    'imported-members' : True,
+    'undoc-members' : True
 }
 autodoc_class_signature = 'separated'
 

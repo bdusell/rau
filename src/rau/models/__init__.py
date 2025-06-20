@@ -1,7 +1,7 @@
-from .transformer.unidirectional_encoder import get_unidirectional_transformer_encoder
-from .transformer.encoder import get_transformer_encoder
-from .transformer.decoder import get_transformer_decoder
-from .transformer.encoder_decoder import get_transformer_encoder_decoder
+from .transformer.unidirectional_encoder import get_unidirectional_transformer_encoder, UnidirectionalTransformerEncoderLayers
+from .transformer.encoder import get_transformer_encoder, TransformerEncoderLayers
+from .transformer.decoder import get_transformer_decoder, TransformerDecoderLayers
+from .transformer.encoder_decoder import get_transformer_encoder_decoder, TransformerEncoderDecoder
 from .transformer.positional_encodings import SinusoidalPositionalEncodingCacher
 from .rnn.simple_rnn import SimpleRNN
 from .rnn.lstm import LSTM
