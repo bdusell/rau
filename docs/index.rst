@@ -14,8 +14,7 @@ space-separated tokens.
 There are, of course, many excellent implementations of neural network training
 out in the world for you to choose from, but I think Rau does have some neat
 features and avoids some pitfalls that I have not seen handled well in other
-codebases. To see if using Rau is a good idea for you, see
-:doc:`technical-details` and :doc:`features-and-limitations`.
+codebases. To see if using Rau is a good idea for you, see :doc:`details`.
 
 Rau has been used in the following papers:
 

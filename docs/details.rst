@@ -48,7 +48,7 @@ Features
    ``Unidirectional`` models that support both of these modes, you can compose
    them into a model that feeds the outputs of the first model as inputs to the
    second, and the composite model will also support both modes efficiently, for
-   free. See :ref:`rau.unidirectional`.
+   free. See :doc:`composable-neural-networks`.
 #. The RNN and LSTM use learned initial hidden states.
 #. None of the architectures have upper limits on sequence length. This includes
    the transformer, which uses sinusoidal positional encodings that can be
