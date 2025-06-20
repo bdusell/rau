@@ -1,6 +1,5 @@
 import dataclasses
 import pathlib
-from typing import Optional
 
 import torch
 
@@ -23,7 +22,7 @@ def load_shared_vocabulary_data_from_file(path: pathlib.Path) -> SharedVocabular
 
 def get_vocabularies(
     vocabulary_data: SharedVocabularyData,
-    builder: Optional[VocabularyBuilder]=None
+    builder: VocabularyBuilder | None = None
 ) -> tuple[Vocabulary, Vocabulary, Vocabulary]:
     if builder is None:
         builder = ToStringVocabularyBuilder()

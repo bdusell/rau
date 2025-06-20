@@ -3,40 +3,32 @@ import logging
 import sys
 
 class Command:
-    """
-    Base class for commands in the `rau` CLI. Commands should inherit from this class,
-    defined `DESCRIPTION`, and implement the `add_arguments` and `main` methods.
+    r"""Base class for commands in the `rau` CLI. Commands should inherit from
+    this class, define `DESCRIPTION`, and implement the `add_arguments` and
+    `main` methods.
     """
 
     DESCRIPTION: str
-    """
-    A description of the command. This should be set by subclasses to provide
-    a brief overview of what the command does.
+    r"""A description of the command. This should be set by subclasses to
+    provide a brief overview of what the command does.
     """
 
     def description(self) -> str:
-        """
-        Return the description of the command.
-        This is used to provide help information in the CLI.
+        r"""Return the description of the command. This is used to provide help
+        information in the CLI.
         """
         return self.DESCRIPTION
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        """
-        Add command-specific arguments to the parser.
-        """
+        r"""Add command-specific arguments to the parser."""
         raise NotImplementedError
 
     def run(self, parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
-        """
-        Main entry point for the command.
-        """
+        r"""Main entry point for the command."""
         raise NotImplementedError
 
     def main(self):
-        """
-        Run the command as an independent program.
-        """
+        r"""Run the command as an independent program."""
         parser = argparse.ArgumentParser(description=self.DESCRIPTION)
         self.add_arguments(parser)
         args = parser.parse_args()

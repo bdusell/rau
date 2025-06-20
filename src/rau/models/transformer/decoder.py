@@ -1,5 +1,4 @@
 from collections.abc import Callable, Iterable
-from typing import Optional, Union
 
 import torch
 
@@ -17,16 +16,17 @@ from .mask import make_causal_attention_mask
 def get_transformer_decoder(
     input_vocabulary_size: int,
     output_vocabulary_size: int,
-    shared_embeddings: Optional[torch.Tensor],
-    positional_encoding_cacher: Optional[SinusoidalPositionalEncodingCacher],
+    shared_embeddings: torch.Tensor | None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None,
     num_layers: int,
     d_model: int,
     num_heads: int,
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
-    tag: Optional[str]=None
+    tag: str | None = None
 ) -> Unidirectional:
+    r"""Construct a transformer decoder."""
     return (
         get_transformer_input_unidirectional(
             vocabulary_size=input_vocabulary_size,
@@ -79,12 +79,12 @@ class TransformerDecoderLayers(Unidirectional):
     def forward(self,
         input_sequence: torch.Tensor,
         encoder_sequence: torch.Tensor,
-        input_is_padding_mask: Optional[torch.Tensor]=None,
-        encoder_is_padding_mask: Optional[torch.Tensor]=None,
-        initial_state: Optional[Unidirectional.State]=None,
-        return_state: bool=False,
-        include_first: bool=True
-    ) -> Union[torch.Tensor, ForwardResult]:
+        input_is_padding_mask: torch.Tensor | None = None,
+        encoder_is_padding_mask: torch.Tensor | None = None,
+        initial_state: Unidirectional.State | None = None,
+        return_state: bool = False,
+        include_first: bool = True
+    ) -> torch.Tensor | ForwardResult:
         """
         :param input_sequence: The target sequence that is given as input to
             the decoder.
@@ -148,7 +148,7 @@ class TransformerDecoderLayers(Unidirectional):
                 ], dim=1)
             )
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             # TODO This is very inefficient
             # NOTE This assumes there is no padding in the decoder input
             full_output = self.decoder.forward(
@@ -186,14 +186,14 @@ class TransformerDecoderLayers(Unidirectional):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             raise NotImplementedError
 
         def forward(self,
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             raise NotImplementedError
 
     def initial_state(self,

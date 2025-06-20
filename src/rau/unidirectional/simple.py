@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterable
-from typing import Any, Optional, Union
+from typing import Any
 
 import torch
 
@@ -66,15 +66,15 @@ class SimpleUnidirectional(Unidirectional):
     class State(Unidirectional.State):
 
         parent: 'SimpleUnidirectional'
-        input_tensor: Optional[torch.Tensor]
-        _batch_size: Optional[int]
+        input_tensor: torch.Tensor | None
+        _batch_size: int | None
         args: list[Any]
         kwargs: dict[str, Any]
 
         def __init__(self,
             parent: 'SimpleUnidirectional',
-            input_tensor: Optional[torch.Tensor],
-            batch_size: Optional[int],
+            input_tensor: torch.Tensor | None,
+            batch_size: int | None,
             args: list[Any],
             kwargs: dict[str, Any]
         ):
@@ -87,7 +87,7 @@ class SimpleUnidirectional(Unidirectional):
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
             return self.parent.State(self.parent, input_tensor, None, self.args, self.kwargs)
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             if self._batch_size is not None:
                 return self.parent.initial_output(self._batch_size, *self.args, **self.kwargs)
             else:
@@ -128,7 +128,7 @@ class SimpleUnidirectional(Unidirectional):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             if include_first:
                 first_output = self.output()
             output = self.parent.forward_sequence(input_sequence, *self.args, **self.kwargs)
@@ -140,7 +140,7 @@ class SimpleUnidirectional(Unidirectional):
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             output = self.outputs(input_sequence, include_first)
             if return_state:
                 if input_sequence.size(1) == 0:

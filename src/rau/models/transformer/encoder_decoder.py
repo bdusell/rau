@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from rau.unidirectional import Unidirectional
@@ -21,6 +19,7 @@ def get_transformer_encoder_decoder(
     use_source_padding=True,
     use_target_padding=True
 ):
+    r"""Construct a transformer encoder-decoder."""
     shared_embeddings = get_shared_embeddings(
         tie_embeddings,
         source_vocabulary_size,
@@ -109,8 +108,8 @@ class TransformerEncoderDecoder(torch.nn.Module):
     def forward(self,
         source_sequence: torch.Tensor,
         target_sequence: torch.Tensor,
-        source_is_padding_mask: Optional[torch.Tensor]=None,
-        target_is_padding_mask: Optional[torch.Tensor]=None
+        source_is_padding_mask: torch.Tensor | None = None,
+        target_is_padding_mask: torch.Tensor | None = None
     ) -> torch.Tensor:
         encoder_outputs = self.encoder(
             source_sequence,
@@ -126,7 +125,7 @@ class TransformerEncoderDecoder(torch.nn.Module):
 
     def initial_decoder_state(self,
         source_sequence: torch.Tensor,
-        source_is_padding_mask: Optional[torch.Tensor]
+        source_is_padding_mask: torch.Tensor | None
     ) -> Unidirectional.State:
         encoder_outputs = self.encoder(
             source_sequence,

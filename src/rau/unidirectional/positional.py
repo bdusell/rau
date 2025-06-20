@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterable
-from typing import Any, Optional, Union
+from typing import Any
 
 import torch
 
@@ -42,12 +42,12 @@ class PositionalUnidirectional(Unidirectional):
 
         parent: 'PositionalUnidirectional'
         position: int
-        input_tensor: Optional[torch.Tensor]
+        input_tensor: torch.Tensor | None
 
         def __init__(self,
             parent: 'PositionalUnidirectional',
             position: int,
-            input_tensor: Optional[torch.Tensor]
+            input_tensor: torch.Tensor | None
         ):
             super().__init__()
             self.parent = parent
@@ -61,7 +61,7 @@ class PositionalUnidirectional(Unidirectional):
                 input_tensor
             )
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             if self._input_tensor is None:
                 raise ValueError(
                     'initial state of PositionalUnidirectional does not have '
@@ -103,7 +103,7 @@ class PositionalUnidirectional(Unidirectional):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             if include_first:
                 # NOTE Another way to include the first output would be to
                 # decrement the position by 1.
@@ -117,7 +117,7 @@ class PositionalUnidirectional(Unidirectional):
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             output = self.outputs(input_sequence, include_first)
             if return_state:
                 if input_sequence.size(1) == 0:

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 def get_shared_embeddings(
@@ -8,7 +6,9 @@ def get_shared_embeddings(
     output_vocabulary_size: int,
     embedding_size: int,
     use_padding: bool
-) -> Optional[torch.Tensor]:
+) -> torch.Tensor | None:
+    r"""Construct a matrix of embedding vectors that can be used as both input
+    embeddings and output embeddings."""
     if tie_embeddings:
         return construct_shared_embeddings(
             input_vocabulary_size,

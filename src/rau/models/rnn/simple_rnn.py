@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 import torch
 
@@ -11,7 +11,7 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
         input_size: int,
         hidden_units: int,
         layers: int=1,
-        dropout: Optional[float]=None,
+        dropout: float | None = None,
         nonlinearity: Literal['tanh', 'relu']='tanh',
         bias: bool=True,
         learned_hidden_state: bool=False,

@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable, Mapping, Sequence
 import dataclasses
 import itertools
-from typing import Any, Optional, Union
+from typing import Any
 
 import torch
 
@@ -20,12 +20,12 @@ class ComposedUnidirectional(Unidirectional):
     def forward(self,
         input_sequence: torch.Tensor,
         *args: Any,
-        initial_state: Optional[Unidirectional.State]=None,
+        initial_state: Unidirectional.State | None = None,
         return_state: bool=False,
         include_first: bool=True,
         tag_kwargs=None,
         **kwargs: Any
-    ) -> Union[torch.Tensor, ForwardResult]:
+    ) -> torch.Tensor | ForwardResult:
         if (args or kwargs) and 'main' not in self._tags:
             raise ValueError('this module does not accept extra args or kwargs')
         if initial_state is None and not return_state:
@@ -73,7 +73,7 @@ class ComposedUnidirectional(Unidirectional):
             new_second_state = self.second_state.next(first_output)
             return ComposedUnidirectional.State(new_first_state, new_second_state)
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             return self.second_state.output()
 
         def detach(self) -> Unidirectional.State:
@@ -112,7 +112,7 @@ class ComposedUnidirectional(Unidirectional):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             return self.second_state.outputs(
                 self._get_first_outputs(input_sequence),
                 include_first=include_first
@@ -122,7 +122,7 @@ class ComposedUnidirectional(Unidirectional):
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             first_kwargs = dict(
                 return_state=return_state,
                 include_first=False

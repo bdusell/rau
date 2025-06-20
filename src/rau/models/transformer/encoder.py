@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from rau.tools.torch.compose import Composable
@@ -10,16 +8,34 @@ from .input_layer import get_transformer_input_unidirectional
 
 def get_transformer_encoder(
     vocabulary_size: int,
-    shared_embeddings: Optional[torch.Tensor],
-    positional_encoding_cacher: Optional[SinusoidalPositionalEncodingCacher],
+    shared_embeddings: torch.Tensor | None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None,
     num_layers: int,
     d_model: int,
     num_heads: int,
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
-    tag: Optional[str]=None
+    tag: str | None = None
 ) -> torch.nn.Module:
+    r"""Construct a bidirectional transformer
+    :cite:p:`vaswani-etal-2017-attention` encoder.
+
+    :param vocabulary_size: The size of the input vocabulary.
+    :param shared_emeddings: An optional matrix of input embeddings that can be
+        shared elsewhere.
+    :param positional_encoding_cacher: Optional cache for computing positional
+        encodings.
+    :param num_layers: Number of layers.
+    :param d_model: The size of the vector representations used in the model, or
+        :math:`d_\mathrm{model}`.
+    :param num_heads: Number of attention heads per layer.
+    :param feedforward_size: Number of hidden units in each feedforward
+        sublayer.
+    :param dropout: Dropout rate used throughout the transformer.
+    :param use_padding:
+    :param tag:
+    """
     return (
         Composable(
             get_transformer_input_unidirectional(
@@ -71,6 +87,6 @@ class TransformerEncoderLayers(torch.nn.Module):
 
     def forward(self,
         source_sequence: torch.Tensor,
-        is_padding_mask: Optional[torch.Tensor]=None
+        is_padding_mask: torch.Tensor | None = None
     ) -> torch.Tensor:
         return self.layers(source_sequence, src_key_padding_mask=is_padding_mask)

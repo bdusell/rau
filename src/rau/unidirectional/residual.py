@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 import dataclasses
-from typing import Any, Optional, Union
+from typing import Any
 
 import torch
 
@@ -15,11 +15,11 @@ class ResidualUnidirectional(Unidirectional):
 
     def forward(self,
         input_sequence: torch.Tensor,
-        initial_state: Optional[Unidirectional.State]=None,
+        initial_state: Unidirectional.State | None = None,
         return_state: bool=False,
         include_first: bool=True,
         **kwargs: Any
-    ) -> Union[torch.Tensor, ForwardResult]:
+    ) -> torch.Tensor | ForwardResult:
         if initial_state is None and not return_state and not include_first:
             wrapped_result = ensure_is_forward_result(self.wrapped_module(
                 input_sequence,
@@ -45,7 +45,7 @@ class ResidualUnidirectional(Unidirectional):
     @dataclasses.dataclass
     class State(Unidirectional.State):
 
-        input_tensor: Optional[torch.Tensor]
+        input_tensor: torch.Tensor | None
         wrapped_state: Unidirectional.State
 
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
@@ -54,7 +54,7 @@ class ResidualUnidirectional(Unidirectional):
                 self.wrapped_state.next(input_tensor)
             )
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             # TODO Handle multiple outputs
             return self._get_input_tensor() + self.wrapped_state.output()
 
@@ -96,7 +96,7 @@ class ResidualUnidirectional(Unidirectional):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             if include_first:
                 first_input = self._get_input_tensor()
             output = self.wrapped_state.outputs(input_sequence, include_first)
@@ -108,7 +108,7 @@ class ResidualUnidirectional(Unidirectional):
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             if return_state:
                 # TODO
                 raise NotImplementedError

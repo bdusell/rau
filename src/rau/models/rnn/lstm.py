@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from .builtin import UnidirectionalBuiltinRNN
@@ -11,7 +9,7 @@ class LSTM(UnidirectionalBuiltinRNN):
         input_size: int,
         hidden_units: int,
         layers: int=1,
-        dropout: Optional[float]=None,
+        dropout: float | None = None,
         bias: bool=True,
         learned_hidden_state: bool=False,
         use_extra_bias: bool=False

@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable, Sequence
 import dataclasses
-from typing import Any, Optional, Union, overload
+from typing import Any, overload
 
 import torch
 
@@ -15,7 +15,7 @@ class ForwardResult:
     r"""The main output tensor of the module."""
     extra_outputs: Sequence[Sequence[Any]]
     r"""A list of extra outputs returned alongside the main output."""
-    state: 'Optional[Unidirectional.State]'
+    state: 'Unidirectional.State | None'
     r"""An optional state representing the updated state of the module after
     reading the inputs."""
 
@@ -34,11 +34,11 @@ class Unidirectional(torch.nn.Module):
     def forward(self,
         input_sequence: torch.Tensor,
         *args: Any,
-        initial_state: Optional['Unidirectional.State']=None,
+        initial_state: 'Unidirectional.State | None' = None,
         return_state: bool=False,
         include_first: bool=True,
         **kwargs: Any
-    ) -> Union[torch.Tensor, ForwardResult]:
+    ) -> torch.Tensor | ForwardResult:
         r"""Run this module on an entire sequence of inputs all at once.
 
         This can often be done more efficiently than processing each input one
@@ -119,7 +119,7 @@ class Unidirectional(torch.nn.Module):
             """
             raise NotImplementedError
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             r"""Get the output associated with this state.
 
             For example, this can be the hidden state vector itself, or the
@@ -204,7 +204,7 @@ class Unidirectional(torch.nn.Module):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             r"""Like :py:meth:`states`, but return the states' outputs.
 
             :param input_sequence: A :math:`B \times n \times \cdots` tensor,
@@ -219,7 +219,7 @@ class Unidirectional(torch.nn.Module):
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             r"""Like :py:meth:`Unidirectional.forward`, but start with this
             state as the initial state.
 
@@ -268,7 +268,7 @@ class Unidirectional(torch.nn.Module):
         return self.tag('main')
 
 def _stack_outputs(
-    outputs: Iterable[Union[torch.Tensor, tuple[torch.Tensor, ...]]]
+    outputs: Iterable[torch.Tensor | tuple[torch.Tensor, ...]]
 ) -> ForwardResult:
     it = iter(outputs)
     first = next(it)

@@ -1,5 +1,4 @@
 from collections.abc import Callable, Iterable
-from typing import Optional, Union
 
 import torch
 
@@ -25,10 +24,11 @@ def get_unidirectional_transformer_encoder(
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
-    shared_embeddings: Optional[torch.Tensor]=None,
-    positional_encoding_cacher: Optional[SinusoidalPositionalEncodingCacher]=None,
-    tag: Optional[str]=None
+    shared_embeddings: torch.Tensor | None = None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None = None,
+    tag: str | None = None
 ) -> Unidirectional:
+    r"""Construct a causally-masked transformer encoder."""
     if shared_embeddings is None:
         shared_embeddings = get_shared_embeddings(
             tie_embeddings,
@@ -90,11 +90,11 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
 
     def forward(self,
         input_sequence: torch.Tensor,
-        is_padding_mask: Optional[torch.Tensor]=None,
-        initial_state: Optional[Unidirectional.State]=None,
+        is_padding_mask: torch.Tensor | None = None,
+        initial_state: Unidirectional.State | None = None,
         return_state: bool=False,
         include_first: bool=True
-    ) -> Union[torch.Tensor, ForwardResult]:
+    ) -> torch.Tensor | ForwardResult:
         if initial_state is not None:
             # TODO
             raise NotImplementedError
@@ -137,7 +137,7 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
                 ], dim=1)
             )
 
-        def output(self) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
             # TODO This is very inefficient
             # NOTE This assumes there is no padding in the input
             full_output = self.encoder.forward(
@@ -171,14 +171,14 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
         def outputs(self,
             input_sequence: torch.Tensor,
             include_first: bool
-        ) -> Union[Iterable[torch.Tensor], Iterable[tuple[torch.Tensor, ...]]]:
+        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
             raise NotImplementedError
 
         def forward(self,
             input_sequence: torch.Tensor,
             return_state: bool,
             include_first: bool
-        ) -> Union[torch.Tensor, ForwardResult]:
+        ) -> torch.Tensor | ForwardResult:
             raise NotImplementedError
 
     def initial_state(self, batch_size: int) -> Unidirectional.State:

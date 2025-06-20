@@ -1,6 +1,5 @@
 import math
 from collections.abc import Iterable
-from typing import Optional
 
 import torch
 
@@ -49,7 +48,8 @@ class Layer(torch.nn.Module):
         return torch.nn.init.calculate_gain(self.get_nonlinearity_name())
 
     def xavier_uniform_init(self,
-            generator: Optional[torch.Generator]=None) -> None:
+        generator: torch.Generator | None = None
+    ) -> None:
         """Initialize the parameters of the layer using Xavier initialization.
         The correct gain is used based on the activation function. The bias
         term, if it exists, will be initialized to 0.
@@ -159,7 +159,7 @@ def xavier_uniform_(
     fan_in: int,
     fan_out: int,
     gain: float,
-    generator: Optional[torch.Generator]
+    generator: torch.Generator | None
 ):
     """A rewrite of :py:func:`~torch.nn.init.xavier_uniform` that accepts a
     RNG and works on multi-dimensional tensors."""

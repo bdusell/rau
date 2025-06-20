@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from .layer import Layer
@@ -30,7 +28,7 @@ class TiedLinear(torch.nn.Module):
 def get_linear(
     input_size: int,
     output_size: int,
-    shared_embeddings: Optional[torch.Tensor]=None,
+    shared_embeddings: torch.Tensor | None = None,
     bias: bool=True
 ):
     if shared_embeddings is None:

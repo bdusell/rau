@@ -1,6 +1,6 @@
 import dataclasses
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 import torch
 
@@ -16,7 +16,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         input_size: int,
         hidden_units: int,
         layers: int,
-        dropout: Optional[float],
+        dropout: float | None,
         bias: bool,
         use_extra_bias: bool,
         **kwargs: Any

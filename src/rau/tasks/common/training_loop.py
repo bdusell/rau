@@ -6,7 +6,7 @@ import functools
 import logging
 import random
 from collections.abc import Callable, Iterable
-from typing import Any, Generic, Literal, Optional, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 import humanfriendly
 import torch
@@ -93,8 +93,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     max_tokens_per_batch: int
     optimizer: Literal['SGD', 'Adam']
     initial_learning_rate: float
-    label_smoothing_factor: Optional[float]
-    gradient_clipping_threshold: Optional[float]
+    label_smoothing_factor: float | None
+    gradient_clipping_threshold: float | None
     early_stopping_patience: int
     learning_rate_patience: int
     learning_rate_decay_factor: float
@@ -126,7 +126,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     def log_failed_batch(self,
         vocabulary: VocabularyContainer,
         batch: Batch,
-        info: Optional[dict[str, Any]],
+        info: dict[str, Any] | None,
         console_logger: logging.Logger,
         event_logger: Logger
     ) -> dict[str, Any]:

@@ -1,6 +1,5 @@
 import dataclasses
 import pathlib
-from typing import Optional
 
 import torch
 
@@ -18,7 +17,7 @@ def load_vocabulary_data_from_file(path: pathlib.Path) -> VocabularyData:
 def get_vocabularies(
     vocabulary_data: VocabularyData,
     use_bos: bool,
-    builder: Optional[VocabularyBuilder]=None
+    builder: VocabularyBuilder | None = None
 ) -> tuple[Vocabulary, Vocabulary]:
     if builder is None:
         builder = ToStringVocabularyBuilder()
