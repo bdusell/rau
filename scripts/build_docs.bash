@@ -1,1 +1,1 @@
-sphinx-build -M html docs docs/dist
+sphinx-multiversion docs docs/dist

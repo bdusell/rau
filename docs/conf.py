@@ -17,7 +17,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx_autodoc_typehints',
-    'sphinxcontrib.bibtex'
+    'sphinxcontrib.bibtex',
+    'sphinx_multiversion'
 ]
 
 templates_path = ['_templates']
@@ -28,6 +29,15 @@ exclude_patterns = ['dist']
 
 html_theme = 'alabaster'
 html_static_path = ['_static']
+html_sidebars = {
+    '**': [
+        'about.html',
+        'navigation.html',
+        'searchbox.html',
+        # Add a section in the sidebar for different versions.
+        'versioning.html',
+    ]
+}
 
 # For the ordering of autodoc-generated documentation.
 autodoc_default_options = {
@@ -48,3 +58,6 @@ intersphinx_mapping = {
 # Bibtex.
 bibtex_bibfiles = ['bibliography.bib']
 bibtex_reference_style = 'author_year'
+
+# Multiversioning.
+smv_released_pattern = r'^refs/tags/v.+$'
