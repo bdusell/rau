@@ -88,13 +88,13 @@ returns the outputs similarly stacked into a single :py:class:`~torch.Tensor`.
     # Sequence length.
     n = 11
 
-    # Create a sequence of integer inputs in the range [0, 5) of length
-    # n. These are the "tokens" given to the transformer encoder.
+    # Create a batch of sequences of integer inputs in the range [0, 5) of
+    # length n. These are the "tokens" given to the transformer encoder.
     x = torch.randint(5, (B, n))
 
     # Use the () operator to get an output sequence of vectors.
     # The argument include_first=False tells the module that we do not
-    # want i to attempt to produce an output before reading the first
+    # want it to attempt to produce an output before reading the first
     # input. This is not possible for transformers, but it is for RNNs,
     # which have an initial hidden state. For transformers, an output
     # corresponding to an initial BOS input serves the same purpose.
@@ -154,10 +154,11 @@ Argument Routing
 ----------------
 
 What if you try to compose modules that require multiple arguments? For example,
-if you have a module ``A`` that takes no keyword arguments, a module ``B``
-that requires a keyword argument ``foo``, and a module ``C`` that requires keyword arguments ``bar`` and ``baz``, how do you invoke ``A | B | C``? Rau
-handles this by allowing you to add tags to modules that signal which modules
-should receive which arguments.
+if you have a module ``A`` that takes no keyword arguments, a module ``B`` that
+requires a keyword argument ``foo``, and a module ``C`` that requires keyword
+arguments ``bar`` and ``baz``, how do you invoke ``A | B | C``? Rau handles this
+by allowing you to add tags to modules that signal which modules should receive
+which arguments.
 
 .. code-block:: python
 
