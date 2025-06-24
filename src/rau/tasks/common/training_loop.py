@@ -162,7 +162,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     ) -> None:
         """
         NOTE: When this function returns, the model's parameters will be those of
-        the *last* epoch, not necessarily the *best* epoch.
+        the *last* epoch, not necessarily the *best* epoch. However, the saved
+        model will be the best one.
         """
         device = model_interface.get_device(None)
         do_profile_memory = device.type == 'cuda'

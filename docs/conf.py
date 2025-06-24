@@ -52,7 +52,8 @@ autodoc_default_options = {
     'member-order' : 'bysource',
     'members' : True,
     'imported-members' : True,
-    'undoc-members' : True
+    'undoc-members' : False,
+    'show-inheritance' : True
 }
 autodoc_class_signature = 'separated'
 

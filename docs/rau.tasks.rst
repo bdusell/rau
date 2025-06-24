@@ -1,4 +1,4 @@
 ``rau.tasks``
 =============
 
-.. automodule:: rau.tasks
+.. automodule:: rau.tasks.common
