@@ -5,7 +5,7 @@ For those using the Python API of Rau, a useful feature that the library
 provides is the ability to easily create new neural network modules by composing
 simpler modules with the ``|`` operator, so that the output of one is used as
 the input to the other. (The choice of ``|`` as the composition operator is
-meant to evoke piping in shell languages.) If ``A`` and ``B`` are
+meant to evoke piping from shell languages.) If ``A`` and ``B`` are
 :py:class:`~torch.nn.Module`\ s and ``A`` is also an instance of Rau's
 :py:class:`~rau.tools.torch.compose.BasicComposable` class, then the expression
 ``A | B`` creates a new :py:class:`~torch.nn.Module` whose ``()`` operator
@@ -24,7 +24,9 @@ pipeline of more than two modules like ``A | B | C | D | ...``. You can make any
     from rau.tools.torch.compose import Composable
 
     # Create a simple pipeline of Linear modules.
-    # We only need to wrap the first module in Composable.
+    # We only need to wrap the first module in Composable to kick
+    # off composition.
+    # Note that the sizes of connecting linear layers match.
     M = Composable(Linear(3, 7)) | Linear(7, 5) | Linear(5, 11)
 
     # Feed an input to the composed module.
@@ -49,7 +51,7 @@ called :py:class:`~torch.unidirectional.Unidirectional`. A
 :py:class:`~torch.nn.Module` that receives a variable-length sequence of
 :py:class:`~torch.Tensor`\ s as input and produces an output
 :py:class:`~torch.Tensor` for each input :py:class:`~torch.Tensor`. Moreover,
-each output :py:class:`~torch.Tensor` may **not** have any data dependencies on
+each output :py:class:`~torch.Tensor` **must not** have any data dependencies on
 future inputs. As usual, a :py:class:`~torch.unidirectional.Unidirectional` has
 a ``()`` operator, which receives the inputs stacked into a single
 :py:class:`~torch.Tensor` along dimension 1 (the batch dimension is 0) and
@@ -66,10 +68,10 @@ returns the outputs similarly stacked into a single :py:class:`~torch.Tensor`.
     # known as a "decoder-only" transformer). It is an instance of
     # Unidirectional.
     M = get_unidirectional_transformer_encoder(
-        # This module will receive a sequence of tensors of size 3 as
+        # This module will receive a sequence of tensors of size 5 as
         # input.
         input_vocabulary_size=5,
-        # This module will produce a sequence of tensors of size 5 as
+        # This module will produce a sequence of tensors of size 3 as
         # output.
         output_vocabulary_size=3,
         # Turn off dropout in order ot make the outputs deterministic
@@ -88,8 +90,9 @@ returns the outputs similarly stacked into a single :py:class:`~torch.Tensor`.
     # Sequence length.
     n = 11
 
-    # Create a batch of sequences of integer inputs in the range [0, 5) of
-    # length n. These are the "tokens" given to the transformer encoder.
+    # Create a batch of sequences of integer inputs in the range [0, 5)
+    # of length n. These are the "tokens" given to the transformer
+    # encoder.
     x = torch.randint(5, (B, n))
 
     # Use the () operator to get an output sequence of vectors.
@@ -97,7 +100,9 @@ returns the outputs similarly stacked into a single :py:class:`~torch.Tensor`.
     # want it to attempt to produce an output before reading the first
     # input. This is not possible for transformers, but it is for RNNs,
     # which have an initial hidden state. For transformers, an output
-    # corresponding to an initial BOS input serves the same purpose.
+    # corresponding to an initial BOS input can serve the same purpose,
+    # but the BOS would need to be added to the input x, which we have
+    # not done in this example.
     y = M(x, include_first=False)
     assert y.size() == (B, n, 3)
 
