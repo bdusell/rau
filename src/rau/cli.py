@@ -5,6 +5,7 @@ from rau.tasks.common.command import get_logger
 from rau.tasks.language_modeling.prepare_data import LanguageModelingPrepareDataCommand
 from rau.tasks.language_modeling.train import LanguageModelingTrainCommand
 from rau.tasks.language_modeling.evaluate import LanguageModelingEvaluateCommand
+from rau.tasks.language_modeling.generate import LanguageModelingGenerateCommand
 from rau.tasks.sequence_to_sequence.prepare_data import SequenceToSequencePrepareDataCommand
 from rau.tasks.sequence_to_sequence.train import SequenceToSequenceTrainCommand
 from rau.tasks.sequence_to_sequence.translate import SequenceToSequenceTranslateCommand
@@ -17,6 +18,7 @@ def main():
     lm_prepare_command = LanguageModelingPrepareDataCommand()
     lm_train_command = LanguageModelingTrainCommand(console_logger)
     lm_evaluate_command = LanguageModelingEvaluateCommand()
+    lm_generate_command = LanguageModelingGenerateCommand()
     ss_prepare_command = SequenceToSequencePrepareDataCommand()
     ss_train_command = SequenceToSequenceTrainCommand(console_logger)
     ss_translate_command = SequenceToSequenceTranslateCommand(console_logger)
@@ -35,6 +37,10 @@ def main():
     lm_evaluate_command.add_arguments(lm_subparsers.add_parser('evaluate',
         help='Evaluate a neural language model.',
         description=lm_evaluate_command.description()
+    ))
+    lm_generate_command.add_arguments(lm_subparsers.add_parser('generate',
+        help='Sample strings from a neural language model.',
+        description=lm_generate_command.description()
     ))
 
     # Sequence-to-Sequence
@@ -64,6 +70,8 @@ def main():
                     lm_train_command.run(parser, args)
                 case 'evaluate':
                     lm_evaluate_command.run(parser, args)
+                case 'generate':
+                    lm_generate_command.run(parser, args)
         case 'ss':
             match args.ss_command:
                 case 'prepare':

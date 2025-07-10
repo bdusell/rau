@@ -1,3 +1,5 @@
+import torch
+
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
@@ -167,8 +169,17 @@ class LanguageModelingModelInterface(ModelInterface):
         # Add 1 for BOS.
         return length + int(self.uses_bos)
 
-    def get_vocabularies(self, vocabulary_data, builder=None):
-        return get_vocabularies(vocabulary_data, self.uses_bos, builder)
+    def get_vocabularies(self,
+        vocabulary_data,
+        builder=None,
+        include_embedding_vocab=True
+    ):
+        return get_vocabularies(
+            vocabulary_data,
+            self.uses_bos,
+            builder,
+            include_embedding_vocab
+        )
 
     def prepare_batch(self, batch, device):
         # For transformers, use the same index for padding symbols in both the
@@ -232,3 +243,9 @@ class LanguageModelingModelInterface(ModelInterface):
         # mask, because padding only occurs at the end of a sequence, and the
         # model is already causally masked.
         return model(model_input, include_first=not self.uses_bos)
+
+    def get_initial_state(self, model, batch_size, device):
+        state = model.initial_state(batch_size)
+        if self.uses_bos:
+            state = state.next(torch.full((batch_size,), self.bos_index, device=device))
+        return state
