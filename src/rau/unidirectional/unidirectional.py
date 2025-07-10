@@ -251,7 +251,7 @@ class Unidirectional(torch.nn.Module):
         *args: Any,
         **kwargs: Any
     ) -> 'Unidirectional.State':
-        r"""Get the initial state of the RNN.
+        r"""Get the initial state of the model.
 
         :param batch_size: Batch size.
         :param args: Extra arguments passed from :py:meth:`forward`.

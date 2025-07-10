@@ -1,3 +1,5 @@
+r"""This module contains implementations of neural network architectures."""
+
 from .transformer.unidirectional_encoder import get_unidirectional_transformer_encoder, UnidirectionalTransformerEncoderLayers
 from .transformer.encoder import get_transformer_encoder, TransformerEncoderLayers
 from .transformer.decoder import get_transformer_decoder, TransformerDecoderLayers

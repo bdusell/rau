@@ -11,7 +11,7 @@ class ProfileResult:
     initial_memory_stats: dict
     memory_stats: dict
 
-def profile(func, device, warmup=True):
+def profile(func, device, warmup=True) -> ProfileResult:
     torch.cuda.synchronize(device)
     initial_memory_stats = torch.cuda.memory_stats(device)
     if warmup:

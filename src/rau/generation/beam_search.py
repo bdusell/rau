@@ -9,18 +9,20 @@ def beam_search(
     max_length: int,
     device: torch.device
 ) -> list[list[int]]:
-    r"""Given an initial state with multiple batch elements, generate a sequence
-    for each element using beam search.
+    r"""Given a state of an autoregressive language model containing any number
+    of batch elements, generate a sequence for each element using beam search.
 
     This includes length normalization. That is, for each timestep of
     generation, when selecting the top ``beam_size`` hypotheses for the next
-    beam, we divide the log probability of each hypothesis by the number of
-    symbols in the hypothesis so far (including EOS), and we select the
-    ``beam_size`` hypotheses with the highest scores.
+    beam, we divide the (unnormalized) log probability of each hypothesis by the
+    number of symbols in the hypothesis so far (including EOS), and we select
+    the ``beam_size`` hypotheses with the highest scores.
 
-    :param initial_state: The initial state from which decoding starts,
-        containing any number of batch elements. A separate sequence will be
-        decoded for each of the initial batch elements.
+    :param initial_state: A state of an autoregressive decoder or language model
+        from which decoding starts, containing any number of batch elements. A
+        separate sequence will be decoded for each of the initial batch
+        elements. Note that this does not actually need to be the *initial*
+        state of a decoder; decoding can start from any state.
     :param beam_size: The maximum number of elements allowed on the beam.
     :param eos_symbol: Identifier of a designated end-of-sequence (EOS) symbol
         that indicates that the model should stop generating symbols for a

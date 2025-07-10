@@ -2,3 +2,4 @@
 ===================
 
 .. automodule:: rau.tools.torch
+    :undoc-members:

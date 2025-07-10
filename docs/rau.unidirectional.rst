@@ -2,3 +2,4 @@
 ======================
 
 .. automodule:: rau.unidirectional
+    :undoc-members:

@@ -7,21 +7,21 @@ simpler modules with the ``|`` operator, so that the output of one is used as
 the input to the other. (The choice of ``|`` as the composition operator is
 meant to evoke piping from shell languages.) If ``A`` and ``B`` are
 :py:class:`~torch.nn.Module`\ s and ``A`` is also an instance of Rau's
-:py:class:`~rau.tools.torch.compose.BasicComposable` class, then the expression
+:py:class:`~rau.tools.torch.BasicComposable` class, then the expression
 ``A | B`` creates a new :py:class:`~torch.nn.Module` whose ``()`` operator
 passes its input to ``A``, feeds the output of ``A`` as input to ``B``, and
 returns the output of ``B``. This module is also an instance of
-:py:class:`~rau.tools.torch.compose.BasicComposable`, so you can easily create a
+:py:class:`~rau.tools.torch.BasicComposable`, so you can easily create a
 pipeline of more than two modules like ``A | B | C | D | ...``. You can make any
 :py:class:`~torch.nn.Module` an instance of
-:py:class:`~rau.tools.torch.compose.BasicComposable` by wrapping it in
-:py:class:`~rau.tools.torch.compose.Composable`.
+:py:class:`~rau.tools.torch.BasicComposable` by wrapping it in
+:py:class:`~rau.tools.torch.Composable`.
 
 .. code-block:: python
 
     import torch
     from torch.nn import Linear
-    from rau.tools.torch.compose import Composable
+    from rau.tools.torch import Composable
 
     # Create a simple pipeline of Linear modules.
     # We only need to wrap the first module in Composable to kick
@@ -39,7 +39,7 @@ pipeline of more than two modules like ``A | B | C | D | ...``. You can make any
 This saves you the trouble of defining a custom :py:class:`~torch.nn.Module`
 subclass that implements this pipeline.
 
-The full API is documented in :py:mod:`rau.tools.torch.compose`.
+The full API is documented in :py:mod:`rau.tools.torch`.
 
 Composable Sequential Neural Networks
 -------------------------------------

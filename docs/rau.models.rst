@@ -2,3 +2,4 @@
 ==============
 
 .. automodule:: rau.models
+    :undoc-members:

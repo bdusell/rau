@@ -81,7 +81,7 @@ class Layer(torch.nn.Module):
         return self.linear.out_features
 
 class FeedForward(torch.nn.Sequential):
-    """Multiple :py:class:`Layer`s in serial, forming a feed-forward neural
+    r"""Multiple :py:class:`Layer`\ s in serial, forming a feed-forward neural
     network."""
 
     def __init__(self, input_size: int, layer_sizes: Iterable[int],

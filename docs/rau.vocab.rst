@@ -2,3 +2,4 @@
 =============
 
 .. automodule:: rau.vocab
+    :undoc-members:

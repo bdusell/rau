@@ -2,3 +2,4 @@
 =============
 
 .. automodule:: rau.tasks.common
+    :undoc-members:
