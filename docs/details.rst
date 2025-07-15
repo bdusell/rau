@@ -157,6 +157,7 @@ Limitations
    transformer.
 #. Ancestral sampling and beam search are the only available sampling algorithms
    for now.
+#. Ancestral sampling is not parallelized across minibatch elements.
 #. Beam search is not parallelized across minibatch elements.
 #. Due to limitations in the API for PyTorch's transformer implementation,
    decoding for transformers is very inefficient. At every step of decoding, all
