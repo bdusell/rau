@@ -13,6 +13,15 @@ Install Rau from PyPI using your favorite package manager:
 This should install the command ``rau``, which serves as the library's
 command-line interface.
 
+If you want to install a cutting-edge (and possible unstable) version from
+GitHub, you can do so with
+
+.. code-block:: sh
+
+    pip install git+ssh://git@github.com/bdusell/rau.git@main
+
+You can replace ``main`` with a specific branch or commit hash.
+
 Examples
 --------
 
@@ -117,7 +126,7 @@ Now, train a transformer language model:
 This saves a transformer language model to the directory
 ``saved-language-model``.
 
-Finally, calculate the perplexity of this language model on the test set:
+Calculate the perplexity of this language model on the test set:
 
 .. code-block:: sh
 
@@ -126,6 +135,15 @@ Finally, calculate the perplexity of this language model on the test set:
       --training-data language-modeling-example \
       --input test \
       --batching-max-tokens 2048
+
+Randomly sample 10 sequences from the trained language model:
+
+.. code-block:: sh
+
+    rau lm generate \
+      --load-model saved-language-model \
+      --training-data language-modeling-example \
+      --num-samples 10
 
 Sequence-to-Sequence
 ^^^^^^^^^^^^^^^^^^^^

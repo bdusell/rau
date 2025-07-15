@@ -158,12 +158,12 @@ The full API is documented in :doc:`rau.unidirectional`.
 Argument Routing
 ----------------
 
-What if you try to compose modules that require multiple arguments? For example,
-if you have a module ``A`` that takes no keyword arguments, a module ``B`` that
-requires a keyword argument ``foo``, and a module ``C`` that requires keyword
-arguments ``bar`` and ``baz``, how do you invoke ``A | B | C``? Rau handles this
-by allowing you to add tags to modules that signal which modules should receive
-which arguments.
+What if you try to compose modules that require additional input arguments? For
+example, if you have a module ``A`` that takes no keyword arguments, a module
+``B`` that requires a keyword argument ``foo``, and a module ``C`` that requires
+keyword arguments ``bar`` and ``baz``, how do you invoke ``A | B | C``? Rau
+handles this by allowing you to add tags to modules that signal which modules
+should receive which arguments.
 
 .. code-block:: python
 
@@ -189,7 +189,8 @@ which arguments.
 
 You can make this more succinct by designating at most one module in a pipeline
 as the "main" module, which will receive any extra positional or keyword
-arguments. This is useful when wrapping a module with input and output layers.
+arguments. This is useful when wrapping a single "main" module with input and
+output layers that don't take extra arguments.
 
 .. code-block:: python
 
