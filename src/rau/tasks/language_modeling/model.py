@@ -6,7 +6,10 @@ from rau.models.transformer.positional_encodings import SinusoidalPositionalEnco
 from rau.models.transformer.unidirectional_encoder import (
     get_unidirectional_transformer_encoder
 )
-from rau.models.rnn import SimpleRNN, LSTM
+from rau.models.rnn.language_model import (
+    get_simple_rnn_language_model,
+    get_lstm_language_model
+)
 from rau.models.common.shared_embeddings import get_shared_embeddings
 from rau.unidirectional import (
     EmbeddingUnidirectional,
@@ -78,80 +81,63 @@ class LanguageModelingModelInterface(ModelInterface):
     ):
         if architecture is None:
             raise ValueError
-        if architecture == 'transformer':
-            if num_layers is None:
-                raise ValueError
-            if d_model is None:
-                raise ValueError
-            if num_heads is None:
-                raise ValueError
-            if feedforward_size is None:
-                raise ValueError
-            if dropout is None:
-                raise ValueError
-            return get_unidirectional_transformer_encoder(
-                input_vocabulary_size=input_vocabulary_size,
-                output_vocabulary_size=output_vocabulary_size,
-                tie_embeddings=True,
-                num_layers=num_layers,
-                d_model=d_model,
-                num_heads=num_heads,
-                feedforward_size=feedforward_size,
-                dropout=dropout,
-                use_padding=False
-            )
-        elif architecture in ('rnn', 'lstm'):
-            if hidden_units is None:
-                raise ValueError
-            if num_layers is None:
-                raise ValueError
-            if dropout is None:
-                raise ValueError
-            # First, construct the recurrent hidden state module.
-            if architecture == 'rnn':
-                core = SimpleRNN(
-                    input_size=hidden_units,
+        match architecture:
+            case 'transformer':
+                if num_layers is None:
+                    raise ValueError
+                if d_model is None:
+                    raise ValueError
+                if num_heads is None:
+                    raise ValueError
+                if feedforward_size is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
+                return get_unidirectional_transformer_encoder(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
+                    tie_embeddings=True,
+                    num_layers=num_layers,
+                    d_model=d_model,
+                    num_heads=num_heads,
+                    feedforward_size=feedforward_size,
+                    dropout=dropout,
+                    use_padding=False
+                )
+            case 'rnn':
+                if hidden_units is None:
+                    raise ValueError
+                if num_layers is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
+                return get_simple_rnn_language_model(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
                     hidden_units=hidden_units,
                     layers=num_layers,
                     dropout=dropout,
-                    learned_hidden_state=True
+                    learned_hidden_state=True,
+                    use_padding=False
                 )
-            else:
-                core = LSTM(
-                    input_size=hidden_units,
+            case 'lstm':
+                if hidden_units is None:
+                    raise ValueError
+                if num_layers is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
+                return get_lstm_language_model(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
                     hidden_units=hidden_units,
                     layers=num_layers,
                     dropout=dropout,
-                    learned_hidden_state=True
+                    learned_hidden_state=True,
+                    use_padding=False
                 )
-            # Now, sandwich the recurrent hidden state between an input
-            # embedding layer and an output layer.
-            shared_embeddings = get_shared_embeddings(
-                tie_embeddings=True,
-                input_vocabulary_size=input_vocabulary_size,
-                output_vocabulary_size=output_vocabulary_size,
-                embedding_size=hidden_units,
-                use_padding=False
-            )
-            return (
-                EmbeddingUnidirectional(
-                    vocabulary_size=input_vocabulary_size,
-                    output_size=hidden_units,
-                    use_padding=False,
-                    shared_embeddings=shared_embeddings
-                ) |
-                DropoutUnidirectional(dropout) |
-                core.main() |
-                DropoutUnidirectional(dropout) |
-                OutputUnidirectional(
-                    input_size=hidden_units,
-                    vocabulary_size=output_vocabulary_size,
-                    shared_embeddings=shared_embeddings,
-                    bias=False
-                )
-            )
-        else:
-            raise ValueError
+            case _:
+                raise ValueError
 
     def initialize(self, args, model, generator):
         if args.init_scale is None:
