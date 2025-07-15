@@ -32,7 +32,7 @@ def sample_single(
     max_length: int | None = None,
     generator: torch.Generator | None = None
 ) -> Iterable[int]:
-    if max_length < 1:
+    if max_length is not None and max_length < 1:
         return
     if initial_state.batch_size() != 1:
         raise ValueError
