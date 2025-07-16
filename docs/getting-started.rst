@@ -14,11 +14,15 @@ This should install the command ``rau``, which serves as the library's
 command-line interface.
 
 If you want to install a cutting-edge (and possible unstable) version from
-GitHub, you can do so with
+GitHub, you can do so with one of the following
 
 .. code-block:: sh
 
     pip install git+ssh://git@github.com/bdusell/rau.git@main
+
+.. code-block:: sh
+
+    pip install git+https://github.com/bdusell/rau.git@main
 
 You can replace ``main`` with a specific branch or commit hash.
 
