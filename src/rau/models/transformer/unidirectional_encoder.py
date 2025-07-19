@@ -28,7 +28,33 @@ def get_unidirectional_transformer_encoder(
     positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None = None,
     tag: str | None = None
 ) -> Unidirectional:
-    r"""Construct a causally-masked transformer encoder."""
+    r"""Construct a causally-masked transformer encoder (also called a
+    "decoder-only" model). This can be used as a language model.
+
+    It includes a scaled input embedding layer with sinusoidal positional
+    encodings and an output layer for predicting logits.
+
+    :param input_vocabulary_size: The size of the input vocabulary.
+    :param output_vocabulary_size: The size of the output vocabulary.
+    :param tie_embeddings: Whether to tie the input and output embeddings.
+    :param num_layers: Number of layers.
+    :param d_model: The size of the vector representations used in the model, or
+        :math:`d_\mathrm{model}`.
+    :param num_heads: Number of attention heads per layer.
+    :param feedforward_size: Number of hidden units in each feedforward
+        sublayer.
+    :param dropout: Dropout rate used throughout the transformer.
+    :param use_padding: Whether to ensure that the embedding matrix is big
+        enough to accommodate an index for a reserved padding symbol.
+    :param shared_embeddings: An optional matrix of embeddings that can be
+        shared elsewhere.
+    :param positional_encoding_cacher: Optional cache for computing positional
+        encodings that can be shared elsewhere.
+    :param tag: An optional tag to add to the inner
+        :py:class:`UnidirectionalTransformerEncoderLayers` for argument routing.
+    :return: A module. Unless ``tag`` is given, it accepts the same arguments as
+        :py:class:`UnidirectionalTransformerEncoderLayers`.
+    """
     if shared_embeddings is None:
         shared_embeddings = get_shared_embeddings(
             tie_embeddings,
@@ -63,6 +89,7 @@ def get_unidirectional_transformer_encoder(
     )
 
 class UnidirectionalTransformerEncoderLayers(Unidirectional):
+    r"""A causally-masked transformer encoder without input or output layers."""
 
     def __init__(self,
         num_layers: int,
@@ -92,9 +119,17 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
         input_sequence: torch.Tensor,
         is_padding_mask: torch.Tensor | None = None,
         initial_state: Unidirectional.State | None = None,
-        return_state: bool=False,
-        include_first: bool=True
+        return_state: bool = False,
+        include_first: bool = True
     ) -> torch.Tensor | ForwardResult:
+        r"""
+        :param is_padding_mask: Optional bool tensor indicating which positions
+            in the input are padding tokens and should be ignored. Since the
+            model is already causally masked, this should usually not be
+            necessary, and it is better not to use it. Its size should be
+            :math:`\text{batch size} \times \text{input length}`. A value of
+            true indicates that a token is padding.
+        """
         if initial_state is not None:
             # TODO
             raise NotImplementedError

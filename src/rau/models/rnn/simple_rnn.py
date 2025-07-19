@@ -5,19 +5,21 @@ import torch
 from .builtin import UnidirectionalBuiltinRNN
 
 class SimpleRNN(UnidirectionalBuiltinRNN):
-    """A simple RNN wrapped in the :py:class:`Unidirectional` API."""
+    r"""A simple RNN (also known as an Elman RNN) wrapped in the
+    :py:class:`Unidirectional` API.
+    """
 
     def __init__(self,
         input_size: int,
         hidden_units: int,
-        layers: int=1,
+        layers: int = 1,
         dropout: float | None = None,
-        nonlinearity: Literal['tanh', 'relu']='tanh',
-        bias: bool=True,
-        learned_hidden_state: bool=False,
-        use_extra_bias: bool=False
-    ):
-        """
+        nonlinearity: Literal['tanh', 'relu'] = 'tanh',
+        bias: bool = True,
+        learned_hidden_state: bool = True,
+        use_extra_bias: bool = False
+    ) -> None:
+        r"""
         :param input_size: The size of the input vectors to the RNN.
         :param hidden_units: The number of hidden units in each layer.
         :param layers: The number of layers in the RNN.
@@ -52,7 +54,7 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
             else:
                 self.activation_function = torch.nn.functional.relu
 
-    RNN_CLASS = torch.nn.RNN
+    _RNN_CLASS = torch.nn.RNN
 
     def _initial_tensors(self, batch_size):
         # The initial tensor is a tensor of all the hidden states of all layers

@@ -20,18 +20,23 @@ def sinusoidal_positional_encodings(sequence_length, d_model, device):
     return pe
 
 class SinusoidalPositionalEncodingCacher(torch.nn.Module):
-    """A module that caches a tensor of sinusoidal positional encodings.
+    r"""A module that caches a tensor of sinusoidal positional encodings.
 
-    Note that it is highly recommended to set a maximum size up-front before
-    training to avoid CUDA memory fragmentation.
+    This module can dynamically resize the cached tensor as needed, but it is
+    **highly recommended** to set a maximum size up-front at the beginning of
+    your program using :py:meth`get_encodings` (for example, by looping through
+    the training data) and then disable dynamic resizing using
+    :py:meth:`set_allow_realloation` to avoid CUDA memory fragmentation.
+    Otherwise, you may run out of memory in a way that is very hard to debug.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._set_cache_size_with_device((0, 0), None)
         self._allow_reallocation = True
 
-    def clear(self):
+    def clear(self) -> None:
+        r"""Clear the cache."""
         self._set_cache_size((0, 0))
 
     def _set_cache_size(self, size):
@@ -48,7 +53,14 @@ class SinusoidalPositionalEncodingCacher(torch.nn.Module):
     def _set_encodings(self, tensor):
         self.register_buffer('encodings', tensor, persistent=False)
 
-    def get_encodings(self, sequence_length, d_model):
+    def get_encodings(self, sequence_length: int, d_model: int) -> torch.Tensor:
+        r"""Get a tensor of positional encodings of the requested size.
+
+        :param sequence_length: Get positional encodings up to this length.
+        :param d_model: The :math:`d_\mathrm{model}` of the positional
+            encodings.
+        :return: A tensor of positional encodings of the requested size.
+        """
         query_size = (sequence_length, d_model)
         cache_size = self.encodings.size()
         if not all(a <= b for a, b in zip(query_size, cache_size)):
@@ -63,5 +75,16 @@ class SinusoidalPositionalEncodingCacher(torch.nn.Module):
             self._set_cache_size(new_size)
         return self.encodings[:sequence_length, :d_model]
 
-    def set_allow_reallocation(self, value):
+    def set_allow_reallocation(self, value: bool) -> None:
+        r"""Set whether reallocating the tensor dynamically based on requested
+        sizes should be enabled. By default, it is enabled. If it is disabled,
+        requesting a size bigger than the currently cached tensor will cause an
+        error. After setting a maximum size with :py:meth:`get_encodings`, the
+        advantage of disabling it is that it will treat requests for bigger
+        sizes (which would imply that the way you determined the maximum length
+        has a bug) as errors rather than silently allowing them to cause memory
+        fragmentation.
+
+        :param value: Whether to allow reallocation.
+        """
         self._allow_reallocation = value

@@ -8,38 +8,36 @@ from .input_layer import get_transformer_input_unidirectional
 
 def get_transformer_encoder(
     vocabulary_size: int,
-    shared_embeddings: torch.Tensor | None,
-    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None,
     num_layers: int,
     d_model: int,
     num_heads: int,
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
+    shared_embeddings: torch.Tensor | None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None,
     tag: str | None = None
 ) -> torch.nn.Module:
-    r"""Construct a bidirectional transformer
-    :cite:p:`vaswani-etal-2017-attention` encoder.
+    r"""Construct a bidirectional transformer encoder.
 
-    The transformer uses pre-norm instead of post-norm
-    :cite:p:`wang-etal-2019-learning,nguyen-salazar-2019-transformers`.
+    It includes a scaled input embedding layer with sinusoidal positional
+    encodings but *no* separate output layer. Its outputs are the outputs of
+    layer norm applied to the outputs of the last layer.
 
     :param vocabulary_size: The size of the input vocabulary.
-    :param shared_embeddings: An optional matrix of input embeddings that can be
-        shared elsewhere.
-    :param positional_encoding_cacher: Optional cache for computing positional
-        encodings.
     :param num_layers: Number of layers.
     :param d_model: The size of the vector representations used in the model, or
         :math:`d_\mathrm{model}`.
     :param num_heads: Number of attention heads per layer.
     :param feedforward_size: Number of hidden units in each feedforward
         sublayer.
-    :param dropout: Dropout rate used throughout the transformer. Dropout is
-        applied to the same places as in :cite:p:`vaswani-etal-2017-attention`
-        and also to the hidden units of feedforward sublayers and the attention
-        probabilities of the attention mechanism.
-    :param use_padding: Whether to add a reserved padding index automatically.
+    :param dropout: Dropout rate used throughout the transformer.
+    :param use_padding: Whether to ensure that the embedding matrix is big
+        enough to accommodate an index for a reserved padding symbol.
+    :param shared_embeddings: An optional matrix of embeddings that can be
+        shared elsewhere.
+    :param positional_encoding_cacher: Optional cache for computing positional
+        encodings that can be shared elsewhere.
     :param tag: An optional tag to add to the inner
         :py:class:`TransformerEncoderLayers` for argument routing.
     :return: A module. Unless ``tag`` is given, it accepts the same arguments as
@@ -69,7 +67,7 @@ def get_transformer_encoder(
     )
 
 class TransformerEncoderLayers(torch.nn.Module):
-    r"""A cascade of transformer layers."""
+    r"""A bidirectional transformer encoder without input or outpt layers."""
 
     def __init__(self,
         num_layers: int,
@@ -100,8 +98,11 @@ class TransformerEncoderLayers(torch.nn.Module):
         is_padding_mask: torch.Tensor | None = None
     ) -> torch.Tensor:
         r"""
-        :param source_sequence: Input tensor.
-        :param is_padding_mask: A Boolean tensor indicating which positions in
-            the input should be treated as padding symbols and ignored.
+        :param is_padding_mask: A bool tensor indicating which positions in the
+            input should be treated as padding symbols and ignored. This always
+            needs to be used if you are using a minibatch with sequences of
+            different lengths. Its size should be
+            :math:`\text{batch size} \times \text{input length}`. A value of
+            true indicates that a token is padding.
         """
         return self.layers(source_sequence, src_key_padding_mask=is_padding_mask)

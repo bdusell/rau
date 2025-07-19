@@ -16,17 +16,41 @@ from .mask import make_causal_attention_mask
 def get_transformer_decoder(
     input_vocabulary_size: int,
     output_vocabulary_size: int,
-    shared_embeddings: torch.Tensor | None,
-    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None,
     num_layers: int,
     d_model: int,
     num_heads: int,
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
+    shared_embeddings: torch.Tensor | None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None,
     tag: str | None = None
 ) -> Unidirectional:
-    r"""Construct a transformer decoder."""
+    r"""Construct a transformer decoder with cross-attention.
+
+    It includes a scaled input embedding layer with sinusoidal positional
+    encodings and an output layer for predicting logits.
+
+    :param input_vocabulary_size: The size of the input vocabulary.
+    :param output_vocabulary_size: The size of the output vocabulary.
+    :param num_layers: Number of layers.
+    :param d_model: The size of the vector representations used in the model, or
+        :math:`d_\mathrm{model}`.
+    :param num_heads: Number of attention heads per layer.
+    :param feedforward_size: Number of hidden units in each feedforward
+        sublayer.
+    :param dropout: Dropout rate used throughout the transformer.
+    :param use_padding: Whether to ensure that the embedding matrix is big
+        enough to accommodate an index for a reserved padding symbol.
+    :param shared_embeddings: An optional matrix of embeddings that can be
+        shared elsewhere.
+    :param positional_encoding_cacher: Optional cache for computing positional
+        encodings that can be shared elsewhere.
+    :param tag: An optional tag to add to the inner
+        :py:class:`UnidirectionalTransformerEncoderLayers` for argument routing.
+    :return: A module. Unless ``tag`` is given, it accepts the same arguments as
+        :py:class:`TransformerDecoderLayers`.
+    """
     return (
         get_transformer_input_unidirectional(
             vocabulary_size=input_vocabulary_size,
@@ -53,6 +77,7 @@ def get_transformer_decoder(
     )
 
 class TransformerDecoderLayers(Unidirectional):
+    r"""A transformer decoder without input or output layers."""
 
     def __init__(self,
         num_layers: int,
@@ -85,16 +110,20 @@ class TransformerDecoderLayers(Unidirectional):
         return_state: bool = False,
         include_first: bool = True
     ) -> torch.Tensor | ForwardResult:
-        """
-        :param input_sequence: The target sequence that is given as input to
-            the decoder.
+        r"""
         :param encoder_sequence: The output sequence of the encoder.
-        :param input_is_padding_mask: A boolean tensor indicating which
-            positions in the input to the decoder correspond to padding
-            symbols that should be ignored. Important note: If padding only
-            occurs at the end of a sequence, then providing this mask is not
-            necessary, because the attention mechanism is causally masked
-            anyway.
+        :param input_is_padding_mask: Optional bool tensor indicating which
+            positions in the decoder input correspond to padding symbols that
+            should be ignored. Since the decoder is already causally masked,
+            this should usually not be necessary, and it is better not to use
+            it. Its size should be :math:`\text{batch size} \times \text{decoder
+            input length}`. A value of true indicates that a token is padding.
+        :param encoder_is_padding_mask: Bool tensor indicating which positions
+            in the encoder input correspond to padding symbols that should be
+            ignored. This always needs to be used if you are using a minibatch
+            with input sequences of different lengths. Its size should be
+            :math:`\text{batch size} \times \text{encoder input length}`. A
+            value of true indicates that a token is padding.
         """
         if initial_state is not None:
             # TODO

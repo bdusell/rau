@@ -10,7 +10,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
     """Wraps a built-in PyTorch RNN class in the :py:class:`Unidirectional`
     API."""
 
-    RNN_CLASS: type
+    _RNN_CLASS: type
 
     def __init__(self,
         input_size: int,
@@ -38,7 +38,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         if dropout is None or layers == 1:
             dropout = 0.0
         super().__init__()
-        self.rnn = self.RNN_CLASS(
+        self.rnn = self._RNN_CLASS(
             input_size,
             hidden_units,
             num_layers=layers,
