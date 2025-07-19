@@ -1,5 +1,4 @@
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Optional, Union
 
 import torch
 
@@ -18,14 +17,14 @@ def _raise_return_error():
 def init_modules(
     module: torch.nn.Module,
     initialize: Callable[
-        [str, torch.nn.Module, Optional[torch.Generator]],
-        tuple[bool, Optional[Iterable[torch.nn.Parameter]]]
+        [str, torch.nn.Module, torch.Generator | None],
+        tuple[bool, Iterable[torch.nn.Parameter] | None]
     ],
     fallback: Callable[
-        [str, torch.Tensor, Optional[torch.Generator]],
+        [str, torch.Tensor, torch.Generator | None],
         None
     ]=default_fallback,
-    generator: Optional[torch.Generator]=None
+    generator: torch.Generator | None = None
 ) -> None:
     """Recursively initialize the parameters of a module using a callback
     function that can be triggered on certain sub-modules.
@@ -72,27 +71,27 @@ def init_modules(
 
 def init_modules_by_type(
     module: torch.nn.Module,
-    callbacks: Union[
+    callbacks: (
         Mapping[
             type[torch.nn.Module],
             Callable[
                 [str, torch.nn.Module, torch.Generator],
-                Optional[Iterable[torch.nn.Parameter]]
+                Iterable[torch.nn.Parameter] | None
             ]
-        ],
+        ] |
         Iterable[tuple[
             type[torch.nn.Module],
             Callable[
                 [str, torch.nn.Module, torch.Generator],
-                Optional[Iterable[torch.nn.Parameter]]
+                Iterable[torch.nn.Parameter] | None
             ]
         ]]
-    ],
+    ),
     fallback: Callable[
-        [str, torch.Tensor, Optional[torch.Generator]],
+        [str, torch.Tensor, torch.Generator | None],
         None
     ]=default_fallback,
-    generator: Optional[torch.Generator]=None
+    generator: torch.Generator | None = None
 ) -> None:
     """Recursively initialize the parameters of a module using callbacks that
     are triggered based on the type of each sub-module.
@@ -135,9 +134,9 @@ def init_modules_by_type(
 
 def xavier_uniform_init(
     module: torch.nn.Module,
-    generator: Optional[torch.Generator]=None,
+    generator: torch.Generator | None = None,
     fallback: Callable[
-        [str, torch.Tensor, Optional[torch.Generator]],
+        [str, torch.Tensor, torch.Generator | None],
         None
     ]=default_fallback,
 ) -> None:
@@ -155,9 +154,9 @@ def xavier_uniform_init(
 
 def smart_init(
     module: torch.nn.Module,
-    generator: Optional[torch.Generator]=None,
+    generator: torch.Generator | None = None,
     fallback: Callable[
-        [str, torch.Tensor, Optional[torch.Generator]],
+        [str, torch.Tensor, torch.Generator | None],
         None
     ]=default_fallback,
     use_xavier_uniform_for_layers: bool=True,
@@ -193,13 +192,13 @@ def smart_init(
 def uniform_fallback(
     scale: float
 ) -> Callable[
-    [str, torch.nn.Module, Optional[torch.Generator]],
+    [str, torch.nn.Module, torch.Generator | None],
     None
 ]:
     def fallback(
         name: str,
         param: torch.nn.Module,
-        generator: Optional[torch.Generator]
+        generator: torch.Generator | None
     ) -> None:
         param.data.uniform_(-scale, scale, generator=generator)
     return fallback

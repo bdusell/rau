@@ -1,13 +1,11 @@
-from typing import Optional
-
 import torch
 
 def pad_sequences(
     sequences: list[list[int]],
     device: torch.device,
     pad: int,
-    bos: Optional[int]=None,
-    eos: Optional[int]=None,
+    bos: int | None = None,
+    eos: int | None = None,
     return_lengths: bool=False
 ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
     batch_size = len(sequences)

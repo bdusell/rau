@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import torch
 
@@ -57,10 +56,10 @@ class SinusoidalPositionalEncodingLayer(PositionalUnidirectional):
 def get_transformer_input_unidirectional(
     vocabulary_size: int,
     d_model: int,
-    dropout: Optional[float],
+    dropout: float | None,
     use_padding: bool,
-    shared_embeddings: Optional[torch.nn.Parameter]=None,
-    positional_encoding_cacher: Optional[SinusoidalPositionalEncodingCacher]=None
+    shared_embeddings: torch.nn.Parameter | None = None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None = None
 ):
     # Apply the following layers in this order:
     # 1. scaled embedding layer

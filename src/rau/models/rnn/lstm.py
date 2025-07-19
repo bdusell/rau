@@ -1,22 +1,20 @@
-from typing import Optional
-
 import torch
 
 from .builtin import UnidirectionalBuiltinRNN
 
 class LSTM(UnidirectionalBuiltinRNN):
-    """An LSTM wrapped in the :py:class:`Unidirectional` API."""
+    r"""An LSTM wrapped in the :py:class:`Unidirectional` API."""
 
     def __init__(self,
         input_size: int,
         hidden_units: int,
-        layers: int=1,
-        dropout: Optional[float]=None,
-        bias: bool=True,
-        learned_hidden_state: bool=False,
-        use_extra_bias: bool=False
-    ):
-        """
+        layers: int = 1,
+        dropout: float | None = None,
+        bias: bool = True,
+        learned_hidden_state: bool = True,
+        use_extra_bias: bool = False
+    ) -> None:
+        r"""
         :param input_size: The size of the input vectors to the LSTM.
         :param hidden_units: The number of hidden units in each layer.
         :param layers: The number of layers in the LSTM.
@@ -45,7 +43,7 @@ class LSTM(UnidirectionalBuiltinRNN):
         if learned_hidden_state:
             self.initial_hidden_state_inputs = torch.nn.Parameter(torch.zeros(layers, hidden_units))
 
-    RNN_CLASS = torch.nn.LSTM
+    _RNN_CLASS = torch.nn.LSTM
 
     def _initial_tensors(self, batch_size):
         c = torch.zeros(

@@ -1,0 +1,1 @@
+sphinx-build docs docs/dist/dev

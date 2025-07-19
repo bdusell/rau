@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from rau.tools.torch.embedding_layer import EmbeddingLayer
@@ -11,7 +9,7 @@ class EmbeddingUnidirectional(SimpleLayerUnidirectional):
         vocabulary_size: int,
         output_size: int,
         use_padding: bool,
-        shared_embeddings: Optional[torch.Tensor]=None
+        shared_embeddings: torch.Tensor | None = None
     ):
         super().__init__(EmbeddingLayer(
             vocabulary_size,

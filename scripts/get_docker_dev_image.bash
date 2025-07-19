@@ -1,5 +1,4 @@
-set -e
-set -u
+set -euo pipefail
 
 . scripts/variables.bash
 
@@ -16,7 +15,6 @@ Options:
 mode=none
 while [[ $# -gt 0 ]]; do
   case $1 in
-    #--pull) mode=pull ;;
     --build) mode=build ;;
     *) usage >&2; exit 1 ;;
   esac
@@ -25,6 +23,5 @@ done
 
 case $mode in
   none) ;;
-  #pull) bash scripts/pull_docker_dev_image.bash ;;
   build) bash scripts/build_docker_dev_image.bash ;;
 esac

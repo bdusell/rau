@@ -1,0 +1,33 @@
+{% if versions %}
+<h3>{{ _('Releases') }}</h3>
+<ul>
+  {%- for item in versions.releases | reverse %}
+    <li>
+      {% if item.name == current_version.name %}
+        <strong>
+      {% endif %}
+      <a href="{{ item.url }}">{{ item.name }}</a>
+      {% if item.name == latest_version.name %}
+        (latest)
+      {% endif %}
+      {% if item.name == current_version.name %}
+        </strong>
+      {% endif %}
+    </li>
+  {%- endfor %}
+</ul>
+<h3>{{ _('Branches') }}</h3>
+<ul>
+  {%- for item in versions.branches %}
+    <li>
+      {% if item.name == current_version.name %}
+        <strong>
+      {% endif %}
+      <a href="{{ item.url }}">{{ item.name }}</a>
+      {% if item.name == current_version.name %}
+        </strong>
+      {% endif %}
+    </li>
+  {%- endfor %}
+</ul>
+{% endif %}

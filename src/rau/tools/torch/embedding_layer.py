@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 class EmbeddingLayer(torch.nn.Module):
@@ -8,7 +6,7 @@ class EmbeddingLayer(torch.nn.Module):
         vocabulary_size: int,
         output_size: int,
         use_padding: bool,
-        shared_embeddings: Optional[torch.Tensor]=None
+        shared_embeddings: torch.Tensor | None = None
     ):
         super().__init__()
         if use_padding:

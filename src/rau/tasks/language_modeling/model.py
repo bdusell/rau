@@ -1,3 +1,5 @@
+import torch
+
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.init import smart_init, uniform_fallback
 from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
@@ -20,6 +22,12 @@ from rau.models.stack_nn.rnn.parse import (
 )
 from rau.models.stack_nn.rnn.language_model import (
     get_stack_rnn_language_model
+)
+from rau.models.common.shared_embeddings import get_shared_embeddings
+from rau.unidirectional import (
+    EmbeddingUnidirectional,
+    DropoutUnidirectional,
+    OutputUnidirectional
 )
 from rau.tasks.common.model import pad_sequences
 from rau.tasks.common.einsum import (
@@ -136,36 +144,36 @@ class LanguageModelingModelInterface(ModelInterface):
     ):
         if architecture is None:
             raise ValueError
-        if architecture == 'transformer':
-            if num_layers is None:
-                raise ValueError
-            if d_model is None:
-                raise ValueError
-            if num_heads is None:
-                raise ValueError
-            if feedforward_size is None:
-                raise ValueError
-            if dropout is None:
-                raise ValueError
-            return get_unidirectional_transformer_encoder(
-                input_vocabulary_size=input_vocabulary_size,
-                output_vocabulary_size=output_vocabulary_size,
-                tie_embeddings=True,
-                num_layers=num_layers,
-                d_model=d_model,
-                num_heads=num_heads,
-                feedforward_size=feedforward_size,
-                dropout=dropout,
-                use_padding=False
-            )
-        elif architecture in ('rnn', 'lstm'):
-            if hidden_units is None:
-                raise ValueError
-            if num_layers is None:
-                raise ValueError
-            if dropout is None:
-                raise ValueError
-            if architecture == 'rnn':
+        match architecture:
+            case 'transformer':
+                if num_layers is None:
+                    raise ValueError
+                if d_model is None:
+                    raise ValueError
+                if num_heads is None:
+                    raise ValueError
+                if feedforward_size is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
+                return get_unidirectional_transformer_encoder(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
+                    tie_embeddings=True,
+                    num_layers=num_layers,
+                    d_model=d_model,
+                    num_heads=num_heads,
+                    feedforward_size=feedforward_size,
+                    dropout=dropout,
+                    use_padding=False
+                )
+            case 'rnn':
+                if hidden_units is None:
+                    raise ValueError
+                if num_layers is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
                 return get_simple_rnn_language_model(
                     input_vocabulary_size=input_vocabulary_size,
                     output_vocabulary_size=output_vocabulary_size,
@@ -175,7 +183,13 @@ class LanguageModelingModelInterface(ModelInterface):
                     learned_hidden_state=True,
                     use_padding=False
                 )
-            else:
+            case 'lstm':
+                if hidden_units is None:
+                    raise ValueError
+                if num_layers is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
                 return get_lstm_language_model(
                     input_vocabulary_size=input_vocabulary_size,
                     output_vocabulary_size=output_vocabulary_size,
@@ -185,57 +199,57 @@ class LanguageModelingModelInterface(ModelInterface):
                     learned_hidden_state=True,
                     use_padding=False
                 )
-        elif architecture == 'stack-transformer':
-            if stack_transformer_layers is None:
-                raise ValueError
-            if d_model is None:
-                raise ValueError
-            if num_heads is None:
-                raise ValueError
-            if feedforward_size is None:
-                raise ValueError
-            if dropout is None:
-                raise ValueError
-            return get_unidirectional_stack_transformer_encoder(
-                input_vocabulary_size=input_vocabulary_size,
-                output_vocabulary_size=output_vocabulary_size,
-                tie_embeddings=True,
-                layers=stack_transformer_layers,
-                d_model=d_model,
-                num_heads=num_heads,
-                feedforward_size=feedforward_size,
-                dropout=dropout,
-                use_padding=False
-            )
-        elif architecture == 'stack-rnn':
-            if hidden_units is None:
-                raise ValueError
-            if num_layers is None:
-                raise ValueError
-            if stack_rnn_controller is None:
-                raise ValueError
-            if stack_rnn_stack is None:
-                raise ValueError
-            if dropout is None:
-                raise ValueError
-            return get_stack_rnn_language_model(
-                input_vocabulary_size=input_vocabulary_size,
-                output_vocabulary_size=output_vocabulary_size,
-                hidden_units=hidden_units,
-                layers=num_layers,
-                controller=stack_rnn_controller,
-                stack=stack_rnn_stack,
-                dropout=dropout,
-                learned_hidden_state=True,
-                use_padding=False,
-                tag=(
-                    'nondeterministic'
-                    if stack_rnn_stack[0] in ('nondeterministic', 'vector-nondeterministic')
-                    else None
+            case 'stack-transformer':
+                if stack_transformer_layers is None:
+                    raise ValueError
+                if d_model is None:
+                    raise ValueError
+                if num_heads is None:
+                    raise ValueError
+                if feedforward_size is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
+                return get_unidirectional_stack_transformer_encoder(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
+                    tie_embeddings=True,
+                    layers=stack_transformer_layers,
+                    d_model=d_model,
+                    num_heads=num_heads,
+                    feedforward_size=feedforward_size,
+                    dropout=dropout,
+                    use_padding=False
                 )
-            )
-        else:
-            raise ValueError
+            case 'stack-rnn':
+                if hidden_units is None:
+                    raise ValueError
+                if num_layers is None:
+                    raise ValueError
+                if stack_rnn_controller is None:
+                    raise ValueError
+                if stack_rnn_stack is None:
+                    raise ValueError
+                if dropout is None:
+                    raise ValueError
+                return get_stack_rnn_language_model(
+                    input_vocabulary_size=input_vocabulary_size,
+                    output_vocabulary_size=output_vocabulary_size,
+                    hidden_units=hidden_units,
+                    layers=num_layers,
+                    controller=stack_rnn_controller,
+                    stack=stack_rnn_stack,
+                    dropout=dropout,
+                    learned_hidden_state=True,
+                    use_padding=False,
+                    tag=(
+                        'nondeterministic'
+                        if stack_rnn_stack[0] in ('nondeterministic', 'vector-nondeterministic')
+                        else None
+                    )
+                )
+            case _:
+                raise ValueError
 
     def initialize(self, args, model, generator):
         if args.init_scale is None:
@@ -258,8 +272,17 @@ class LanguageModelingModelInterface(ModelInterface):
         # Add 1 for BOS.
         return length + int(self.uses_bos)
 
-    def get_vocabularies(self, vocabulary_data, builder=None):
-        return get_vocabularies(vocabulary_data, self.uses_bos, builder)
+    def get_vocabularies(self,
+        vocabulary_data,
+        builder=None,
+        include_embedding_vocab=True
+    ):
+        return get_vocabularies(
+            vocabulary_data,
+            self.uses_bos,
+            builder,
+            include_embedding_vocab
+        )
 
     def prepare_batch(self, batch, device):
         # For transformers, use the same index for padding symbols in both the
@@ -327,3 +350,9 @@ class LanguageModelingModelInterface(ModelInterface):
             include_first=not self.uses_bos,
             tag_kwargs=self.tag_kwargs
         )
+
+    def get_initial_state(self, model, batch_size, device):
+        state = model.initial_state(batch_size)
+        if self.uses_bos:
+            state = state.next(torch.full((batch_size,), self.bos_index, device=device))
+        return state

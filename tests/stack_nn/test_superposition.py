@@ -160,7 +160,7 @@ def test_truncated_bptt():
     sequence_length = 13
     generator = torch.manual_seed(123)
     def controller(input_size):
-        return LSTM(input_size, hidden_units)
+        return LSTM(input_size, hidden_units, learned_hidden_state=False)
     model = SuperpositionStackRNN(
         input_size=input_size,
         stack_embedding_size=stack_embedding_size,

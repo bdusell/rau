@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from rau.models.rnn import SimpleRNN, LSTM
+from rau.models import SimpleRNN, LSTM
 
 @pytest.mark.parametrize('ModelClass', [SimpleRNN, LSTM])
 def test_forward_matches_iterative(ModelClass):
