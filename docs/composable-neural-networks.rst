@@ -37,7 +37,7 @@ pipeline of more than two modules like ``A | B | C | D | ...``. You can make any
     assert y.size() == (11,)
 
 This saves you the trouble of defining a custom :py:class:`~torch.nn.Module`
-subclass that implements this pipeline.
+subclass that implements the equivalent pipeline.
 
 The full API is documented in :py:mod:`rau.tools.torch`.
 
@@ -138,9 +138,10 @@ its :py:class:`~torch.unidirectional.Unidirectional.State.next` and
 These two modes are useful in different scenarios. The ``()`` method can be
 overridden to parallelize computation across the sequence dimension, making it
 more efficient than the iterative mode. This makes the ``()`` method useful for
-training, where future inputs are always known in advance. The iterative mode is
-useful when future inputs are *not* known in advance, namely when generating
-sequences from language models or decoders in machine translation systems.
+training or prompting, where future inputs are always known in advance. The
+iterative mode is useful when future inputs are *not* known in advance, namely
+when generating sequences from language models or decoders in machine
+translation systems.
 
 :py:class:`~torch.unidirectional.Unidirectional`\ s can also be composed with
 the ``|`` operator. If ``A`` and ``B`` are both

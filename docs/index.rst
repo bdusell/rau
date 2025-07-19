@@ -27,23 +27,6 @@ A version of Rau that includes implementations of stack-augmented neural
 network architectures can be found on
 `this branch <https://github.com/bdusell/rau/tree/differentiable-stacks>`_.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-   getting-started
-   details
-   composable-neural-networks
-   rau.generation
-   rau.models
-   rau.tasks
-   rau.tools.torch
-   rau.unidirectional
-   rau.vocab
-   miscellaneous-tools
-   development
-   bibliography
-
 What Can Rau Be Used For?
 -------------------------
 
@@ -69,3 +52,20 @@ What Does the Name "Rau" Mean?
 The name is pronounced /ɹaʊ/ (rhymes with "now"). It's named after a
 `magical mask <https://biomediaproject.com/bmp/data/sites/bionicle/2001/kanohi-noble.html>`_
 that gives the person who wears it the ability to translate languages.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   getting-started
+   details
+   composable-neural-networks
+   rau.generation
+   rau.models
+   rau.tasks
+   rau.tools.torch
+   rau.unidirectional
+   rau.vocab
+   miscellaneous-tools
+   development
+   bibliography

@@ -49,10 +49,10 @@ Features
 #. Offers different ways of handling UNK tokens. You can declare a particular
    token, such as ``<unk>``, to represent a catch-all UNK token. Or, you can
    disable UNK tokens entirely and treat out-of-vocabulary tokens as errors.
-#. Implements a separate data preparation step that makes loading it more
+#. Implements a separate data preparation step that makes loading data more
    efficient, saving work across multiple experiments. This includes figuring
-   out the set of tokens to use in the vocabulary, converting them to integers,
-   and saving the data in a binary format.
+   out the set of tokens to use in the vocabulary, converting tokens to
+   integers, and saving the data in a binary format.
 #. Everything is efficiently vectorized and supports both CPU and GPU modes.
 #. Rau is very fast for small model sizes and small dataset sizes, even on CPU.
    An example of a "small" language modeling experiment would be a model with
@@ -63,6 +63,10 @@ Features
    experiments.
 #. Accepts random seeds in many places to allow for deterministic results
    (unfortunately, this does not apply to dropout).
+#. Although the only tasks implemented are language modeling and
+   sequence-to-sequence transduction, it is possible to define new tasks while
+   reusing the same training loop logic by extending the class
+   :py:class:`~rau.tasks.common.TrainingLoop`.
 #. Provides a flexible Python API for building neural network architectures by
    composing simpler ones. In particular, it provides an abstract base class
    called :py:class:`~rau.unidirectional.Unidirectional` that represents a
@@ -79,6 +83,8 @@ Features
    the transformer, which uses sinusoidal positional encodings that can be
    extended arbitrarily. You can train on short sequences and evaluate on
    arbitrarily long sequences.
+#. A tensor of sinusoidal positional encodings is cached throughout the whole
+   program for efficiency.
 #. All language models and decoders operate exclusively on whole sequences
    ending in EOS, without truncation, and without assigning any probability to
    tokens that cannot be generated, namely padding and BOS. This means that,
@@ -88,6 +94,9 @@ Features
    shifted to different positions. This is in contrast to other setups that
    treat the training data as one long sequence and split it into chunks of
    fixed size.
+#. In the transformer encoder-decoder model, the encoder is always given an EOS
+   symbol at the end of the input so that it can more easily locate the end of
+   the sequence.
 #. The RNN and LSTM use learned initial hidden states.
 #. PyTorch misguidedely uses two bias terms in the recurrent layers of the RNN
    and LSTM. Only one is required; the second one is redundant and serves only
@@ -149,12 +158,14 @@ Features
 Limitations
 ^^^^^^^^^^^
 
+#. It is not as battle-tested as well-known libraries like Hugging Face, and it
+   cannot be used at scale to pre-train large language models.
 #. The only tasks implemented are language modeling and sequence-to-sequence
    generation.
 #. The only architectures available for language modeling are the simple RNN,
    LSTM, and transformer.
 #. The only architecture available for sequence-to-sequence generation is the
-   transformer.
+   transformer encoder-decoder.
 #. Ancestral sampling and beam search are the only available sampling algorithms
    for now.
 #. Ancestral sampling is not parallelized across minibatch elements.

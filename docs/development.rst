@@ -3,6 +3,9 @@ Development
 
 This page is for people who want to set up a development environment for Rau.
 
+Setup
+-----
+
 Clone the repo:
 
 .. code-block:: sh
@@ -40,3 +43,15 @@ Start a shell inside the Python virtual environment using Poetry:
     bash scripts/poetry_shell.bash
 
 You are now ready to use Rau.
+
+Running Unit Tests
+------------------
+
+To run all unit tests, run this script (either inside or outside the Poetry
+shell):
+
+.. code-block:: sh
+
+    bash scripts/run_tests.bash
+
+You can run individual unit tests with the ``pytest`` command.

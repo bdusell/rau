@@ -53,9 +53,11 @@ autodoc_default_options = {
     'members' : True,
     'imported-members' : True,
     'undoc-members' : False,
-    'show-inheritance' : True
+    'show-inheritance' : True,
+    'inherited-members' : False
 }
 autodoc_class_signature = 'separated'
+autodoc_inherit_docstrings = False
 
 # Configure links to external documentation.
 intersphinx_mapping = {
