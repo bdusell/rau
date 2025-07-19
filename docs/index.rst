@@ -1,6 +1,8 @@
 Rau
 ===
 
+**differentiable-stacks branch**
+
 Rau (rhymes with "now") is a Python module and command-line tool that provides
 PyTorch implementations of neural network-based language modeling and
 sequence-to-sequence generation. It is primarily suited for academic
@@ -21,11 +23,8 @@ Rau has been used in the following papers:
 * Training Neural Networks as Recognizers of Formal Languages :cite:p:`butoi-etal-2025-training`
 * Information Locality as an Inductive Bias for Neural Language Models :cite:p:`someya-etal-2025-information`
 
-Rau is based on code that was originally used for
-`adding stack data structures to LSTMs and transformers <https://github.com/bdusell/stack-attention>`_.
-A version of Rau that includes implementations of stack-augmented neural
-network architectures can be found on
-`this branch <https://github.com/bdusell/rau/tree/differentiable-stacks>`_.
+**This is a special branch of Rau that also includes implementations of
+stack-augmented neural network architectures.**
 
 What Can Rau Be Used For?
 -------------------------
