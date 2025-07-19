@@ -19,7 +19,7 @@ def get_simple_rnn_language_model(
     dropout: float = 0,
     nonlinearity: Literal['tanh', 'relu'] = 'tanh',
     bias: bool = True,
-    learned_hidden_state: bool = True,
+    learned_initial_state: bool = True,
     use_extra_bias: bool = False,
     use_padding: bool = False
 ) -> Unidirectional:
@@ -39,7 +39,7 @@ def get_simple_rnn_language_model(
     :param nonlinearity: The non-linearity applied to hidden units. Either
         ``'tanh'`` or ``'relu'``.
     :param bias: Whether to use bias terms.
-    :param learned_hidden_state: Whether the initial hidden state should be a
+    :param learned_initial_state: Whether the initial hidden state should be a
         learned parameter. If true, the initial hidden state will be the result
         of passing learned parameters through the activation function. If false,
         the initial state will be zeros.
@@ -60,7 +60,7 @@ def get_simple_rnn_language_model(
             dropout=dropout,
             nonlinearity=nonlinearity,
             bias=bias,
-            learned_hidden_state=learned_hidden_state,
+            learned_initial_state=learned_initial_state,
             use_extra_bias=use_extra_bias
         ),
         input_vocabulary_size=input_vocabulary_size,
@@ -77,7 +77,7 @@ def get_lstm_language_model(
     layers: int = 1,
     dropout: float = 0,
     bias: bool = True,
-    learned_hidden_state: bool = True,
+    learned_initial_state: bool = True,
     use_extra_bias: bool = False,
     use_padding: bool = False
 ) -> Unidirectional:
@@ -95,7 +95,7 @@ def get_lstm_language_model(
     :param dropout: The amount of dropout applied to inputs, in between layers,
         and the last layer outputs.
     :param bias: Whether to use bias terms.
-    :param learned_hidden_state: Whether the initial hidden state should be a
+    :param learned_initial_state: Whether the initial hidden state should be a
         learned parameter. If true, the initial hidden state will be the result
         of passing learned parameters through the activation function. If false,
         the initial state will be zeros.
@@ -115,7 +115,7 @@ def get_lstm_language_model(
             layers=layers,
             dropout=dropout,
             bias=bias,
-            learned_hidden_state=learned_hidden_state,
+            learned_initial_state=learned_initial_state,
             use_extra_bias=use_extra_bias
         ),
         input_vocabulary_size=input_vocabulary_size,

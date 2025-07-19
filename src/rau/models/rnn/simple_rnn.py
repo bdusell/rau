@@ -16,7 +16,7 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
         dropout: float | None = None,
         nonlinearity: Literal['tanh', 'relu'] = 'tanh',
         bias: bool = True,
-        learned_hidden_state: bool = True,
+        learned_initial_state: bool = True,
         use_extra_bias: bool = False
     ) -> None:
         r"""
@@ -28,7 +28,7 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
         :param nonlinearity: The non-linearity applied to hidden units. Either
             ``'tanh'`` or ``'relu'``.
         :param bias: Whether to use bias terms.
-        :param learned_hidden_state: Whether the initial hidden state should be
+        :param learned_initial_state: Whether the initial hidden state should be
             a learned parameter. If true, the initial hidden state will be the
             result of passing learned parameters through the activation
             function. If false, the initial state will be zeros.
@@ -46,8 +46,8 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
             bias=bias,
             use_extra_bias=use_extra_bias
         )
-        self.learned_hidden_state = learned_hidden_state
-        if learned_hidden_state:
+        self.learned_initial_state = learned_initial_state
+        if learned_initial_state:
             self.initial_hidden_state_inputs = torch.nn.Parameter(torch.zeros(layers, hidden_units))
             if nonlinearity == 'tanh':
                 self.activation_function = torch.tanh
@@ -63,7 +63,7 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
         # index 0 is the first layer and -1 is the last layer.
         # Note that the batch dimension is always the second dimension even
         # when batch_first=True.
-        if self.learned_hidden_state:
+        if self.learned_initial_state:
             h = self.activation_function(
                 self.initial_hidden_state_inputs
             )[:, None, :].repeat(1, batch_size, 1)
