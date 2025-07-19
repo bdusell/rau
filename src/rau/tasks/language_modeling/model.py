@@ -240,7 +240,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     controller=stack_rnn_controller,
                     stack=stack_rnn_stack,
                     dropout=dropout,
-                    learned_hidden_state=True,
+                    learned_initial_state=True,
                     use_padding=False,
                     tag=(
                         'nondeterministic'

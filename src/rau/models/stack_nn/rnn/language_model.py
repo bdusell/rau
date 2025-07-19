@@ -18,7 +18,7 @@ def get_stack_rnn_language_model(
     controller: StackRNNController,
     stack: StackRNNStack,
     dropout: float,
-    learned_hidden_state: bool,
+    learned_initial_state: bool,
     use_padding: bool,
     tag: str | None=None
 ) -> Unidirectional:
@@ -30,7 +30,7 @@ def get_stack_rnn_language_model(
             hidden_units=hidden_units,
             layers=layers,
             dropout=dropout,
-            learned_hidden_state=learned_hidden_state
+            learned_initial_state=learned_initial_state
         ), tag),
         input_vocabulary_size=input_vocabulary_size,
         output_vocabulary_size=output_vocabulary_size,
@@ -46,7 +46,7 @@ def get_stack_rnn_recurrence(
     hidden_units: int,
     layers: int,
     dropout: float,
-    learned_hidden_state: bool
+    learned_initial_state: bool
 ) -> Unidirectional:
 
     if controller == 'rnn':
@@ -56,7 +56,7 @@ def get_stack_rnn_recurrence(
                 hidden_units=hidden_units,
                 layers=layers,
                 dropout=dropout,
-                learned_hidden_state=learned_hidden_state
+                learned_initial_state=learned_initial_state
             )
     elif controller == 'lstm':
         def controller(input_size):
@@ -65,7 +65,7 @@ def get_stack_rnn_recurrence(
                 hidden_units=hidden_units,
                 layers=layers,
                 dropout=dropout,
-                learned_hidden_state=learned_hidden_state
+                learned_initial_state=learned_initial_state
             )
     else:
         raise ValueError
