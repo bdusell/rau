@@ -2,7 +2,7 @@ name: Publish Documentation
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "differentiable-stacks" ]
   workflow_dispatch:
 
 permissions:
