@@ -25,7 +25,7 @@ Rau is based on code that was originally used for
 `adding stack data structures to LSTMs and transformers <https://github.com/bdusell/stack-attention>`_.
 A version of Rau that includes implementations of stack-augmented neural
 network architectures can be found on
-`this branch <https://github.com/bdusell/rau/tree/differentiable-stacks>`_.
+`this branch <../differentiable-stacks/index.html>`_.
 
 What Can Rau Be Used For?
 -------------------------
