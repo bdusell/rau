@@ -114,7 +114,7 @@ Now, train a transformer language model:
       --learning-rate-patience 1 \
       --learning-rate-decay-factor 0.5 \
       --examples-per-checkpoint 50000 \
-      --output saved-language-model   
+      --output saved-language-model
 
 This saves a transformer language model to the directory
 ``saved-language-model``.
