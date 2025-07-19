@@ -11,9 +11,9 @@ def sample(
     max_length: int,
     device: torch.device
 ) -> list[list[int]]:
-    r"""Given a state of an autoregressive language model containing any number
-    of batch elements, generate a sequence for each element using ancestral
-    sampling.
+    r"""Given a state of an autoregressive language model or decoder containing
+    any number of batch elements, generate a sequence for each element using
+    ancestral sampling.
 
     :param initial_state: A state of an autoregressive decoder or language model
         from which decoding starts, containing any number of batch elements. A

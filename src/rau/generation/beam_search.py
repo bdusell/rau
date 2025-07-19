@@ -9,8 +9,9 @@ def beam_search(
     max_length: int,
     device: torch.device
 ) -> list[list[int]]:
-    r"""Given a state of an autoregressive language model containing any number
-    of batch elements, generate a sequence for each element using beam search.
+    r"""Given a state of an autoregressive language model or decoder containing
+    any number of batch elements, generate a sequence for each element using
+    beam search.
 
     This includes length normalization. That is, for each timestep of
     generation, when selecting the top ``beam_size`` hypotheses for the next
