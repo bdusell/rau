@@ -117,7 +117,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     hidden_units=hidden_units,
                     layers=num_layers,
                     dropout=dropout,
-                    learned_hidden_state=True,
+                    learned_initial_state=True,
                     use_padding=False
                 )
             case 'lstm':
@@ -133,7 +133,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     hidden_units=hidden_units,
                     layers=num_layers,
                     dropout=dropout,
-                    learned_hidden_state=True,
+                    learned_initial_state=True,
                     use_padding=False
                 )
             case _:

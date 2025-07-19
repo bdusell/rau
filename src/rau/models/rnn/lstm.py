@@ -11,7 +11,7 @@ class LSTM(UnidirectionalBuiltinRNN):
         layers: int = 1,
         dropout: float | None = None,
         bias: bool = True,
-        learned_hidden_state: bool = True,
+        learned_initial_state: bool = True,
         use_extra_bias: bool = False
     ) -> None:
         r"""
@@ -21,7 +21,7 @@ class LSTM(UnidirectionalBuiltinRNN):
         :param dropout: The amount of dropout applied in between layers. If
             ``layers`` is 1, then this value is ignored.
         :param bias: Whether to use bias terms.
-        :param learned_hidden_state: Whether the initial hidden state should be
+        :param learned_initial_state: Whether the initial hidden state should be
             a learned parameter. If true, the initial hidden state will be the
             result of passing learned parameters through the tanh activation
             function. If false, the initial state will be zeros. The initial
@@ -39,8 +39,8 @@ class LSTM(UnidirectionalBuiltinRNN):
             bias=bias,
             use_extra_bias=use_extra_bias
         )
-        self.learned_hidden_state = learned_hidden_state
-        if learned_hidden_state:
+        self.learned_initial_state = learned_initial_state
+        if learned_initial_state:
             self.initial_hidden_state_inputs = torch.nn.Parameter(torch.zeros(layers, hidden_units))
 
     _RNN_CLASS = torch.nn.LSTM
@@ -52,7 +52,7 @@ class LSTM(UnidirectionalBuiltinRNN):
             self._hidden_units,
             device=next(self.parameters()).device
         )
-        if self.learned_hidden_state:
+        if self.learned_initial_state:
             h = torch.tanh(
                 self.initial_hidden_state_inputs
             )[:, None, :].repeat(1, batch_size, 1)
