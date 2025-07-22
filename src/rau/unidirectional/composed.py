@@ -13,7 +13,13 @@ class ComposedUnidirectional(Unidirectional):
     first are fed as inputs to the second."""
 
     def __init__(self, first: Unidirectional, second: Unidirectional):
-        super().__init__(first._tags | second._tags)
+        super().__init__(
+            first._composable_is_main or second._composable_is_main,
+            itertools.chain(
+                first._composable_tags.keys(),
+                second._composable_tags.keys()
+            )
+        )
         self.first = first
         self.second = second
 
@@ -26,11 +32,11 @@ class ComposedUnidirectional(Unidirectional):
         tag_kwargs=None,
         **kwargs: Any
     ) -> torch.Tensor | ForwardResult:
-        if (args or kwargs) and 'main' not in self._tags:
+        if (args or kwargs) and not self._composable_is_main:
             raise ValueError('this module does not accept extra args or kwargs')
         if initial_state is None and not return_state:
-            first_args, first_kwargs = get_args(self.first, args, kwargs, tag_kwargs, include_first)
-            second_args, second_kwargs = get_args(self.second, args, kwargs, tag_kwargs, include_first)
+            first_args, first_kwargs = get_composed_args(self.first, args, kwargs, tag_kwargs, include_first)
+            second_args, second_kwargs = get_composed_args(self.second, args, kwargs, tag_kwargs, include_first)
             first_result = ensure_is_forward_result(self.first(
                 input_sequence,
                 *first_args,
@@ -163,10 +169,10 @@ class ComposedUnidirectional(Unidirectional):
                 ))
 
     def initial_state(self, batch_size, *args, tag_kwargs=None, **kwargs):
-        if (args or kwargs) and 'main' not in self._tags:
+        if (args or kwargs) and not self._composable_is_main:
             raise ValueError('this module does not accept extra args or kwargs')
-        first_args, first_kwargs = get_args(self.first, args, kwargs, tag_kwargs, None)
-        second_args, second_kwargs = get_args(self.second, args, kwargs, tag_kwargs, None)
+        first_args, first_kwargs = get_composed_args(self.first, args, kwargs, tag_kwargs, None)
+        second_args, second_kwargs = get_composed_args(self.second, args, kwargs, tag_kwargs, None)
         return self.State(
             self.first.initial_state(batch_size, *first_args, **first_kwargs),
             self.second.initial_state(batch_size, *second_args, **second_kwargs)
@@ -178,20 +184,26 @@ def _ensure_outputs_are_tensor(x):
     else:
         return torch.stack(list(x), dim=1)
 
-def get_args(module, args, kwargs, tag_kwargs, include_first):
-    result_args = []
-    result_kwargs = dict(include_first=False) if include_first is not None else {}
-    if 'main' in module._tags:
-        result_args.extend(args)
+def get_composed_args(
+    module: Unidirectional,
+    args: list[Any],
+    kwargs: dict[str, Any],
+    tag_kwargs: dict[str, dict[str, Any]] | None,
+    include_first: bool | None
+) -> tuple[list[Any], dict[str, Any]]:
+    new_args = []
+    new_kwargs = dict(include_first=False) if include_first is not None else {}
+    if module._composable_is_main:
+        new_args.extend(args)
+        new_kwargs.update(kwargs)
         if include_first is not None:
-            result_kwargs['include_first'] = include_first
-        result_kwargs.update(kwargs)
+            new_kwargs['include_first'] = include_first
     if tag_kwargs:
         if isinstance(module, ComposedUnidirectional):
-            result_kwargs['tag_kwargs'] = tag_kwargs
+            new_kwargs['tag_kwargs'] = tag_kwargs
         else:
-            # TODO The ordering might not be deterministic.
-            for tag in module._tags:
-                if tag in tag_kwargs:
-                    result_kwargs.update(tag_kwargs[tag])
-    return result_args, result_kwargs
+            for tag in module._composable_tags:
+                these_tag_kwargs = tag_kwargs.get(tag)
+                if these_tag_kwargs is not None:
+                    new_kwargs.update(these_tag_kwargs)
+    return new_args, new_kwargs

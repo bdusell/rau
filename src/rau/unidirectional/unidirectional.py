@@ -27,9 +27,10 @@ class Unidirectional(torch.nn.Module):
     sequence.
     """
 
-    def __init__(self, tags=None):
+    def __init__(self, main: bool = False, tags: Iterable[str] | None = None):
         super().__init__()
-        self._tags = tags if tags is not None else set()
+        self._composable_is_main = main
+        self._composable_tags = dict.fromkeys(tags) if tags is not None else {}
 
     def forward(self,
         input_sequence: torch.Tensor,
@@ -86,7 +87,7 @@ class Unidirectional(torch.nn.Module):
         )
 
     @overload
-    def __or__(self, other: Any) -> Composed:
+    def __or__(self, other: torch.nn.Module) -> Composed:
         ...
     @overload
     def __or__(self, other: 'Unidirectional') -> 'Unidirectional':
@@ -102,8 +103,8 @@ class Unidirectional(torch.nn.Module):
     def as_composable(self) -> Composable:
         return Composable(
             self,
-            main='main' in self._tags,
-            tags=self._tags - {'main'}
+            main=self._composable_is_main,
+            tags=self._composable_tags.keys()
         )
 
     class State:
@@ -260,12 +261,22 @@ class Unidirectional(torch.nn.Module):
         """
         raise NotImplementedError
 
-    def tag(self, tag: str) -> 'Unidirectional':
-        self._tags.add(tag)
+    def main(self) -> 'Unidirectional':
+        r"""Mark this module as main.
+
+        :return: Self.
+        """
+        self._composable_is_main = True
         return self
 
-    def main(self) -> 'Unidirectional':
-        return self.tag('main')
+    def tag(self, tag: str) -> 'Unidirectional':
+        r"""Add a tag to this module for argument routing.
+
+        :param tag: Tag name.
+        :return: Self.
+        """
+        self._composable_tags[tag] = None
+        return self
 
 def _stack_outputs(
     outputs: Iterable[torch.Tensor | tuple[torch.Tensor, ...]]
