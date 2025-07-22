@@ -137,3 +137,26 @@ def test_lazy_outputs_with_fastforward():
     assert C.num_output_calls == 1
     assert D.num_forward_single_calls == 1
     assert E.num_forward_single_calls == 1
+
+def test_lazy_outputs_with_abnormal_composition_order():
+    A = CountingStateless()
+    B = CountingStateless()
+    C = CountingStateful()
+    D = CountingStateless()
+    E = CountingStateless()
+    M = A | B | (C | (D | E))
+    batch_size = 3
+    sequence_length = 13
+    model_size = 5
+    generator = torch.manual_seed(123)
+    input_sequence = torch.rand((batch_size, sequence_length, model_size), generator=generator)
+    state = M.initial_state(batch_size)
+    for input_tensor in input_sequence.transpose(0, 1):
+        state = state.next(input_tensor)
+    state.output()
+    assert A.num_forward_single_calls == sequence_length
+    assert B.num_forward_single_calls == sequence_length
+    assert C.num_next_calls == sequence_length
+    assert C.num_output_calls == 1
+    assert D.num_forward_single_calls == 1
+    assert E.num_forward_single_calls == 1
