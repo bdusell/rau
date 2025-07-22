@@ -7,7 +7,7 @@ import torch
 class BasicComposable(torch.nn.Module):
     r"""Base class for composable modules."""
 
-    def __init__(self, main: bool, tags: Iterable[str] | None = None) -> None:
+    def __init__(self, main: bool, tags: Iterable[str] | None) -> None:
         super().__init__()
         self._composable_is_main = main
         self._composable_tags = dict.fromkeys(tags) if tags is not None else {}
@@ -124,21 +124,21 @@ class Composed(BasicComposable):
         return self.second(self.first(x, *first_args, **first_kwargs), *second_args, **second_kwargs)
 
 def get_composed_args(
-    composable: BasicComposable,
-    args: Any,
+    module: BasicComposable,
+    args: list[Any],
     kwargs: dict[str, Any],
     tag_kwargs: dict[str, dict[str, Any]] | None
 ) -> tuple[list[Any], dict[str, Any]]:
     new_args = []
     new_kwargs = {}
-    if composable._composable_is_main:
+    if module._composable_is_main:
         new_args.extend(args)
         new_kwargs.update(kwargs)
     if tag_kwargs:
-        if isinstance(composable, Composed):
+        if isinstance(module, Composed):
             new_kwargs['tag_kwargs'] = tag_kwargs
         else:
-            for tag in composable._composable_tags:
+            for tag in module._composable_tags:
                 these_tag_kwargs = tag_kwargs.get(tag)
                 if these_tag_kwargs is not None:
                     new_kwargs.update(these_tag_kwargs)
