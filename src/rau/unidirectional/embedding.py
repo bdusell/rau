@@ -1,9 +1,9 @@
 import torch
 
 from rau.tools.torch.embedding_layer import EmbeddingLayer
-from .simple import SimpleLayerUnidirectional
+from .stateless import StatelessLayerUnidirectional
 
-class EmbeddingUnidirectional(SimpleLayerUnidirectional):
+class EmbeddingUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self,
         vocabulary_size: int,

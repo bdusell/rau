@@ -1,8 +1,8 @@
 import torch
 
-from rau.unidirectional import SimpleUnidirectional, SimpleLayerUnidirectional
+from rau.unidirectional import StatelessUnidirectional, StatelessLayerUnidirectional
 
-class MySimple(SimpleUnidirectional):
+class MyStateless(StatelessUnidirectional):
 
     def __init__(self, input_size):
         super().__init__()
@@ -23,7 +23,7 @@ def test_forward_matches_iterative():
     batch_size = 5
     sequence_length = 13
     input_size = 7
-    model = MySimple(input_size)
+    model = MyStateless(input_size)
     generator = torch.manual_seed(123)
     input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
     forward_output = model(input_sequence, include_first=False)
@@ -42,7 +42,7 @@ def test_custom_args():
     input_size = 7
     def func(x, alpha, *, beta):
         return x * alpha + beta
-    model = SimpleLayerUnidirectional(func)
+    model = StatelessLayerUnidirectional(func)
     generator = torch.manual_seed(123)
     input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
     forward_output = model(input_sequence, 123.0, include_first=False, beta=456.0)

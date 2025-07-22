@@ -1,9 +1,9 @@
 import torch
 
 from rau.tools.torch.tied_linear import get_linear
-from .simple import SimpleLayerUnidirectional
+from .stateless import StatelessLayerUnidirectional
 
-class OutputUnidirectional(SimpleLayerUnidirectional):
+class OutputUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self,
         input_size: int,

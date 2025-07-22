@@ -5,7 +5,7 @@ import torch
 
 from .unidirectional import Unidirectional, ForwardResult
 
-class SimpleUnidirectional(Unidirectional):
+class StatelessUnidirectional(Unidirectional):
     r"""A sequential module that has no temporal recurrence, but applies some
     function to every timestep."""
 
@@ -48,7 +48,7 @@ class SimpleUnidirectional(Unidirectional):
         """
         raise ValueError(
             'tried to get the output of the initial state of a '
-            'SimpleUnidirectional, but the output is not defined'
+            'StatelessUnidirectional, but the output is not defined'
         )
 
     def transform_args(self,
@@ -65,14 +65,14 @@ class SimpleUnidirectional(Unidirectional):
 
     class State(Unidirectional.State):
 
-        parent: 'SimpleUnidirectional'
+        parent: 'StatelessUnidirectional'
         input_tensor: torch.Tensor | None
         _batch_size: int | None
         args: list[Any]
         kwargs: dict[str, Any]
 
         def __init__(self,
-            parent: 'SimpleUnidirectional',
+            parent: 'StatelessUnidirectional',
             input_tensor: torch.Tensor | None,
             batch_size: int | None,
             args: list[Any],
@@ -108,7 +108,7 @@ class SimpleUnidirectional(Unidirectional):
                 # dummy tensor.
                 raise ValueError(
                     'cannot call transform_tensors() on initial state of '
-                    'SimpleUnidirectional'
+                    'StatelessUnidirectional'
                 )
             else:
                 return self.parent.State(
@@ -164,7 +164,7 @@ class SimpleUnidirectional(Unidirectional):
     ) -> Unidirectional.State:
         return self.State(self, None, batch_size, args, kwargs)
 
-class SimpleLayerUnidirectional(SimpleUnidirectional):
+class StatelessLayerUnidirectional(StatelessUnidirectional):
 
     def __init__(self, func: Callable):
         super().__init__()
@@ -184,7 +184,7 @@ class SimpleLayerUnidirectional(SimpleUnidirectional):
     ) -> torch.Tensor:
         return self.func(input_sequence, *args, **kwargs)
 
-class SimpleReshapingLayerUnidirectional(SimpleLayerUnidirectional):
+class StatelessReshapingLayerUnidirectional(StatelessLayerUnidirectional):
 
     def forward_single(self,
         input_tensor: torch.Tensor,

@@ -4,7 +4,7 @@ import torch
 
 from rau.tools.torch.embedding_layer import EmbeddingLayer
 from rau.unidirectional import (
-    SimpleLayerUnidirectional,
+    StatelessLayerUnidirectional,
     PositionalUnidirectional,
     DropoutUnidirectional
 )
@@ -66,7 +66,7 @@ def get_transformer_input_unidirectional(
     # 2. sinusoidal positional encoding layer
     # 3. dropout layer (optional)
     result = (
-        SimpleLayerUnidirectional(ScaledEmbeddingLayer(
+        StatelessLayerUnidirectional(ScaledEmbeddingLayer(
             vocabulary_size=vocabulary_size,
             output_size=d_model,
             use_padding=use_padding,

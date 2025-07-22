@@ -3,7 +3,7 @@ import torch
 from rau.unidirectional import (
     ComposedUnidirectional,
     PositionalUnidirectional,
-    SimpleLayerUnidirectional
+    StatelessLayerUnidirectional
 )
 from rau.tools.torch.compose import Composable
 
@@ -60,7 +60,7 @@ def test_forward_matches_iterative():
         assert output.size() == (batch_size,)
         torch.testing.assert_close(output, expected_forward_output[:, i])
 
-class MainUnidirectional(SimpleLayerUnidirectional):
+class MainUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
         super().__init__(torch.nn.Identity())
@@ -89,7 +89,7 @@ def test_arg_routing_to_main():
     state = model.initial_state(batch_size, x, y, alpha=alpha, beta=beta)
     output = model(input_sequence, x, y, alpha=alpha, beta=beta, include_first=False)
 
-class OtherUnidirectional(SimpleLayerUnidirectional):
+class OtherUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
         super().__init__(torch.nn.Identity())
@@ -99,7 +99,7 @@ class OtherUnidirectional(SimpleLayerUnidirectional):
         assert gamma == 'qwerty'
         return super().initial_state(batch_size)
 
-class YetAnotherUnidirectional(SimpleLayerUnidirectional):
+class YetAnotherUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
         super().__init__(torch.nn.Identity())

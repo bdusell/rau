@@ -1,8 +1,8 @@
 from .unidirectional import Unidirectional, ForwardResult
-from .simple import (
-    SimpleUnidirectional,
-    SimpleLayerUnidirectional,
-    SimpleReshapingLayerUnidirectional
+from .stateless import (
+    StatelessUnidirectional,
+    StatelessLayerUnidirectional,
+    StatelessReshapingLayerUnidirectional
 )
 from .positional import PositionalUnidirectional
 from .composed import ComposedUnidirectional
