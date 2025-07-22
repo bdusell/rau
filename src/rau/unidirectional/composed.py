@@ -22,6 +22,12 @@ class ComposedUnidirectional(Unidirectional):
         )
         self.first = first
         self.second = second
+        # Normalize the composition order so that it is always left-associative.
+        # This is important for lazy evaluation to work properly.
+        if isinstance(self.second, ComposedUnidirectional):
+            for m in _list_modules(self.second.first):
+                self.first = self.first | m
+            self.second = self.second.second
 
     def forward(self,
         input_sequence: torch.Tensor,
@@ -177,6 +183,14 @@ class ComposedUnidirectional(Unidirectional):
             self.first.initial_state(batch_size, *first_args, **first_kwargs),
             self.second.initial_state(batch_size, *second_args, **second_kwargs)
         )
+
+def _list_modules(u: Unidirectional) -> Iterable[Unidirectional]:
+    result = []
+    while isinstance(u, ComposedUnidirectional):
+        result.append(u.second)
+        u = u.first
+    result.append(u)
+    return reversed(result)
 
 def _ensure_outputs_are_tensor(x):
     if isinstance(x, torch.Tensor):
