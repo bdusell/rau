@@ -1,5 +1,5 @@
-from collections.abc import Callable, Iterable
 import dataclasses
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import torch
@@ -49,12 +49,13 @@ class ResidualUnidirectional(Unidirectional):
         wrapped_state: Unidirectional.State
 
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
-            return ResidualUnidirectional.State(
-                input_tensor,
-                self.wrapped_state.next(input_tensor)
+            return dataclasses.replace(
+                self,
+                input_tensor=input_tensor,
+                wrapped_state=self.wrapped_state.next(input_tensor)
             )
 
-        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, *tuple[Any, ...]]:
             # TODO Handle multiple outputs
             return self._get_input_tensor() + self.wrapped_state.output()
 
@@ -66,54 +67,50 @@ class ResidualUnidirectional(Unidirectional):
                 )
             return self.input_tensor
 
+        def forward(self,
+            input_sequence: torch.Tensor,
+            include_first: bool,
+            return_state: bool = False,
+            return_output: bool = True
+        ) -> torch.Tensor | ForwardResult:
+            if include_first:
+                raise NotImplementedError
+            wrapped_result = ensure_is_forward_result(self.wrapped_state.forward(
+                input_sequence,
+                include_first=False,
+                return_state=return_state,
+                return_output=return_output
+            ))
+            if return_output:
+                output = input_sequence + wrapped_result.output
+            else:
+                output = None
+            if return_state:
+                if input_sequence.size(1) == 0:
+                    state = self
+                else:
+                    state = dataclasses.replace(
+                        self,
+                        input_tensor=input_sequence[:, -1],
+                        wrapped_state=wrapped_result.state
+                    )
+            return unwrap_output_tensor(ForwardResult(
+                output=output,
+                extra_outputs=wrapped_result.extra_outputs,
+                state=state
+            ))
+
         def batch_size(self) -> int:
             return self.wrapped_state.batch_size()
 
         def transform_tensors(self,
             func: Callable[[torch.Tensor], torch.Tensor]
         ) -> Unidirectional.State:
-            return ResidualUnidirectional.State(
-                func(self.input_tensor) if self.input_tensor is not None else None,
-                self.wrapped_state.transform_tensors(func)
+            return dataclasses.replace(
+                self,
+                input_tensor=func(self.input_tensor) if self.input_tensor is not None else None,
+                wrapped_state=self.wrapped_state.transform_tensors(func)
             )
-
-        def fastforward(self, input_sequence: torch.Tensor) -> Unidirectional.State:
-            if input_sequence.size(1) == 0:
-                return self
-            else:
-                return ResidualUnidirectional.State(
-                    input_sequence[:, -1],
-                    self.wrapped_state.fastforward(input_sequence)
-                )
-
-        def states(self,
-            input_sequence: torch.Tensor,
-            include_first: bool
-        ) -> Iterable[Unidirectional.State]:
-            # TODO Implement this efficiently.
-            raise NotImplementedError
-
-        def outputs(self,
-            input_sequence: torch.Tensor,
-            include_first: bool
-        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
-            if include_first:
-                first_input = self._get_input_tensor()
-            output = self.wrapped_state.outputs(input_sequence, include_first)
-            if include_first:
-                input_sequence = torch.concat([first_input[:, None], input_sequence], dim=1)
-            return input_sequence + output
-
-        def forward(self,
-            input_sequence: torch.Tensor,
-            return_state: bool,
-            include_first: bool
-        ) -> torch.Tensor | ForwardResult:
-            if return_state:
-                # TODO
-                raise NotImplementedError
-            else:
-                return self.outputs(input_sequence, include_first)
 
     def initial_state(self,
         batch_size: int,
@@ -121,6 +118,10 @@ class ResidualUnidirectional(Unidirectional):
         **kwargs: Any
     ) -> Unidirectional.State:
         return self.State(
-            None,
-            self.wrapped_module.initial_state(batch_size, *args, **kwargs)
+            input_tensor=None,
+            wrapped_state=self.wrapped_module.initial_state(
+                batch_size,
+                *args,
+                **kwargs
+            )
         )
