@@ -45,12 +45,14 @@ class PositionalUnidirectional(Unidirectional):
 
         parent: 'PositionalUnidirectional'
         position: int
+        _batch_size: int | None
         input_tensor: torch.Tensor | None
 
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
             return dataclasses.replace(
                 self,
                 position=self.position + 1,
+                _batch_size=None,
                 input_tensor=input_tensor
             )
 
@@ -94,6 +96,7 @@ class PositionalUnidirectional(Unidirectional):
                     state = dataclasses.replace(
                         self,
                         position=self.position + input_sequence.size(1),
+                        _batch_size=None,
                         input_tensor=input_sequence[:, -1]
                     )
             else:
@@ -106,17 +109,21 @@ class PositionalUnidirectional(Unidirectional):
 
         def batch_size(self) -> int:
             if self.input_tensor is None:
-                raise ValueError(
-                    'initial state of PositionalUnidirectional does not have '
-                    'a batch size'
-                )
-            return self.input_tensor.size(0)
+                return self._batch_size
+            else:
+                return self.input_tensor.size(0)
 
         def transform_tensors(self,
             func: Callable[[torch.Tensor], torch.Tensor]
         ) -> Unidirectional.State:
             if self.input_tensor is None:
-                return self
+                # TODO Simply returning self would not change the batch size.
+                # It's possible to work around this by running func() on a
+                # dummy tensor.
+                raise ValueError(
+                    'cannot call transform_tensors() on initial state of '
+                    'PositionalUnidirectional'
+                )
             else:
                 return dataclasses.replace(
                     self,
@@ -131,6 +138,7 @@ class PositionalUnidirectional(Unidirectional):
         return self.State(
             parent=self,
             position=0,
+            _batch_size=batch_size,
             input_tensor=None
         )
 
