@@ -301,9 +301,10 @@ class Unidirectional(torch.nn.Module):
         def transform_tensors(self,
             func: Callable[[torch.Tensor], torch.Tensor]
         ) -> 'Unidirectional.State':
-            return Unidirectional.StatefulComposedState(
-                self.first_state.transform_tensors(func),
-                self.second_state.transform_tensors(func)
+            return dataclasses.replace(
+                self,
+                first_state=self.first_state.transform_tensors(func),
+                second_state=self.second_state.transform_tensors(func)
             )
 
     def initial_composed_state(self,
