@@ -65,6 +65,8 @@ class ResidualUnidirectional(Unidirectional):
                         input_tensor=input_sequence[:, -1],
                         wrapped_state=wrapped_result.state
                     )
+            else:
+                state = None
             return unwrap_output_tensor(ForwardResult(
                 output=output,
                 extra_outputs=wrapped_result.extra_outputs,
