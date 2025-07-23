@@ -1,9 +1,11 @@
+import dataclasses
 from collections.abc import Callable, Iterable
 from typing import Any
 
 import torch
 
 from .unidirectional import Unidirectional, ForwardResult
+from .util import unwrap_output_tensor
 
 class PositionalUnidirectional(Unidirectional):
 
@@ -38,103 +40,96 @@ class PositionalUnidirectional(Unidirectional):
         """
         raise NotImplementedError
 
+    @dataclasses.dataclass
     class State(Unidirectional.State):
 
         parent: 'PositionalUnidirectional'
         position: int
         input_tensor: torch.Tensor | None
 
-        def __init__(self,
-            parent: 'PositionalUnidirectional',
-            position: int,
-            input_tensor: torch.Tensor | None
-        ):
-            super().__init__()
-            self.parent = parent
-            self.position = position
-            self._input_tensor = input_tensor
-
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
-            return self.parent.State(
-                self.parent,
-                self.position + 1,
-                input_tensor
+            return dataclasses.replace(
+                self,
+                position=self.position + 1,
+                input_tensor=input_tensor
             )
 
-        def output(self) -> torch.Tensor | tuple[torch.Tensor, ...]:
-            if self._input_tensor is None:
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, *tuple[Any, ...]]:
+            if self.input_tensor is None:
                 raise ValueError(
                     'initial state of PositionalUnidirectional does not have '
                     'an output'
                 )
-            return self.parent.forward_at_position(self._input_tensor, self.position - 1)
+            return self.parent.forward_at_position(self.input_tensor, self.position - 1)
+
+        def forward(self,
+            input_sequence: torch.Tensor,
+            include_first: bool,
+            return_state: bool = False,
+            return_output: bool = True
+        ) -> torch.Tensor | ForwardResult:
+            if return_output:
+                new_position = self.position
+                new_input_sequence = input_sequence
+                if include_first:
+                    if self.input_tensor is None:
+                        raise ValueError(
+                            'initial state of PositionalUnidirectional does not have '
+                            'an output'
+                        )
+                    new_position -= 1
+                    new_input_sequence = torch.concat([
+                        self.input_tensor[:, None], input_sequence
+                    ], dim=1)
+                output = self.parent.forward_from_position(
+                    new_input_sequence,
+                    new_position
+                )
+            else:
+                output = None
+            if return_state:
+                if input_sequence.size(1) == 0:
+                    return self
+                else:
+                    state = dataclasses.replace(
+                        self,
+                        position=self.position + input_sequence.size(1),
+                        input_tensor=input_sequence[:, -1]
+                    )
+            else:
+                state = None
+            return unwrap_output_tensor(ForwardResult(
+                output=output,
+                extra_outputs=[],
+                state=state
+            ))
 
         def batch_size(self) -> int:
-            if self._input_tensor is None:
+            if self.input_tensor is None:
                 raise ValueError(
                     'initial state of PositionalUnidirectional does not have '
                     'a batch size'
                 )
-            return self._input_tensor.size(0)
+            return self.input_tensor.size(0)
 
         def transform_tensors(self,
             func: Callable[[torch.Tensor], torch.Tensor]
         ) -> Unidirectional.State:
-            if self._input_tensor is None:
+            if self.input_tensor is None:
                 return self
             else:
-                return self.parent.State(
-                    self.parent,
-                    self.position,
-                    func(self._input_tensor)
+                return dataclasses.replace(
+                    self,
+                    input_tensor=func(self.input_tensor)
                 )
-
-        def fastforward(self, input_sequence: torch.Tensor) -> Unidirectional.State:
-            length = input_sequence.size(1)
-            if length == 0:
-                return self
-            else:
-                return self.parent.State(
-                    self.parent,
-                    self.position + length,
-                    input_sequence[:, -1]
-                )
-
-        def outputs(self,
-            input_sequence: torch.Tensor,
-            include_first: bool
-        ) -> Iterable[torch.Tensor] | Iterable[tuple[torch.Tensor, ...]]:
-            if include_first:
-                # NOTE Another way to include the first output would be to
-                # decrement the position by 1.
-                first_output = self.output()
-            output = self.parent.forward_from_position(input_sequence, self.position)
-            if include_first:
-                output = torch.concat([first_output[:, None], output], dim=1)
-            return output
-
-        def forward(self,
-            input_sequence: torch.Tensor,
-            return_state: bool,
-            include_first: bool
-        ) -> torch.Tensor | ForwardResult:
-            output = self.outputs(input_sequence, include_first)
-            if return_state:
-                if input_sequence.size(1) == 0:
-                    state = self
-                else:
-                    state = self.parent.State(
-                        self.parent,
-                        self.position + input_sequence.size(1),
-                        input_sequence[:, -1]
-                    )
-                return ForwardResult(output, [], state)
-            else:
-                return output
 
     def initial_state(self,
         batch_size: int,
         *args: Any,
         **kwargs: Any
     ) -> Unidirectional.State:
-        return self.State(self, 0, None)
+        return self.State(
+            parent=self,
+            position=0,
+            input_tensor=None
+        )
