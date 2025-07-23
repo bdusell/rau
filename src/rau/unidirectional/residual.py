@@ -13,35 +13,6 @@ class ResidualUnidirectional(Unidirectional):
         super().__init__()
         self.wrapped_module = module
 
-    def forward(self,
-        input_sequence: torch.Tensor,
-        initial_state: Unidirectional.State | None = None,
-        return_state: bool=False,
-        include_first: bool=True,
-        **kwargs: Any
-    ) -> torch.Tensor | ForwardResult:
-        if initial_state is None and not return_state and not include_first:
-            wrapped_result = ensure_is_forward_result(self.wrapped_module(
-                input_sequence,
-                initial_state=None,
-                return_state=return_state,
-                include_first=include_first,
-                **kwargs
-            ))
-            return unwrap_output_tensor(ForwardResult(
-                input_sequence + wrapped_result.output,
-                wrapped_result.extra_outputs,
-                None
-            ))
-        else:
-            return super().forward(
-                input_sequence,
-                initial_state=initial_state,
-                return_state=return_state,
-                include_first=include_first,
-                **kwargs
-            )
-
     @dataclasses.dataclass
     class State(Unidirectional.State):
 
