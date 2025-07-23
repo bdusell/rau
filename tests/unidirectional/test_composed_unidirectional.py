@@ -63,14 +63,21 @@ def test_forward_matches_iterative():
 class MainUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
-        super().__init__(torch.nn.Identity())
+        class Layer(torch.nn.Module):
+            def forward(self, input_tensor, x, y, alpha, beta):
+                assert x == 'foo'
+                assert y == 42
+                assert alpha == 123
+                assert beta == 'asdf'
+                return input_tensor
+        super().__init__(Layer())
 
-    def initial_state(self, batch_size, x, y, alpha, beta):
+    def initial_output(self, batch_size, x, y, alpha, beta):
         assert x == 'foo'
         assert y == 42
         assert alpha == 123
         assert beta == 'asdf'
-        return super().initial_state(batch_size)
+        return torch.zeros(batch_size)
 
 def test_arg_routing_to_main():
     model = (
@@ -92,22 +99,22 @@ def test_arg_routing_to_main():
 class OtherUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
-        super().__init__(torch.nn.Identity())
-
-    def initial_state(self, batch_size, beta, gamma):
-        assert beta == 999
-        assert gamma == 'qwerty'
-        return super().initial_state(batch_size)
+        class Layer(torch.nn.Module):
+            def forward(self, input_tensor, beta, gamma):
+                assert beta == 999
+                assert gamma == 'qwerty'
+                return input_tensor
+        super().__init__(Layer())
 
 class YetAnotherUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
-        super().__init__(torch.nn.Identity())
-
-    def initial_state(self, batch_size, alpha, delta):
-        assert alpha == 'meow'
-        assert delta == 'moo'
-        return super().initial_state(batch_size)
+        class Layer(torch.nn.Module):
+            def forward(self, input_tensor, alpha, delta):
+                assert alpha == 'meow'
+                assert delta == 'moo'
+                return input_tensor
+        super().__init__(Layer())
 
 def test_arg_routing_to_tags():
     model = (

@@ -317,7 +317,7 @@ class Unidirectional(torch.nn.Module):
         # If the input module is main, then feed its initial output to this
         # module as the first input.
         if input_module._composable_is_main:
-            first_state = first_state.next(second_state.output())
+            second_state = second_state.next(first_state.output())
         return Unidirectional.StatefulComposedState(
             parent=self,
             first_is_main=input_module._composable_is_main,

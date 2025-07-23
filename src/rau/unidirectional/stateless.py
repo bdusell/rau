@@ -162,6 +162,7 @@ class StatelessUnidirectional(Unidirectional):
         args: list[Any]
         kwargs: dict[str, Any]
         input_is_main: bool
+        use_initial_output: bool
         input_state: Unidirectional.State
 
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
@@ -169,15 +170,23 @@ class StatelessUnidirectional(Unidirectional):
             # output. This means outputs are computed lazily.
             return dataclasses.replace(
                 self,
+                use_initial_output=False,
                 input_state=self.input_state.next(input_tensor)
             )
 
         def output(self) -> torch.Tensor | tuple[torch.Tensor, *tuple[Any, ...]]:
-            return self.parent.forward_single(
-                self.input_state.output(),
-                *self.args,
-                **self.kwargs
-            )
+            if self.use_initial_output:
+                return self.parent.initial_output(
+                    self.input_state.batch_size(),
+                    *self.args,
+                    **self.kwargs
+                )
+            else:
+                return self.parent.forward_single(
+                    self.input_state.output(),
+                    *self.args,
+                    **self.kwargs
+                )
 
         def forward(self,
             input_sequence: torch.Tensor,
@@ -185,6 +194,8 @@ class StatelessUnidirectional(Unidirectional):
             return_state: bool = False,
             return_output: bool = True
         ) -> torch.Tensor | ForwardResult:
+            if self.use_initial_output and include_first:
+                raise NotImplementedError
             # Get the outputs from the input module.
             first_result = ensure_is_forward_result(self.input_state.forward(
                 input_sequence,
@@ -231,16 +242,12 @@ class StatelessUnidirectional(Unidirectional):
         *args: Any,
         **kwargs: Any
     ) -> Unidirectional.State:
-        if self._composable_is_main:
-            raise NotImplementedError(
-                'composing with a StatelessUnidirectional marked as main and '
-                'using iterative mode is not implemented yet'
-            )
         return self.ComposedState(
             parent=self,
             args=args,
             kwargs=kwargs,
             input_is_main=input_module._composable_is_main,
+            use_initial_output=self._composable_is_main,
             input_state=input_state
         )
 

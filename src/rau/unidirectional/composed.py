@@ -81,7 +81,7 @@ class ComposedUnidirectional(Unidirectional):
         first_args, first_kwargs = get_composed_args(self.first, args, kwargs, tag_kwargs, None)
         second_args, second_kwargs = get_composed_args(self.second, args, kwargs, tag_kwargs, None)
         first_state = self.first.initial_state(batch_size, *first_args, **first_kwargs)
-        return self.second.initial_composed_state(self.first, first_state, *first_args, **first_kwargs)
+        return self.second.initial_composed_state(self.first, first_state, *second_args, **second_kwargs)
 
 def _list_modules(u: Unidirectional) -> Iterable[Unidirectional]:
     result = []
