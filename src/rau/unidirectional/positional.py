@@ -133,3 +133,5 @@ class PositionalUnidirectional(Unidirectional):
             position=0,
             input_tensor=None
         )
+
+    # TODO Implement lazy outputs.
