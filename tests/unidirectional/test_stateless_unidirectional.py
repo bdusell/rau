@@ -64,10 +64,15 @@ class CountingStateless(StatelessUnidirectional):
     def __init__(self):
         super().__init__()
         self.num_forward_single_calls = 0
+        self.num_forward_sequence_calls = 0
 
     def forward_single(self, input_tensor):
         self.num_forward_single_calls += 1
         return input_tensor
+
+    def forward_sequence(self, input_sequence):
+        self.num_forward_sequence_calls += 1
+        return input_sequence
 
 class CountingStateful(Unidirectional):
 
@@ -87,6 +92,7 @@ class CountingStateful(Unidirectional):
             self.input_tensor = input_tensor
 
         def next(self, input_tensor):
+            print('next()', self.parent, self.input_tensor)
             self.parent.num_next_calls += 1
             return self.parent.State(self.parent, input_tensor)
 
@@ -112,11 +118,15 @@ def test_lazy_outputs_with_next():
         state = state.next(input_tensor)
     state.output()
     assert A.num_forward_single_calls == sequence_length
+    assert A.num_forward_sequence_calls == 0
     assert B.num_forward_single_calls == sequence_length
+    assert B.num_forward_sequence_calls == 0
     assert C.num_next_calls == sequence_length
     assert C.num_output_calls == 1
     assert D.num_forward_single_calls == 1
+    assert D.num_forward_sequence_calls == 0
     assert E.num_forward_single_calls == 1
+    assert E.num_forward_sequence_calls == 0
 
 def test_lazy_outputs_with_fastforward():
     A = CountingStateless()
@@ -131,12 +141,16 @@ def test_lazy_outputs_with_fastforward():
     generator = torch.manual_seed(123)
     input_sequence = torch.rand((batch_size, sequence_length, model_size), generator=generator)
     M.initial_state(batch_size).fastforward(input_sequence).output()
-    assert A.num_forward_single_calls == sequence_length
-    assert B.num_forward_single_calls == sequence_length
+    assert A.num_forward_single_calls == 0
+    assert A.num_forward_sequence_calls == 1
+    assert B.num_forward_single_calls == 0
+    assert B.num_forward_sequence_calls == 1
     assert C.num_next_calls == sequence_length
     assert C.num_output_calls == 1
     assert D.num_forward_single_calls == 1
+    assert D.num_forward_sequence_calls == 0
     assert E.num_forward_single_calls == 1
+    assert E.num_forward_sequence_calls == 0
 
 def test_lazy_outputs_with_abnormal_composition_order():
     A = CountingStateless()
