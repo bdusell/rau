@@ -92,7 +92,6 @@ class CountingStateful(Unidirectional):
             self.input_tensor = input_tensor
 
         def next(self, input_tensor):
-            print('next()', self.parent, self.input_tensor)
             self.parent.num_next_calls += 1
             return self.parent.State(self.parent, input_tensor)
 
