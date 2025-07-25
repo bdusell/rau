@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 
 import torch
@@ -56,7 +57,9 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
 
     _RNN_CLASS = torch.nn.RNN
 
-    def _initial_tensors(self, batch_size):
+    def _initial_tensors(self,
+        batch_size: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # The initial tensor is a tensor of all the hidden states of all layers
         # before the first timestep.
         # Its size needs to be num_layers x batch_size x hidden_units, where
@@ -76,5 +79,8 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
             )
         return h, h[-1]
 
-    def _apply_to_hidden_state(self, hidden_state, func):
+    def _apply_to_hidden_state(self,
+        hidden_state: torch.Tensor,
+        func: Callable[[torch.Tensor], torch.Tensor]
+    ) -> torch.Tensor:
         return func(hidden_state)

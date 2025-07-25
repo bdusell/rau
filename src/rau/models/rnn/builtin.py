@@ -4,7 +4,8 @@ from typing import Any
 
 import torch
 
-from rau.unidirectional import Unidirectional
+from rau.unidirectional import Unidirectional, ForwardResult
+from rau.unidirectional.util import unwrap_output_tensor
 
 class UnidirectionalBuiltinRNN(Unidirectional):
     """Wraps a built-in PyTorch RNN class in the :py:class:`Unidirectional`
@@ -20,8 +21,8 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         bias: bool,
         use_extra_bias: bool,
         **kwargs: Any
-    ):
-        """
+    ) -> None:
+        r"""
         :param input_size: The size of the input vectors to the RNN.
         :param hidden_units: The number of hidden units in each layer.
         :param layers: The number of layers in the RNN.
@@ -69,110 +70,105 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         hidden_state: Any
         _output: torch.Tensor
 
-        def next(self, input_tensor):
+        def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
             # input_tensor : batch_size x input_size
             # unsqueezed_input : batch_size x 1 x input_size
             unsqueezed_input = input_tensor.unsqueeze(1)
             unsqueezed_output, new_hidden_state = self.rnn.rnn(
                 unsqueezed_input,
-                self.hidden_state)
+                self.hidden_state
+            )
             # unsqueezed_output : batch_size x 1 x hidden_units
-            return self.rnn.State(
-                self.rnn,
-                new_hidden_state,
-                unsqueezed_output.squeeze(1))
+            return dataclasses.replace(
+                self,
+                hidden_state=new_hidden_state,
+                _output=unsqueezed_output.squeeze(1)
+            )
 
-        def output(self):
+        def output(self) -> torch.Tensor:
             return self._output
 
-        def batch_size(self):
+        def forward(self,
+            input_sequence: torch.Tensor,
+            include_first: bool,
+            return_state: bool = False,
+            return_output: bool = True
+        ) -> torch.Tensor | ForwardResult:
+            # input_sequence : batch_size x sequence_length x input_size
+            # The built-in RNN modules do not handle empty input sequences, so
+            # handle that as a special case here.
+            if input_sequence.size(1) == 0:
+                if return_output:
+                    first_output = self.output()
+                    batch_size, hidden_units = first_output.size()
+                    if include_first:
+                        output_sequence = first_output.unsqueeze(1)
+                    else:
+                        output_sequence = first_output.new_empty(batch_size, 0, hidden_units)
+                else:
+                    output_sequence = None
+                if return_state:
+                    state = self
+                else:
+                    state = None
+            else:
+                # output_sequence : batch_size x sequence_length x hidden_units
+                # The type and size of new_hidden_state depends on the RNN unit.
+                # For torch.nn.RNN, it's a tensor whose size is
+                # num_layers x batch_size x hidden_units, where
+                # new_hidden_state[-1] is the last layer and is equal to
+                # output_sequence[:, -1].
+                output_sequence, new_hidden_state = self.rnn.rnn(
+                    input_sequence,
+                    self.hidden_state
+                )
+                if return_output:
+                    if include_first:
+                        output_sequence = torch.concat([
+                            self.output().unsqueeze(1),
+                            output_sequence
+                        ], dim=1)
+                else:
+                    output_sequence = None
+                if return_state:
+                    state = dataclasses.replace(
+                        self,
+                        hidden_state=new_hidden_state,
+                        _output=output_sequence[:, -1]
+                    )
+                else:
+                    state = None
+            return unwrap_output_tensor(ForwardResult(
+                output=output_sequence,
+                extra_outputs=[],
+                state=state
+            ))
+
+        def batch_size(self) -> int:
             return self._output.size(0)
 
-        def transform_tensors(self, func):
-            return self.rnn.State(
-                self.rnn,
-                self.rnn._apply_to_hidden_state(
+        def transform_tensors(self,
+            func: Callable[[torch.Tensor], torch.Tensor]
+        ) -> Unidirectional.State:
+            return dataclasses.replace(
+                self,
+                hidden_state=self.rnn._apply_to_hidden_state(
                     self.hidden_state,
                     # The builtin hidden states always have batch size as
                     # dim 1 instead of dim 0. So, temporarily move it to dim 0
-                    # when func is called for compatibility.
+                    # when func is called, for compatibility.
                     # The builtin hidden states also need to be contiguous when
                     # they are used as inputs to the builtin module.
                     lambda x: func(x.transpose(0, 1)).transpose(0, 1).contiguous()
                 ),
-                func(self._output))
+                _output=func(self._output)
+            )
 
-        def fastforward(self, input_sequence):
-            """This method is overridden to use the builtin RNN class
-            efficiently."""
-            input_tensors = input_sequence.transpose(0, 1)
-            output_sequence, state = self.forward(
-                input_tensors,
-                return_state=True,
-                include_first=False)
-            return state
-
-        def outputs(self, input_sequence, include_first):
-            """This method is overridden to use the builtin RNN class
-            efficiently."""
-            return self.forward(
-                input_sequence,
-                return_state=False,
-                include_first=include_first)
-
-        def forward(self, input_sequence, return_state, include_first):
-            """This method is overridden to use the builtin RNN class
-            efficiently."""
-            # input_sequence : batch_size x sequence_length x input_size
-            # self.output() : batch_size x hidden_units
-            # Handle empty sequences, since the built-in RNN module does not
-            # handle empty sequences (I checked).
-            if input_sequence.size(1) == 0:
-                first_output = self.output()
-                if include_first:
-                    output_sequence = first_output[:, None, :]
-                else:
-                    batch_size, hidden_units = first_output.size()
-                    output_sequence = first_output.new_empty(batch_size, 0, hidden_units)
-                if return_state:
-                    return output_sequence, self
-                else:
-                    return output_sequence
-            # output_sequence : batch_size x sequence_length x hidden_units
-            # The type and size of new_hidden_state depends on the RNN unit.
-            # For torch.nn.RNN, it's a tensor whose size is
-            # num_layers x batch_size x hidden_units, where
-            # new_hidden_state[-1] is the last layer and is equal to
-            # output_sequence[:, -1].
-            output_sequence, new_hidden_state = self.rnn.rnn(
-                input_sequence,
-                self.hidden_state)
-            # output_sequence : batch_size x sequence_length x hidden_units
-            if include_first:
-                first_output = self.output()
-                output_sequence = torch.cat([
-                    first_output[:, None, :],
-                    output_sequence
-                ], dim=1)
-            if return_state:
-                # last_output : batch_size x hidden_units
-                last_output = output_sequence[:, -1, :]
-                state = self.rnn.State(self.rnn, new_hidden_state, last_output)
-                return output_sequence, state
-            else:
-                return output_sequence
-
-    def initial_state(self,
-        batch_size: int,
-        *args: Any,
-        **kwargs: Any
-    ) -> Unidirectional.State:
-        if args or kwargs:
-            raise ValueError
+    def initial_state(self, batch_size: int) -> Unidirectional.State:
         hidden_state, output = self._initial_tensors(batch_size)
         return self.State(self, hidden_state, output)
 
-def remove_extra_bias_parameters(module: torch.nn.Module):
+def remove_extra_bias_parameters(module: torch.nn.Module) -> None:
     pairs = [
         (name, param)
         for name, param in module.named_parameters()
