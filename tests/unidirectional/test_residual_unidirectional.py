@@ -1,6 +1,13 @@
+import dataclasses
+
 import torch
 
-from rau.unidirectional import ResidualUnidirectional, PositionalUnidirectional
+from rau.unidirectional import (
+    Unidirectional,
+    ResidualUnidirectional,
+    PositionalUnidirectional,
+    StatelessUnidirectional
+)
 
 class AdditivePositional(PositionalUnidirectional):
 
@@ -45,3 +52,91 @@ def test_forward_matches_iterative():
         output = state.output()
         assert output.size() == (batch_size, input_size)
         torch.testing.assert_close(output, forward_output[:, i])
+
+class CountingStateless(StatelessUnidirectional):
+
+    def __init__(self):
+        super().__init__()
+        self.num_forward_single_calls = 0
+        self.num_forward_sequence_calls = 0
+
+    def forward_single(self, input_tensor):
+        self.num_forward_single_calls += 1
+        return input_tensor
+
+    def forward_sequence(self, input_sequence):
+        self.num_forward_sequence_calls += 1
+        return input_sequence
+
+class CountingStateful(Unidirectional):
+
+    def __init__(self):
+        super().__init__()
+        self.num_next_calls = 0
+        self.num_output_calls = 0
+
+    def initial_state(self, batch_size):
+        return self.State(
+            parent=self,
+            input_tensor=None,
+            _batch_size=batch_size
+        )
+
+    @dataclasses.dataclass
+    class State(Unidirectional.State):
+
+        parent: 'CountingStateful'
+        input_tensor: torch.Tensor | None
+        _batch_size: int | None
+
+        def next(self, input_tensor):
+            self.parent.num_next_calls += 1
+            return dataclasses.replace(self, input_tensor=input_tensor)
+
+        def output(self):
+            self.parent.num_output_calls += 1
+            if self.input_tensor is None:
+                return torch.zeros(self._batch_size)
+            else:
+                return self.input_tensor
+
+        def batch_size(self):
+            return self._batch_size
+
+def test_stateless_composed_residual():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    generator = torch.manual_seed(123)
+    wrapped_model = CountingStateless()
+    residual_model = ResidualUnidirectional(wrapped_model)
+    input_model = CountingStateful()
+    model = input_model.main() | residual_model
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        state = state.next(input_sequence[:, i])
+    state.output()
+    assert input_model.num_next_calls == sequence_length
+    assert input_model.num_output_calls == 1
+    assert wrapped_model.num_forward_single_calls == 1
+    assert wrapped_model.num_forward_sequence_calls == 0
+
+def test_stateful_composed_residual():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    generator = torch.manual_seed(123)
+    wrapped_model = CountingStateful()
+    residual_model = ResidualUnidirectional(wrapped_model)
+    input_model = CountingStateful()
+    model = input_model.main() | residual_model
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        state = state.next(input_sequence[:, i])
+    state.output()
+    assert input_model.num_next_calls == sequence_length
+    assert input_model.num_output_calls == sequence_length
+    assert wrapped_model.num_next_calls == sequence_length
+    assert wrapped_model.num_output_calls == 1
