@@ -9,4 +9,4 @@ from .composed import ComposedUnidirectional
 from .dropout import DropoutUnidirectional
 from .embedding import EmbeddingUnidirectional
 from .output import OutputUnidirectional
-from .residual import ResidualUnidirectional
+from .residual import ResidualUnidirectional, StatelessResidualUnidirectional

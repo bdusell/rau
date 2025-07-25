@@ -1,16 +1,24 @@
 import dataclasses
+import warnings
 from collections.abc import Callable, Iterable
 from typing import Any
 
 import torch
 
 from .unidirectional import Unidirectional, ForwardResult
+from .stateless import StatelessUnidirectional
 from .util import unwrap_output_tensor, ensure_is_forward_result
 
 class ResidualUnidirectional(Unidirectional):
 
-    def __init__(self, module: Unidirectional):
+    def __init__(self, module: Unidirectional) -> None:
         super().__init__()
+        if isinstance(module, StatelessUnidirectional):
+            warnings.warn(
+                'you are wrapping a StatelessUnidirectional with '
+                'ResidualUnidirectional; for efficiency, consider wrapping it '
+                'in StatelessResidualUnidirectional instead'
+            )
         self.wrapped_module = module
 
     @dataclasses.dataclass
@@ -27,16 +35,12 @@ class ResidualUnidirectional(Unidirectional):
             )
 
         def output(self) -> torch.Tensor | tuple[torch.Tensor, *tuple[Any, ...]]:
-            # TODO Handle multiple outputs
-            return self._get_input_tensor() + self.wrapped_state.output()
-
-        def _get_input_tensor(self) -> torch.Tensor:
             if self.input_tensor is None:
                 raise ValueError(
                     'the initial state of a ResidualUnidirectional has no '
                     'input, so it has no output'
                 )
-            return self.input_tensor
+            return self.input_tensor + self.wrapped_state.output()
 
         def forward(self,
             input_sequence: torch.Tensor,
@@ -97,4 +101,32 @@ class ResidualUnidirectional(Unidirectional):
                 *args,
                 **kwargs
             )
+        )
+
+class StatelessResidualUnidirectional(StatelessUnidirectional):
+
+    def __init__(self, module: StatelessUnidirectional) -> None:
+        super().__init__()
+        if not isinstance(module, StatelessUnidirectional):
+            raise TypeError
+        self.wrapped_module = module
+
+    def forward_single(self,
+        input_tensor: torch.Tensor,
+        *args: Any,
+        **kwargs: Any
+    ) -> torch.Tensor:
+        return (
+            input_tensor +
+            self.wrapped_module.forward_single(input_tensor, *args, **kwargs)
+        )
+
+    def forward_sequence(self,
+        input_sequence: torch.Tensor,
+        *args: Any,
+        **kwargs: Any
+    ) -> torch.Tensor:
+        return (
+            input_sequence +
+            self.wrapped_module.forward_sequence(input_sequence, *args, **kwargs)
         )
