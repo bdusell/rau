@@ -25,7 +25,9 @@ jobs:
       - name: Create local branches
         run: |
           for branch in main differentiable-stacks; do
-            git branch -f $branch origin/$branch
+            if ! git show-ref -q refs/heads/$branch; then
+              git branch -f $branch origin/$branch
+            fi
           done
       - name: Install Poetry
         run: pipx install poetry==2.1.3
