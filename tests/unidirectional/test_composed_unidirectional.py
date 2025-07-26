@@ -3,7 +3,7 @@ import torch
 from rau.unidirectional import (
     ComposedUnidirectional,
     PositionalUnidirectional,
-    SimpleLayerUnidirectional
+    StatelessLayerUnidirectional
 )
 from rau.tools.torch.compose import Composable
 
@@ -60,17 +60,24 @@ def test_forward_matches_iterative():
         assert output.size() == (batch_size,)
         torch.testing.assert_close(output, expected_forward_output[:, i])
 
-class MainUnidirectional(SimpleLayerUnidirectional):
+class MainUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
-        super().__init__(torch.nn.Identity())
+        class Layer(torch.nn.Module):
+            def forward(self, input_tensor, x, y, alpha, beta):
+                assert x == 'foo'
+                assert y == 42
+                assert alpha == 123
+                assert beta == 'asdf'
+                return input_tensor
+        super().__init__(Layer())
 
-    def initial_state(self, batch_size, x, y, alpha, beta):
+    def initial_output(self, batch_size, x, y, alpha, beta):
         assert x == 'foo'
         assert y == 42
         assert alpha == 123
         assert beta == 'asdf'
-        return super().initial_state(batch_size)
+        return torch.zeros(batch_size)
 
 def test_arg_routing_to_main():
     model = (
@@ -89,25 +96,25 @@ def test_arg_routing_to_main():
     state = model.initial_state(batch_size, x, y, alpha=alpha, beta=beta)
     output = model(input_sequence, x, y, alpha=alpha, beta=beta, include_first=False)
 
-class OtherUnidirectional(SimpleLayerUnidirectional):
+class OtherUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
-        super().__init__(torch.nn.Identity())
+        class Layer(torch.nn.Module):
+            def forward(self, input_tensor, beta, gamma):
+                assert beta == 999
+                assert gamma == 'qwerty'
+                return input_tensor
+        super().__init__(Layer())
 
-    def initial_state(self, batch_size, beta, gamma):
-        assert beta == 999
-        assert gamma == 'qwerty'
-        return super().initial_state(batch_size)
-
-class YetAnotherUnidirectional(SimpleLayerUnidirectional):
+class YetAnotherUnidirectional(StatelessLayerUnidirectional):
 
     def __init__(self):
-        super().__init__(torch.nn.Identity())
-
-    def initial_state(self, batch_size, alpha, delta):
-        assert alpha == 'meow'
-        assert delta == 'moo'
-        return super().initial_state(batch_size)
+        class Layer(torch.nn.Module):
+            def forward(self, input_tensor, alpha, delta):
+                assert alpha == 'meow'
+                assert delta == 'moo'
+                return input_tensor
+        super().__init__(Layer())
 
 def test_arg_routing_to_tags():
     model = (

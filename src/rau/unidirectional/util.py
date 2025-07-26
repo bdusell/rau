@@ -12,4 +12,4 @@ def ensure_is_forward_result(x: torch.Tensor | ForwardResult) -> ForwardResult:
     if isinstance(x, ForwardResult):
         return x
     else:
-        return ForwardResult(x, (), None)
+        return ForwardResult(x, [], None)

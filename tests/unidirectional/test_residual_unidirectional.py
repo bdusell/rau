@@ -1,6 +1,16 @@
+import dataclasses
+
 import torch
 
-from rau.unidirectional import ResidualUnidirectional, PositionalUnidirectional
+from rau.unidirectional import (
+    Unidirectional,
+    ResidualUnidirectional,
+    StatelessResidualUnidirectional,
+    PositionalUnidirectional,
+    StatelessUnidirectional,
+    StatelessLayerUnidirectional
+)
+from rau.models import SimpleRNN
 
 class AdditivePositional(PositionalUnidirectional):
 
@@ -20,7 +30,7 @@ class AdditivePositional(PositionalUnidirectional):
         assert beta == 'moo'
         return super().initial_state(*args, **kwargs)
 
-def test_forward_matches_iterative():
+def test_forward_matches_iterative_stateful():
     batch_size = 5
     sequence_length = 13
     input_size = 7
@@ -44,4 +54,174 @@ def test_forward_matches_iterative():
         state = state.next(input_tensor)
         output = state.output()
         assert output.size() == (batch_size, input_size)
+        torch.testing.assert_close(output, forward_output[:, i])
+
+class CountingStateless(StatelessUnidirectional):
+
+    def __init__(self):
+        super().__init__()
+        self.num_forward_single_calls = 0
+        self.num_forward_sequence_calls = 0
+
+    def forward_single(self, input_tensor):
+        self.num_forward_single_calls += 1
+        return input_tensor
+
+    def forward_sequence(self, input_sequence):
+        self.num_forward_sequence_calls += 1
+        return input_sequence
+
+class CountingStateful(Unidirectional):
+
+    def __init__(self):
+        super().__init__()
+        self.num_next_calls = 0
+        self.num_output_calls = 0
+
+    def initial_state(self, batch_size):
+        return self.State(
+            parent=self,
+            input_tensor=None,
+            _batch_size=batch_size
+        )
+
+    @dataclasses.dataclass
+    class State(Unidirectional.State):
+
+        parent: 'CountingStateful'
+        input_tensor: torch.Tensor | None
+        _batch_size: int | None
+
+        def next(self, input_tensor):
+            self.parent.num_next_calls += 1
+            return dataclasses.replace(self, input_tensor=input_tensor)
+
+        def output(self):
+            self.parent.num_output_calls += 1
+            if self.input_tensor is None:
+                return torch.zeros(self._batch_size)
+            else:
+                return self.input_tensor
+
+        def batch_size(self):
+            return self._batch_size
+
+def test_forward_matches_iterative_stateless():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    generator = torch.manual_seed(123)
+    alpha = 123
+    beta = 'moo'
+    wrapped_model = StatelessLayerUnidirectional(torch.nn.Linear(input_size, input_size))
+    model = StatelessResidualUnidirectional(wrapped_model)
+    for p in model.parameters():
+        p.data.uniform_(generator=generator)
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    expected_forward_output = (
+        input_sequence +
+        wrapped_model(input_sequence, include_first=False)
+    )
+    assert expected_forward_output.size() == (batch_size, sequence_length, input_size)
+    forward_output = model(input_sequence, include_first=False)
+    assert forward_output.size() == (batch_size, sequence_length, input_size)
+    torch.testing.assert_close(forward_output, expected_forward_output)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        input_tensor = input_sequence[:, i]
+        state = state.next(input_tensor)
+        output = state.output()
+        assert output.size() == (batch_size, input_size)
+        torch.testing.assert_close(output, forward_output[:, i])
+
+def test_stateless_residual_lazy_outputs():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    generator = torch.manual_seed(123)
+    wrapped_model = CountingStateless()
+    residual_model = StatelessResidualUnidirectional(wrapped_model)
+    input_model = CountingStateful()
+    model = input_model.main() | residual_model
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        state = state.next(input_sequence[:, i])
+    state.output()
+    assert input_model.num_next_calls == sequence_length
+    assert input_model.num_output_calls == 1
+    assert wrapped_model.num_forward_single_calls == 1
+    assert wrapped_model.num_forward_sequence_calls == 0
+
+def test_stateful_residual_lazy_outputs():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    generator = torch.manual_seed(123)
+    wrapped_model = CountingStateful()
+    residual_model = ResidualUnidirectional(wrapped_model)
+    input_model = CountingStateful()
+    model = input_model.main() | residual_model
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        state = state.next(input_sequence[:, i])
+    state.output()
+    assert input_model.num_next_calls == sequence_length
+    assert input_model.num_output_calls == sequence_length + 1
+    assert wrapped_model.num_next_calls == sequence_length + 1
+    assert wrapped_model.num_output_calls == 1
+
+def test_stateless_composed_forward_matches_iterative():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    output_size = 17
+    generator = torch.manual_seed(123)
+    input_model = SimpleRNN(input_size, output_size)
+    wrapped_model = StatelessLayerUnidirectional(torch.nn.Linear(output_size, output_size))
+    residual_model = StatelessResidualUnidirectional(wrapped_model)
+    model = input_model.main() | residual_model
+    for p in model.parameters():
+        p.data.uniform_(generator=generator)
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    expected_first_output = input_model(input_sequence, include_first=False)
+    expected_forward_output = expected_first_output + wrapped_model(expected_first_output, include_first=False)
+    assert expected_forward_output.size() == (batch_size, sequence_length, output_size)
+    forward_output = model(input_sequence, include_first=False)
+    assert forward_output.size() == (batch_size, sequence_length, output_size)
+    torch.testing.assert_close(forward_output, expected_forward_output)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        input_tensor = input_sequence[:, i]
+        state = state.next(input_tensor)
+        output = state.output()
+        assert output.size() == (batch_size, output_size)
+        torch.testing.assert_close(output, forward_output[:, i])
+
+def test_stateful_composed_forward_matches_iterative():
+    batch_size = 5
+    sequence_length = 13
+    input_size = 7
+    output_size = 17
+    generator = torch.manual_seed(123)
+    input_model = SimpleRNN(input_size, output_size)
+    wrapped_model = SimpleRNN(output_size, output_size)
+    residual_model = ResidualUnidirectional(wrapped_model)
+    model = input_model.main() | residual_model
+    for p in model.parameters():
+        p.data.uniform_(generator=generator)
+    input_sequence = torch.rand((batch_size, sequence_length, input_size), generator=generator)
+    expected_first_output = input_model(input_sequence, include_first=False)
+    expected_forward_output = expected_first_output + wrapped_model(expected_first_output, include_first=False)
+    assert expected_forward_output.size() == (batch_size, sequence_length, output_size)
+    forward_output = model(input_sequence, include_first=False)
+    assert forward_output.size() == (batch_size, sequence_length, output_size)
+    torch.testing.assert_close(forward_output, expected_forward_output)
+    state = model.initial_state(batch_size)
+    for i in range(sequence_length):
+        input_tensor = input_sequence[:, i]
+        state = state.next(input_tensor)
+        output = state.output()
+        assert output.size() == (batch_size, output_size)
         torch.testing.assert_close(output, forward_output[:, i])

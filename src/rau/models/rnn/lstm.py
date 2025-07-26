@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import torch
 
 from .builtin import UnidirectionalBuiltinRNN
@@ -45,7 +47,9 @@ class LSTM(UnidirectionalBuiltinRNN):
 
     _RNN_CLASS = torch.nn.LSTM
 
-    def _initial_tensors(self, batch_size):
+    def _initial_tensors(self,
+        batch_size: int
+    ) -> tuple[tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         c = torch.zeros(
             self._layers,
             batch_size,
@@ -60,5 +64,8 @@ class LSTM(UnidirectionalBuiltinRNN):
             h = c
         return (h, c), h[-1]
 
-    def _apply_to_hidden_state(self, hidden_state, func):
+    def _apply_to_hidden_state(self,
+        hidden_state: tuple[torch.Tensor, torch.Tensor],
+        func: Callable[[torch.Tensor], torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         return tuple(map(func, hidden_state))
