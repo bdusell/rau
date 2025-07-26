@@ -1,6 +1,6 @@
 import torch
 
-from rau.unidirectional import SimpleLayerUnidirectional
+from rau.unidirectional import StatelessLayerUnidirectional
 from rau.models.stack_nn.transformer.unidirectional_encoder import (
     get_unidirectional_encoder_layer_with_custom_attention
 )
@@ -18,7 +18,7 @@ def test_custom_encoder_layer():
     d_model = 7
     batch_size = 5
     sequence_length = 13
-    attention_func = SimpleLayerUnidirectional(CustomModule())
+    attention_func = StatelessLayerUnidirectional(CustomModule())
     alpha = 123
     beta = 'asdf'
     generator = torch.manual_seed(123)

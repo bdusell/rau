@@ -1,6 +1,6 @@
 import torch
 
-from rau.unidirectional import SimpleReshapingLayerUnidirectional
+from rau.unidirectional import StatelessReshapingLayerUnidirectional
 
 class CrossAttention(torch.nn.Module):
 
@@ -8,7 +8,7 @@ class CrossAttention(torch.nn.Module):
         d_model: int,
         num_heads: int,
         dropout: float
-    ):
+    ) -> None:
         super().__init__()
         self.attention = torch.nn.MultiheadAttention(
             d_model,
@@ -35,13 +35,13 @@ class CrossAttention(torch.nn.Module):
             need_weights=False
         )[0]
 
-class CrossAttentionUnidirectional(SimpleReshapingLayerUnidirectional):
+class CrossAttentionUnidirectional(StatelessReshapingLayerUnidirectional):
 
     def __init__(self,
         d_model: int,
         num_heads: int,
         dropout: float
-    ):
+    ) -> None:
         super().__init__(CrossAttention(d_model, num_heads, dropout))
 
     def transform_kwargs(self, kwargs, func):

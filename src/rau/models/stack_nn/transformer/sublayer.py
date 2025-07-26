@@ -5,7 +5,7 @@ import torch
 from rau.unidirectional import (
     Unidirectional,
     ResidualUnidirectional,
-    SimpleLayerUnidirectional,
+    StatelessLayerUnidirectional,
     DropoutUnidirectional
 )
 
@@ -15,7 +15,7 @@ def get_unidirectional_sublayer(
     dropout: Optional[float]
 ) -> Unidirectional:
     return ResidualUnidirectional(
-        SimpleLayerUnidirectional(torch.nn.LayerNorm(d_model)) |
+        StatelessLayerUnidirectional(torch.nn.LayerNorm(d_model)) |
         sublayer_func.main() |
         DropoutUnidirectional(dropout)
     )

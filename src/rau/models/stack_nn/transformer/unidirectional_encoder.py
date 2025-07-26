@@ -4,7 +4,7 @@ import torch
 
 from rau.unidirectional import (
     Unidirectional,
-    SimpleLayerUnidirectional,
+    StatelessLayerUnidirectional,
     OutputUnidirectional
 )
 from rau.models.common.shared_embeddings import get_shared_embeddings
@@ -69,7 +69,7 @@ def get_unidirectional_stack_transformer_encoder(
                     dropout=dropout,
                     tag=layer_type
                 )
-        yield SimpleLayerUnidirectional(torch.nn.LayerNorm(d_model))
+        yield StatelessLayerUnidirectional(torch.nn.LayerNorm(d_model))
         yield OutputUnidirectional(
             input_size=d_model,
             vocabulary_size=output_vocabulary_size,

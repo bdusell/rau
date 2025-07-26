@@ -4,7 +4,7 @@ import torch
 
 from rau.unidirectional import (
     Unidirectional,
-    SimpleLayerUnidirectional,
+    StatelessLayerUnidirectional,
     OutputUnidirectional
 )
 from rau.models.common.add_tag import add_tag
@@ -59,7 +59,7 @@ def get_stack_transformer_decoder(
                     tag=layer_type,
                     cross_attention_tag='transformer'
                 )
-        yield SimpleLayerUnidirectional(torch.nn.LayerNorm(d_model))
+        yield StatelessLayerUnidirectional(torch.nn.LayerNorm(d_model))
         yield OutputUnidirectional(
             input_size=d_model,
             vocabulary_size=output_vocabulary_size,

@@ -1,13 +1,13 @@
 import torch
 
 from rau.tools.torch.layer import Layer
-from rau.unidirectional import SimpleLayerUnidirectional
+from rau.unidirectional import StatelessLayerUnidirectional
 
 from .sublayer import get_unidirectional_sublayer
 
 def get_feedforward_sublayer(d_model, feedforward_size, dropout):
     return get_unidirectional_sublayer(
-        SimpleLayerUnidirectional(get_feedforward_module(
+        StatelessLayerUnidirectional(get_feedforward_module(
             d_model,
             feedforward_size,
             dropout
