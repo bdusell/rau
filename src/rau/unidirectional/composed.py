@@ -25,6 +25,7 @@ class ComposedUnidirectional(Unidirectional):
         # Normalize the composition order so that it is always left-associative.
         # This is important for lazy evaluation to work properly.
         if isinstance(self.second, ComposedUnidirectional):
+            # TODO Move tags from self.second to its children?
             for m in _list_modules(self.second.first):
                 self.first = self.first | m
             self.second = self.second.second

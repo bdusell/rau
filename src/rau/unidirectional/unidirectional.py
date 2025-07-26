@@ -20,7 +20,7 @@ class ForwardResult:
     reading the inputs."""
 
 class Unidirectional(torch.nn.Module):
-    """An API for unidirectional sequential neural networks (including RNNs
+    r"""An API for unidirectional sequential neural networks (including RNNs
     and transformer decoders).
 
     Let :math:`B` be batch size, and :math:`n` be the length of the input

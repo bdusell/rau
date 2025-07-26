@@ -46,7 +46,7 @@ for architecture in transformer rnn lstm; do
     --architecture $architecture \
     "${model_args[@]}" \
     --init-scale 0.1 \
-    --max-epochs 10 \
+    --max-epochs 100 \
     --max-tokens-per-batch 2048 \
     --optimizer Adam \
     --initial-learning-rate 0.01 \
@@ -107,7 +107,7 @@ rau ss train \
   --feedforward-size 256 \
   --dropout 0.1 \
   --init-scale 0.1 \
-  --max-epochs 1 \
+  --max-epochs 100 \
   --max-tokens-per-batch 2048 \
   --optimizer Adam \
   --initial-learning-rate 0.01 \
