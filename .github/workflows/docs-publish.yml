@@ -23,7 +23,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Create local branches
-        run: git branch differentiable-stacks origin/differentiable-stacks
+        run: |
+          for branch in main differentiable-stacks; do
+            if ! git show-ref -q refs/heads/$branch; then
+              git branch -f $branch origin/$branch
+            fi
+          done
       - name: Install Poetry
         run: pipx install poetry==2.1.3
       # See https://github.com/actions/setup-python/blob/main/docs/advanced-usage.md#caching-packages
