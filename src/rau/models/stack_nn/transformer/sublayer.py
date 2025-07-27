@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from rau.unidirectional import (
@@ -12,7 +10,7 @@ from rau.unidirectional import (
 def get_unidirectional_sublayer(
     sublayer_func: Unidirectional,
     d_model: int,
-    dropout: Optional[float]
+    dropout: float | None
 ) -> Unidirectional:
     return ResidualUnidirectional(
         StatelessLayerUnidirectional(torch.nn.LayerNorm(d_model)) |

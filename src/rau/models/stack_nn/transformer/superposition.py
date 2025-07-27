@@ -1,5 +1,5 @@
 import math
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import torch
 
@@ -10,7 +10,7 @@ from .stack_attention import StackAttention
 
 class SuperpositionStackAttention(StackAttention):
 
-    def __init__(self, d_model: int, stack_embedding_size: int):
+    def __init__(self, d_model: int, stack_embedding_size: int) -> None:
         super().__init__(
             d_model=d_model,
             num_actions=3,
@@ -23,7 +23,7 @@ class SuperpositionStackAttention(StackAttention):
         input_sequence: torch.Tensor,
         *args,
         **kwargs
-    ) -> Union[torch.Tensor, ForwardResult]:
+    ) -> torch.Tensor | ForwardResult:
         return super().forward(
             input_sequence,
             sequence_length=input_sequence.size(1),
@@ -34,7 +34,7 @@ class SuperpositionStackAttention(StackAttention):
     def initial_stack(self,
         batch_size: int,
         *args: Any,
-        sequence_length: Union[int, Literal[math.inf]]=math.inf,
+        sequence_length: int | Literal[math.inf] = math.inf,
         **kwargs: Any
     ) -> DifferentiableStack:
         t = next(self.parameters())

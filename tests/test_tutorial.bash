@@ -18,11 +18,18 @@ rau lm prepare \
   --more-data test \
   --never-allow-unk
 
-for architecture in transformer rnn lstm; do
+for architecture in \
+  transformer \
+  rnn \
+  lstm \
+  superposition-stack-transformer \
+  nondeterministic-stack-transformer \
+  ; do
 
   case $architecture in
     transformer)
       model_args=( \
+        --architecture $architecture \
         --num-layers 6 \
         --d-model 64 \
         --num-heads 8 \
@@ -32,9 +39,30 @@ for architecture in transformer rnn lstm; do
       ;;
     rnn|lstm)
       model_args=( \
+        --architecture $architecture \
         --num-layers 6 \
         --hidden-units 256 \
         --dropout 0.1 \
+      )
+      ;;
+    superposition-stack-transformer)
+      model_args=( \
+        --architecture stack-transformer \
+        --d-model 64 \
+        --num-heads 8 \
+        --feedforward-size 256 \
+        --dropout 0.1 \
+        --stack-transformer-layers 2.superposition-10.2 \
+      )
+      ;;
+    nondeterministic-stack-transformer)
+      model_args=( \
+        --architecture stack-transformer \
+        --d-model 64 \
+        --num-heads 8 \
+        --feedforward-size 256 \
+        --dropout 0.1 \
+        --stack-transformer-layers 2.nondeterministic-3-3-5.2
       )
       ;;
     *) exit 1 ;;
@@ -43,7 +71,6 @@ for architecture in transformer rnn lstm; do
 
   rau lm train \
     --training-data $lm_data \
-    --architecture $architecture \
     "${model_args[@]}" \
     --init-scale 0.1 \
     --max-epochs 100 \

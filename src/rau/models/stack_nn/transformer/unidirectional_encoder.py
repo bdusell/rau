@@ -27,9 +27,9 @@ def get_unidirectional_stack_transformer_encoder(
     feedforward_size: int,
     dropout: float,
     use_padding: bool,
-    shared_embeddings: torch.Tensor | None=None,
-    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None=None,
-    tag: str | None=None
+    shared_embeddings: torch.Tensor | None = None,
+    positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None = None,
+    tag: str | None = None
 ) -> Unidirectional:
 
     if shared_embeddings is None:
@@ -84,7 +84,7 @@ def get_unidirectional_encoder_layer_with_custom_attention(
     d_model: int,
     feedforward_size: int,
     dropout: float | None,
-    tag: str | None=None
+    tag: str | None = None
 ) -> Unidirectional:
     return (
         add_tag(get_unidirectional_sublayer(

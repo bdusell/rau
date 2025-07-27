@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any
 
 import torch
 from torch_semiring_einsum import AutomaticBlockSize
@@ -19,7 +19,7 @@ class NondeterministicStackAttention(StackAttention):
         num_states: int,
         stack_alphabet_size: int,
         stack_embedding_size: int
-    ):
+    ) -> None:
         Q = num_states
         S = stack_alphabet_size
         super().__init__(
@@ -37,7 +37,7 @@ class NondeterministicStackAttention(StackAttention):
         input_sequence: torch.Tensor,
         *args,
         **kwargs
-    ) -> Union[torch.Tensor, ForwardResult]:
+    ) -> torch.Tensor | ForwardResult:
         return super().forward(
             input_sequence,
             sequence_length=input_sequence.size(1),
@@ -48,8 +48,8 @@ class NondeterministicStackAttention(StackAttention):
     def initial_stack(self,
         batch_size: int,
         *args: Any,
-        sequence_length: Optional[int]=None,
-        block_size: Union[int, AutomaticBlockSize],
+        sequence_length: int | None = None,
+        block_size: int | AutomaticBlockSize,
         **kwargs: Any
     ) -> DifferentiableStack:
         tensor = next(self.parameters())
