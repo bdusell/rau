@@ -184,7 +184,11 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
                     device=input_sequence.device,
                     dtype=input_sequence.dtype
                 ),
-                src_key_padding_mask=self.is_padding_mask
+                src_key_padding_mask=(
+                    self.is_padding_mask[:, :input_sequence.size(1)]
+                    if self.is_padding_mask is not None
+                    else None
+                )
             )
             return full_output[:, -1]
 
@@ -215,7 +219,11 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
                         device=full_input_sequence.device,
                         dtype=full_input_sequence.dtype
                     ),
-                    src_key_padding_mask=self.is_padding_mask
+                    src_key_padding_mask=(
+                        self.is_padding_mask[:, :input_sequence.size(1)]
+                        if self.is_padding_mask is not None
+                        else None
+                    )
                 )
                 output_sequence = full_output[:, start_pos:]
             else:
@@ -241,7 +249,8 @@ class UnidirectionalTransformerEncoderLayers(Unidirectional):
         ) -> Unidirectional.State:
             return dataclasses.replace(
                 self,
-                previous_inputs=func(self.previous_inputs)
+                previous_inputs=func(self.previous_inputs),
+                is_padding_mask=func(self.is_padding_mask) if self.is_padding_mask is not None else None
             )
 
     def initial_state(self,
