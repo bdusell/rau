@@ -27,3 +27,23 @@ def test_layers_forward_matches_iterative():
         output = state.output()
         assert output.size() == (batch_size, d_model)
         torch.testing.assert_close(output, forward_output[:, i])
+    state = model.initial_state(batch_size)
+    state = state.fastforward(input_sequence[:, :3])
+    result = state.forward(
+        input_sequence[:, 3:7],
+        include_first=False,
+        return_state=True
+    )
+    torch.testing.assert_close(
+        result.output,
+        forward_output[:, 3:7]
+    )
+    state = result.state
+    state_forward_output = state.forward(
+        input_sequence[:, 7:],
+        include_first=True
+    )
+    torch.testing.assert_close(
+        state_forward_output,
+        forward_output[:, 6:]
+    )

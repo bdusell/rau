@@ -79,6 +79,18 @@ Features
    first model as inputs to the second, and the composite model will also
    support both modes efficiently, for free. See
    :doc:`composable-neural-networks`.
+#. Related to the above, composed sequential neural networks support lazy output
+   evaluation. If, for example, you add an output embedding layer to a
+   transformer or RNN language model and prompt it with a sequence of input
+   tokens before generating a continuation, Rau is smart enough to know that it
+   does not need to compute any output logits corresponding to any positions in
+   the prompt except for the last position. This is important because computing
+   output logits can be a very expensive operation for large vocabulary sizes.
+   This applies to any pointwise :py:class:`~rau.unidirectional.Unidirectional`
+   that does not maintain state across timesteps, such as layer norm, dropout,
+   feedforward layers, etc. In fact, Rau uses a flexible and general API that
+   allows for arbitrary lazy evaluation logic, such as depending on only the
+   previous :math:`k` outputs of the previous layer.
 #. None of the architectures have upper limits on sequence length. This includes
    the transformer, which uses sinusoidal positional encodings that can be
    extended arbitrarily. You can train on short sequences and evaluate on
