@@ -20,10 +20,10 @@ class VectorNondeterministicStackRNN(NondeterministicStackRNN):
         controller: StackRNNController,
         controller_output_size: int,
         include_reading_in_output: bool,
-        normalize_transition_weights: bool=False,
-        reading_layer_sizes: ReadingLayerSizes=None,
-        bottom_vector: Literal['learned', 'one', 'zero']='learned'
-    ):
+        normalize_transition_weights: bool = False,
+        reading_layer_sizes: ReadingLayerSizes = None,
+        bottom_vector: Literal['learned', 'one', 'zero'] = 'learned'
+    ) -> None:
         Q = num_states
         S = stack_alphabet_size
         m = stack_embedding_size

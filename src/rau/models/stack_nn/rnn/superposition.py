@@ -1,16 +1,18 @@
 import math
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 
+from rau.unidirectional import Unidirectional, ForwardResult
 from rau.tools.torch.layer import Layer, MultiLayer
+from rau.models.stack_nn.differentiable_stacks.stack import DifferentiableStack
 from rau.models.stack_nn.differentiable_stacks.superposition import SuperpositionStack
 
 from .stack_rnn import StackRNN, StackRNNController, ReadingLayerSizes
 
 class SuperpositionStackRNN(StackRNN):
-    """The superposition stack RNN proposed by Joulin and Mikolov (2015). It
+    r"""The superposition stack RNN proposed by Joulin and Mikolov (2015). It
     consists of an RNN controller connected to a differentiable superposition
     stack data structure."""
 
@@ -21,10 +23,10 @@ class SuperpositionStackRNN(StackRNN):
         controller: StackRNNController,
         controller_output_size: int,
         include_reading_in_output: bool,
-        max_stack_depth: int | Literal[math.inf]=math.inf,
-        reading_layer_sizes: ReadingLayerSizes=None
-    ):
-        """Construct a new superposition stack RNN.
+        max_stack_depth: int | Literal[math.inf] = math.inf,
+        reading_layer_sizes: ReadingLayerSizes = None
+    ) -> None:
+        r"""Construct a new superposition stack RNN.
 
         :param input_size: The size of the vectors provided as input to this
             RNN.
@@ -80,20 +82,33 @@ class SuperpositionStackRNN(StackRNN):
             )
         self.max_stack_depth = max_stack_depth
 
-    def forward(self, input_sequence, *args, return_state=False, **kwargs):
+    def forward(self,
+        input_sequence: torch.Tensor,
+        *args: Any,
+        initial_state: 'Unidirectional.State | None' = None,
+        return_state: bool = False,
+        include_first: bool = True,
+        **kwargs: Any
+    ) -> torch.Tensor | ForwardResult:
         # Automatically use the sequence length to optimize the stack
         # computation. Don't use it if returning the stack state.
         max_sequence_length = math.inf if return_state else input_sequence.size(1)
         return super().forward(
             input_sequence,
             *args,
+            initial_state=initial_state,
             return_state=return_state,
+            include_first=include_first,
             max_sequence_length=max_sequence_length,
-            **kwargs)
+            **kwargs
+        )
 
     class State(StackRNN.State):
 
-        def compute_stack(self, hidden_state, stack):
+        def compute_stack(self,
+            hidden_state: Unidirectional.State,
+            stack: DifferentiableStack
+        ) -> DifferentiableStack:
             # unexpanded_actions : batch_size x num_stacks x num_actions
             unexpanded_actions = self.rnn.action_layer(hidden_state)
             # actions : batch_size x total_stack_embedding_size x num_actions
@@ -106,13 +121,13 @@ class SuperpositionStackRNN(StackRNN):
 
     def initial_stack(self,
         batch_size,
-        sequence_length=None,
-        max_sequence_length: int | Literal[math.inf]=math.inf,
-        stack_constructor=SuperpositionStack.new_empty
-    ):
-        """
-        If the sequence length is known, passing it via `max_sequence_length`
-        can be used to reduce the time and space required by the stack by half.
+        sequence_length = None,
+        max_sequence_length: int | Literal[math.inf] = math.inf,
+        stack_constructor = SuperpositionStack.new_empty
+    ) -> DifferentiableStack:
+        r"""If the sequence length is known, passing it via
+        `max_sequence_length` can be used to reduce the time and space required
+        by the stack by half.
         """
         t = next(self.parameters())
         return stack_constructor(

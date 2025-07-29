@@ -21,12 +21,12 @@ class NondeterministicStackRNN(StackRNN):
         controller: StackRNNController,
         controller_output_size: int,
         include_reading_in_output: bool,
-        normalize_transition_weights: bool=False,
-        include_states_in_reading: bool=True,
-        normalize_reading: bool=True,
-        reading_layer_sizes: ReadingLayerSizes=None,
-        stack_reading_size: int | None=None
-    ):
+        normalize_transition_weights: bool = False,
+        include_states_in_reading: bool = True,
+        normalize_reading: bool = True,
+        reading_layer_sizes: ReadingLayerSizes = None,
+        stack_reading_size: int | None = None
+    ) -> None:
         Q = num_states
         S = stack_alphabet_size
         if stack_reading_size is None:

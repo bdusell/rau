@@ -4,7 +4,7 @@ from typing import Any
 
 import torch
 
-from rau.unidirectional import Unidirectional
+from rau.unidirectional import Unidirectional, ForwardResult
 from rau.tools.torch.layer import FeedForward
 from rau.models.stack_nn.differentiable_stacks.stack import DifferentiableStack
 
@@ -29,7 +29,7 @@ class StackRNN(Unidirectional):
         controller_output_size: int,
         include_reading_in_output: bool,
         reading_layer_sizes: ReadingLayerSizes = None
-    ):
+    ) -> None:
         """
         :param input_size: The size of the input vectors to this module.
         :param stack_reading_size: The size of the reading vector returned
@@ -67,13 +67,22 @@ class StackRNN(Unidirectional):
     def output_size(self) -> int:
         return self._output_size
 
-    def forward(self, input_sequence, *args, **kwargs):
+    def forward(self,
+        input_sequence: torch.Tensor,
+        *args: Any,
+        initial_state: 'Unidirectional.State | None' = None,
+        return_state: bool = False,
+        include_first: bool = True,
+        **kwargs: Any
+    ) -> torch.Tensor | ForwardResult:
         # Automatically add the length of the input as an extra argument.
-        sequence_length = input_sequence.size(1)
         return super().forward(
             input_sequence,
             *args,
-            sequence_length=sequence_length,
+            initial_state=initial_state,
+            return_state=return_state,
+            include_first=include_first,
+            sequence_length=input_sequence.size(1),
             **kwargs
         )
 
@@ -82,7 +91,7 @@ class StackRNN(Unidirectional):
 
         rnn: 'StackRNN'
         num_inputs_read: int
-        sequence_length: int
+        sequence_length: int | None
         hidden_state: Unidirectional.State
         previous_stack: DifferentiableStack | None
         return_actions: bool
@@ -93,9 +102,14 @@ class StackRNN(Unidirectional):
         def __post_init__(self):
             self._cached_tensors = {}
 
-        def next(self, input_tensor):
+        def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
+            # Get the current state of the differentiable stack.
             stack = self.get_stack()
+            # Get the stack reading, possibly passing it through a feedforward
+            # network first.
             reading_layer_output = self.get_reading_layer_output()
+            # Concatenate the input and stack reading vectors and pass those as
+            # the next input to the controller.
             controller_input = torch.cat((input_tensor, reading_layer_output), dim=1)
             next_hidden_state = self.hidden_state.next(controller_input)
             return dataclasses.replace(
@@ -107,17 +121,23 @@ class StackRNN(Unidirectional):
                 stack_kwargs=None
             )
 
-        def output(self):
+        def output(self) -> torch.Tensor | tuple[torch.Tensor, *tuple[Any, ...]]:
             output = self.get_output()
             extras = []
             if self.return_actions:
-                if self.num_inputs_read < self.sequence_length:
+                if (
+                    self.sequence_length is None or
+                    self.num_inputs_read < self.sequence_length
+                ):
                     actions = self.get_actions()
                 else:
                     actions = None
                 extras.append(actions)
             if self.return_readings:
-                if self.num_inputs_read < self.sequence_length:
+                if (
+                    self.sequence_length is None or
+                    self.num_inputs_read < self.sequence_length
+                ):
                     reading = self.get_reading()
                 else:
                     reading = None
@@ -127,16 +147,16 @@ class StackRNN(Unidirectional):
             else:
                 return output
 
-        def get_actions(self):
+        def get_actions(self) -> Any:
             stack, actions = self.get_stack_and_actions()
             return actions
 
-        def get_stack(self):
+        def get_stack(self) -> DifferentiableStack:
             stack, actions = self.get_stack_and_actions()
             return stack
 
         @cached_tensor
-        def get_stack_and_actions(self):
+        def get_stack_and_actions(self) -> tuple[DifferentiableStack, Any]:
             if self.previous_stack is None:
                 stack = self.rnn.initial_stack(
                     self.hidden_state.batch_size(),
@@ -155,19 +175,19 @@ class StackRNN(Unidirectional):
             return stack, actions
 
         @cached_tensor
-        def get_reading(self):
+        def get_reading(self) -> torch.Tensor:
             return self.get_stack().reading()
 
         @cached_tensor
-        def get_reading_layer_output(self):
+        def get_reading_layer_output(self) -> torch.Tensor:
             return self.rnn.reading_layer(self.get_reading())
 
         @cached_tensor
-        def get_hidden_state_output(self):
+        def get_hidden_state_output(self) -> torch.Tensor:
             return self.hidden_state.output()
 
         @cached_tensor
-        def get_output(self):
+        def get_output(self) -> torch.Tensor:
             if self.rnn.include_reading_in_output:
                 return torch.concat([
                     self.get_hidden_state_output(),
@@ -176,10 +196,12 @@ class StackRNN(Unidirectional):
             else:
                 return self.get_hidden_state_output()
 
-        def batch_size(self):
+        def batch_size(self) -> int:
             return self.hidden_state.batch_size()
 
-        def transform_tensors(self, func):
+        def transform_tensors(self,
+            func: Callable[[torch.Tensor], torch.Tensor]
+        ) -> Unidirectional.State:
             result = dataclasses.replace(
                 self,
                 hidden_state=self.hidden_state.transform_tensors(func),
@@ -189,17 +211,20 @@ class StackRNN(Unidirectional):
                 result._cached_tensors[k] = func(v)
             return result
 
-        def compute_stack(self, hidden_state, stack):
+        def compute_stack(self,
+            hidden_state: Unidirectional.State,
+            stack: DifferentiableStack
+        ) -> DifferentiableStack:
             raise NotImplementedError
 
     def initial_state(self,
         batch_size: int,
-        *args,
-        sequence_length: int | None=None,
-        return_actions: bool=False,
-        return_readings: bool=False,
-        **kwargs
-    ):
+        *args: Any,
+        sequence_length: int | None = None,
+        return_actions: bool = False,
+        return_readings: bool = False,
+        **kwargs: Any
+    ) -> Unidirectional.State:
         """Get the initial state of the stack RNN.
 
         :param sequence_length: Used to determine when the last timestep is
@@ -232,8 +257,8 @@ class StackRNN(Unidirectional):
 
     def initial_stack(self,
         batch_size: int,
-        sequence_length: int,
-        *args,
-        **kwargs
+        sequence_length: int | None,
+        *args: Any,
+        **kwargs: Any
     ) -> DifferentiableStack:
         raise NotImplementedError
