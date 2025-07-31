@@ -64,3 +64,9 @@ def test_forward_matches_iterative():
         decoder_output_i = state.output()
         forward_output_i = forward_output[:, i]
         torch.testing.assert_close(decoder_output_i, forward_output_i, atol=1e-5, rtol=1e-5)
+    # Check the transform_tensors() works.
+    state = model.initial_state(batch_size, encoder_output, encoder_is_padding_mask)
+    state = state.next(decoder_input[:, 0])
+    state = state.transform_tensors(lambda x: x[:-1])
+    output = state.output()
+    torch.testing.assert_close(output, forward_output[:-1, 0], atol=1e-5, rtol=1e-5)

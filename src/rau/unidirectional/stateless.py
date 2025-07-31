@@ -139,6 +139,8 @@ class StatelessUnidirectional(Unidirectional):
             else:
                 return dataclasses.replace(
                     self,
+                    args=self.parent.transform_args(self.args, func),
+                    kwargs=self.parent.transform_kwargs(self.kwargs, func),
                     input_tensor=func(self.input_tensor)
                 )
 
@@ -233,6 +235,8 @@ class StatelessUnidirectional(Unidirectional):
         ) -> Unidirectional.State:
             return dataclasses.replace(
                 self,
+                args=self.parent.transform_args(self.args, func),
+                kwargs=self.parent.transform_kwargs(self.kwargs, func),
                 input_state=self.input_state.transform_tensors(func)
             )
 
