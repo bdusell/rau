@@ -247,12 +247,12 @@ class TransformerDecoderLayers(Unidirectional):
         def transform_tensors(self,
             func: Callable[[torch.Tensor], torch.Tensor]
         ) -> Unidirectional.State:
-            return TransformerDecoderLayers.State(
-                self.decoder,
-                func(self.encoder_sequence),
-                func(self.input_is_padding_mask) if self.input_is_padding_mask is not None else None,
-                func(self.encoder_is_padding_mask) if self.encoder_is_padding_mask is not None else None,
-                func(self.previous_inputs)
+            return dataclasses.replace(
+                self,
+                encoder_sequence=func(self.encoder_sequence),
+                input_is_padding_mask=func(self.input_is_padding_mask) if self.input_is_padding_mask is not None else None,
+                encoder_is_padding_mask=func(self.encoder_is_padding_mask) if self.encoder_is_padding_mask is not None else None,
+                previous_inputs=func(self.previous_inputs)
             )
 
     def initial_state(self,
