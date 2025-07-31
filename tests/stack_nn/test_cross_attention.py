@@ -75,6 +75,15 @@ def test_cross_attention_unidirectional():
         output = state.output()
         assert output.size() == (batch_size, d_model)
         torch.testing.assert_close(output, forward_output[:, i])
+    state = module.initial_state(
+        batch_size,
+        encoder_sequence=encoder_output_sequence,
+        encoder_is_padding_mask=source_is_padding_mask
+    )
+    state = state.next(decoder_input_sequence[:, 0])
+    state = state.transform_tensors(lambda x: x[:-1])
+    output = state.output()
+    torch.testing.assert_close(output, forward_output[:-1, 0])
 
 class StatefulUnidirectional(Unidirectional):
 
@@ -94,6 +103,9 @@ class StatefulUnidirectional(Unidirectional):
         def output(self):
             assert self.input_tensor is not None
             return self.input_tensor
+
+        def transform_tensors(self, func):
+            return StatefulUnidirectional.State(self, func(self.input_tensor))
 
 def test_composed_cross_attention_unidirectional():
     batch_size = 11
@@ -137,3 +149,15 @@ def test_composed_cross_attention_unidirectional():
         output = state.output()
         assert output.size() == (batch_size, d_model)
         torch.testing.assert_close(output, forward_output[:, i])
+    state = module.initial_state(
+        batch_size,
+        encoder_sequence=encoder_output_sequence,
+        encoder_is_padding_mask=source_is_padding_mask
+    )
+    state = state.next(decoder_input_sequence[:, 0])
+    output = state.output()
+    torch.testing.assert_close(output, forward_output[:, 0])
+    state = state.next(decoder_input_sequence[:, 1])
+    state = state.transform_tensors(lambda x: x[:-1])
+    output = state.output()
+    torch.testing.assert_close(output, forward_output[:-1, 1])

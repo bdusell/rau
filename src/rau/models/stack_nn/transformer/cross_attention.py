@@ -47,5 +47,6 @@ class CrossAttentionUnidirectional(StatelessReshapingLayerUnidirectional):
     def transform_kwargs(self, kwargs, func):
         kwargs = kwargs.copy()
         kwargs['encoder_sequence'] = func(kwargs['encoder_sequence'])
-        kwargs['encoder_is_padding_mask'] = func(kwargs['encoder_is_padding_mask'])
+        if kwargs.get('encoder_is_padding_mask') is not None:
+            kwargs['encoder_is_padding_mask'] = func(kwargs['encoder_is_padding_mask'])
         return kwargs

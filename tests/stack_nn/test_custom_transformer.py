@@ -11,6 +11,7 @@ from rau.tasks.sequence_to_sequence.vocabulary import (
     get_vocabularies
 )
 from rau.tasks.sequence_to_sequence.model import SequenceToSequenceModelInterface
+from rau.models.stack_nn.transformer.decoder import get_stack_transformer_decoder
 
 def test_custom_matches_builtin():
 
@@ -22,7 +23,7 @@ def test_custom_matches_builtin():
         return [
             chr(generator.randint(ord('a'), ord('z')))
             for i in range(length)
-]
+        ]
 
     batch = [(random_sequence(), random_sequence()) for i in range(batch_size)]
     source_token_types, source_has_unk = get_token_types((c for x, y in batch for c in x), '<unk>')
@@ -111,3 +112,60 @@ def test_custom_matches_builtin():
     custom_logits = custom_model_interface.get_logits(custom_saver.model, model_input)
 
     torch.testing.assert_close(builtin_logits, custom_logits)
+
+def test_custom_decoder():
+    input_vocabulary_size = 17
+    output_vocabulary_size = 19
+    num_heads = 5
+    d_model = num_heads * 7 * 2
+    batch_size = 3
+    source_sequence_length = 11
+    target_sequence_length = 13
+    model = get_stack_transformer_decoder(
+        input_vocabulary_size=input_vocabulary_size,
+        output_vocabulary_size=output_vocabulary_size,
+        shared_embeddings=None,
+        positional_encoding_cacher=None,
+        layers=[('transformer', (1,)), ('superposition', (10,)), ('transformer', (1,))],
+        d_model=d_model,
+        num_heads=num_heads,
+        feedforward_size=d_model * 4,
+        dropout=0,
+        use_padding=False
+    )
+    generator = torch.manual_seed(123)
+    for p in model.parameters():
+        p.data.uniform_(generator=generator)
+    encoder_output_sequence = torch.rand((batch_size, source_sequence_length, d_model), generator=generator)
+    decoder_input_sequence = torch.randint(input_vocabulary_size, (batch_size, target_sequence_length), generator=generator)
+    source_is_padding_mask = torch.zeros((batch_size, source_sequence_length), dtype=torch.bool)
+    python_generator = random.Random(123)
+    for mask_vector in source_is_padding_mask:
+        pos = python_generator.randrange(len(mask_vector))
+        mask_vector[pos:] = True
+    forward_output = model(
+        decoder_input_sequence,
+        tag_kwargs=dict(
+            transformer=dict(
+                encoder_sequence=encoder_output_sequence,
+                encoder_is_padding_mask=source_is_padding_mask
+            )
+        ),
+        include_first=False
+    )
+    assert forward_output.size() == (batch_size, target_sequence_length, output_vocabulary_size)
+    state = model.initial_state(
+        batch_size,
+        tag_kwargs=dict(
+            transformer=dict(
+                encoder_sequence=encoder_output_sequence,
+                encoder_is_padding_mask=source_is_padding_mask
+            )
+        )
+    )
+    for i in range(target_sequence_length):
+        input_tensor = decoder_input_sequence[:, i]
+        state = state.next(input_tensor)
+        output = state.output()
+        assert output.size() == (batch_size, output_vocabulary_size)
+        torch.testing.assert_close(output, forward_output[:, i], atol=1e-4, rtol=1e-4)
