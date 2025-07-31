@@ -24,6 +24,8 @@ for architecture in \
   lstm \
   superposition-stack-transformer \
   nondeterministic-stack-transformer \
+  superposition-stack-lstm \
+  vector-nondeterministic-stack-lstm \
   ; do
 
   case $architecture in
@@ -63,6 +65,26 @@ for architecture in \
         --feedforward-size 256 \
         --dropout 0.1 \
         --stack-transformer-layers 2.nondeterministic-3-3-5.2
+      )
+      ;;
+    superposition-stack-lstm)
+      model_args=( \
+        --architecture stack-rnn \
+        --num-layers 1 \
+        --dropout 0.1 \
+        --hidden-units 256 \
+        --stack-rnn-controller lstm \
+        --stack-rnn-stack superposition-10 \
+      )
+      ;;
+    vector-nondeterministic-stack-lstm)
+      model_args=( \
+        --architecture stack-rnn \
+        --num-layers 1 \
+        --dropout 0.1 \
+        --hidden-units 256 \
+        --stack-rnn-controller lstm \
+        --stack-rnn-stack vector-nondeterministic-3-3-5 \
       )
       ;;
     *) exit 1 ;;
@@ -121,35 +143,64 @@ rau ss prepare \
   --more-source-data test \
   --never-allow-unk
 
-architecture=transformer
-model=$temp_dir/ss/models/$architecture
+for architecture in \
+  transformer \
+  superposition-stack-transformer \
+  nondeterministic-stack-transformer \
+  ; do
 
-rau ss train \
-  --training-data $ss_data \
-  --vocabulary-type shared \
-  --num-encoder-layers 6 \
-  --num-decoder-layers 6 \
-  --d-model 64 \
-  --num-heads 8 \
-  --feedforward-size 256 \
-  --dropout 0.1 \
-  --init-scale 0.1 \
-  --max-epochs 100 \
-  --max-tokens-per-batch 2048 \
-  --optimizer Adam \
-  --initial-learning-rate 0.01 \
-  --label-smoothing-factor 0.1 \
-  --gradient-clipping-threshold 5 \
-  --early-stopping-patience 2 \
-  --learning-rate-patience 1 \
-  --learning-rate-decay-factor 0.5 \
-  --examples-per-checkpoint 50000 \
-  --output $model
+  case $architecture in
+    transformer)
+      model_args=( \
+        --architecture transformer \
+        --num-encoder-layers 3 \
+        --num-decoder-layers 3 \
+      )
+      ;;
+    superposition-stack-transformer)
+      model_args=( \
+        --architecture stack-transformer \
+        --stack-transformer-encoder-layers 1.superposition-10.1 \
+        --stack-transformer-decoder-layers 1.superposition-10.1 \
+      )
+      ;;
+    nondeterministic-stack-transformer)
+      model_args=( \
+        --architecture stack-transformer \
+        --stack-transformer-encoder-layers 1.nondeterministic-3-3-5.1 \
+        --stack-transformer-decoder-layers 1.nondeterministic-3-3-5.1 \
+      )
+      ;;
+    *) exit 1 ;;
+  esac
+  model=$temp_dir/ss/models/$architecture
 
-rau ss translate \
-  --load-model $model \
-  --input $ss_data/datasets/test/source.shared.prepared \
-  --beam-size 4 \
-  --max-target-length 50 \
-  --batching-max-tokens 256 \
-  --shared-vocabulary-file $ss_data/shared.vocab
+  rau ss train \
+    --training-data $ss_data \
+    --vocabulary-type shared \
+    "${model_args[@]}" \
+    --d-model 32 \
+    --num-heads 4 \
+    --feedforward-size 64 \
+    --dropout 0.1 \
+    --init-scale 0.1 \
+    --max-epochs 3 \
+    --max-tokens-per-batch 2048 \
+    --optimizer Adam \
+    --initial-learning-rate 0.01 \
+    --label-smoothing-factor 0.1 \
+    --gradient-clipping-threshold 5 \
+    --early-stopping-patience 2 \
+    --learning-rate-patience 1 \
+    --learning-rate-decay-factor 0.5 \
+    --examples-per-checkpoint 50000 \
+    --output $model
+
+  rau ss translate \
+    --load-model $model \
+    --input $ss_data/datasets/test/source.shared.prepared \
+    --beam-size 4 \
+    --max-target-length 50 \
+    --batching-max-tokens 256 \
+    --shared-vocabulary-file $ss_data/shared.vocab
+done
