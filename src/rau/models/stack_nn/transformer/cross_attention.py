@@ -20,7 +20,7 @@ class CrossAttention(torch.nn.Module):
     def forward(self,
         input_sequence: torch.Tensor,
         encoder_sequence: torch.Tensor,
-        encoder_is_padding_mask: torch.Tensor | None=None
+        encoder_is_padding_mask: torch.Tensor | None = None
     ) -> torch.Tensor:
         """
         :param input_sequence: The target sequence that is given as input to
