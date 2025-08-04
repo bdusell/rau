@@ -3,6 +3,8 @@ name: Publish Documentation
 on:
   push:
     branches: [ "main", "differentiable-stacks" ]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
