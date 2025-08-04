@@ -1,5 +1,29 @@
 set -euo pipefail
 
+mode=${1-small}
+case $mode in
+  big)
+    num_layers=6
+    d_model=64
+    num_heads=8
+    feedforward_size=256
+    hidden_units=256
+    max_epochs=100
+    max_length=50
+    ;;
+  small)
+    num_layers=2
+    d_model=32
+    num_heads=4
+    feedforward_size=64
+    hidden_units=32
+    max_epochs=1
+    max_length=10
+    ;;
+  *) exit 1 ;;
+esac
+device_args=()
+
 temp_dir=$(mktemp -d)
 trap "rm -r -- $temp_dir" EXIT
 
@@ -23,17 +47,17 @@ for architecture in transformer rnn lstm; do
   case $architecture in
     transformer)
       model_args=( \
-        --num-layers 6 \
-        --d-model 64 \
-        --num-heads 8 \
-        --feedforward-size 256 \
+        --num-layers $num_layers \
+        --d-model $d_model \
+        --num-heads $num_heads \
+        --feedforward-size $feedforward_size \
         --dropout 0.1 \
       )
       ;;
     rnn|lstm)
       model_args=( \
-        --num-layers 6 \
-        --hidden-units 256 \
+        --num-layers $num_layers \
+        --hidden-units $hidden_units \
         --dropout 0.1 \
       )
       ;;
@@ -46,7 +70,7 @@ for architecture in transformer rnn lstm; do
     --architecture $architecture \
     "${model_args[@]}" \
     --init-scale 0.1 \
-    --max-epochs 100 \
+    --max-epochs $max_epochs \
     --max-tokens-per-batch 2048 \
     --optimizer Adam \
     --initial-learning-rate 0.01 \
@@ -55,18 +79,22 @@ for architecture in transformer rnn lstm; do
     --learning-rate-patience 1 \
     --learning-rate-decay-factor 0.5 \
     --examples-per-checkpoint 50000 \
-    --output $model
+    --output $model \
+    "${device_args[@]}"
 
   rau lm evaluate \
     --load-model $model \
     --training-data $lm_data \
     --input test \
-    --batching-max-tokens 2048
+    --batching-max-tokens 2048 \
+    "${device_args[@]}"
 
   rau lm generate \
     --load-model $model \
     --training-data $lm_data \
-    --num-samples 10
+    --num-samples 10 \
+    --max-length $max_length \
+    "${device_args[@]}"
 done
 
 ss_data=$temp_dir/ss/data
@@ -100,14 +128,14 @@ model=$temp_dir/ss/models/$architecture
 rau ss train \
   --training-data $ss_data \
   --vocabulary-type shared \
-  --num-encoder-layers 6 \
-  --num-decoder-layers 6 \
-  --d-model 64 \
-  --num-heads 8 \
-  --feedforward-size 256 \
+  --num-encoder-layers $num_layers \
+  --num-decoder-layers $num_layers \
+  --d-model $d_model \
+  --num-heads $num_heads \
+  --feedforward-size $feedforward_size \
   --dropout 0.1 \
   --init-scale 0.1 \
-  --max-epochs 100 \
+  --max-epochs $max_epochs \
   --max-tokens-per-batch 2048 \
   --optimizer Adam \
   --initial-learning-rate 0.01 \
@@ -117,12 +145,14 @@ rau ss train \
   --learning-rate-patience 1 \
   --learning-rate-decay-factor 0.5 \
   --examples-per-checkpoint 50000 \
-  --output $model
+  --output $model \
+  "${device_args[@]}"
 
 rau ss translate \
   --load-model $model \
   --input $ss_data/datasets/test/source.shared.prepared \
   --beam-size 4 \
-  --max-target-length 50 \
+  --max-target-length $max_length \
   --batching-max-tokens 256 \
-  --shared-vocabulary-file $ss_data/shared.vocab
+  --shared-vocabulary-file $ss_data/shared.vocab \
+  "${device_args[@]}"
