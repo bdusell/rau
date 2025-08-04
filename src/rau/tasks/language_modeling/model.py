@@ -352,7 +352,7 @@ class LanguageModelingModelInterface(ModelInterface):
         )
 
     def get_initial_state(self, model, batch_size, device):
-        state = model.initial_state(batch_size)
+        state = model.initial_state(batch_size, tag_kwargs=self.tag_kwargs)
         if self.uses_bos:
             state = state.next(torch.full((batch_size,), self.bos_index, device=device))
         return state

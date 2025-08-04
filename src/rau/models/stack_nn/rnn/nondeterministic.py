@@ -82,7 +82,7 @@ class NondeterministicStackRNN(StackRNN):
         t = next(self.parameters())
         # If the stack reading is not included in the output, then the last
         # timestep is not needed.
-        if not self.include_reading_in_output:
+        if not self.include_reading_in_output and sequence_length is not None:
             sequence_length -= 1
         return NondeterministicStack.new_empty(
             batch_size=batch_size,
