@@ -194,6 +194,9 @@ Limitations
 #. It slurps the entire training set into memory during training, so it will run
    out of memory on large datasets (~1m sequences). This might be fixed in the
    future.
+#. It only implements one kind of learning rate schedule. Learning rate warmup
+   is not included (although it is not badly needed for transformers with
+   pre-norm).
 #. Training cannot be stopped and restarted, so it cannot recover from crashes.
    This feature might be added in the future.
 #. Does not implement distributed training or inference across multiple devices
