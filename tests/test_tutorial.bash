@@ -29,12 +29,14 @@ trap "rm -r -- $temp_dir" EXIT
 
 lm_data=$temp_dir/lm/data
 mkdir -p $lm_data
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train | sed 's/[a-z]\+\t.*//' > $lm_data/main.tok
+curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train | sed 's/[a-z]\+\t.*//' > $lm_data/main-full.tok
+head -1000 $lm_data/main-full.tok > $lm_data/main.tok
 mkdir $lm_data/datasets
 mkdir $lm_data/datasets/validation
 curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.dev | sed 's/[a-z]\+\t.*//' > $lm_data/datasets/validation/main.tok
 mkdir $lm_data/datasets/test
 curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test | sed 's/[a-z]\+\t.*//' > $lm_data/datasets/test/main.tok
+rm $lm_data/main-full.tok
 
 rau lm prepare \
   --training-data $lm_data \
@@ -127,7 +129,7 @@ for architecture in \
     --early-stopping-patience 2 \
     --learning-rate-patience 1 \
     --learning-rate-decay-factor 0.5 \
-    --examples-per-checkpoint 50000 \
+    --examples-per-checkpoint 500 \
     --output $model \
     "${device_args[@]}"
 
@@ -148,7 +150,8 @@ done
 
 ss_data=$temp_dir/ss/data
 mkdir -p $ss_data
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train > $ss_data/train.tsv
+curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train > $ss_data/train-full.tsv
+head -1000 $ss_data/train-full.tsv > $ss_data/train.tsv
 cut -f 1 < $ss_data/train.tsv > $ss_data/source.tok
 cut -f 2 < $ss_data/train.tsv > $ss_data/target.tok
 mkdir $ss_data/datasets
@@ -159,10 +162,9 @@ cut -f 2 < $ss_data/validation.tsv > $ss_data/datasets/validation/target.tok
 mkdir $ss_data/datasets/test
 curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test > $ss_data/test-full.tsv
 head -100 $ss_data/test-full.tsv > $ss_data/test.tsv
-rm $ss_data/test-full.tsv
 cut -f 1 < $ss_data/test.tsv > $ss_data/datasets/test/source.tok
 cut -f 2 < $ss_data/test.tsv > $ss_data/datasets/test/target.tok
-rm $ss_data/{train,validation,test}.tsv
+rm $ss_data/{train,test}-full.tsv $ss_data/{train,validation,test}.tsv
 
 rau ss prepare \
   --training-data $ss_data \
@@ -221,7 +223,7 @@ for architecture in \
     --early-stopping-patience 2 \
     --learning-rate-patience 1 \
     --learning-rate-decay-factor 0.5 \
-    --examples-per-checkpoint 50000 \
+    --examples-per-checkpoint 500 \
     --output $model \
     "${device_args[@]}"
 
