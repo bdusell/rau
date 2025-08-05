@@ -57,9 +57,9 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
 
     _RNN_CLASS = torch.nn.RNN
 
-    def _initial_tensors(self,
+    def _initial_hidden_state(self,
         batch_size: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         # The initial tensor is a tensor of all the hidden states of all layers
         # before the first timestep.
         # Its size needs to be num_layers x batch_size x hidden_units, where
@@ -67,20 +67,25 @@ class SimpleRNN(UnidirectionalBuiltinRNN):
         # Note that the batch dimension is always the second dimension even
         # when batch_first=True.
         if self.learned_initial_state:
-            h = self.activation_function(
+            return self.activation_function(
                 self.initial_hidden_state_inputs
             )[:, None, :].repeat(1, batch_size, 1)
         else:
-            h = torch.zeros(
+            return torch.zeros(
                 self._layers,
                 batch_size,
                 self._hidden_units,
                 device=next(self.parameters()).device
             )
-        return h, h[-1]
 
     def _apply_to_hidden_state(self,
         hidden_state: torch.Tensor,
         func: Callable[[torch.Tensor], torch.Tensor]
     ) -> torch.Tensor:
         return func(hidden_state)
+
+    def _hidden_state_to_output(self, hidden_state: torch.Tensor) -> torch.Tensor:
+        return hidden_state[-1]
+
+    def _hidden_state_to_batch_size(self, hidden_state: torch.Tensor) -> int:
+        return hidden_state.size(1)

@@ -47,9 +47,9 @@ class LSTM(UnidirectionalBuiltinRNN):
 
     _RNN_CLASS = torch.nn.LSTM
 
-    def _initial_tensors(self,
+    def _initial_hidden_state(self,
         batch_size: int
-    ) -> tuple[tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         c = torch.zeros(
             self._layers,
             batch_size,
@@ -62,10 +62,16 @@ class LSTM(UnidirectionalBuiltinRNN):
             )[:, None, :].repeat(1, batch_size, 1)
         else:
             h = c
-        return (h, c), h[-1]
+        return (h, c)
 
     def _apply_to_hidden_state(self,
         hidden_state: tuple[torch.Tensor, torch.Tensor],
         func: Callable[[torch.Tensor], torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor]:
         return tuple(map(func, hidden_state))
+
+    def _hidden_state_to_output(self, hidden_state: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+        return hidden_state[0][-1]
+
+    def _hidden_state_to_batch_size(self, hidden_state: tuple[torch.Tensor, torch.Tensor]) -> int:
+        return hidden_state[0].size(1)
