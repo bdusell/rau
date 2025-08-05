@@ -7,6 +7,7 @@ from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.vocabulary import load_vocabulary_data_from_file
 from rau.generation.sample import sample_single
 from rau.generation.greedy import decode_greedily_single
+from rau.generation.beam_search import beam_search_single
 
 class LanguageModelingGenerateCommand(Command):
 
@@ -36,13 +37,15 @@ class LanguageModelingGenerateCommand(Command):
                  'random: Random sampling or ancestral sampling; '
                  'greedy: Greedy decoding; '
                  'beam-search: Beam search with length normalization.')
-        parser.add_argument('--num-samples', type=int, default=1,
-            help='Number of samples to generate when using random mode.')
         parser.add_argument('--max-length', type=int,
             help='Optional maximum number of tokens generated per sequence. If '
                  'this is not given, generation may run arbitrarily long.')
+        parser.add_argument('--num-samples', type=int, default=1,
+            help='Number of samples to generate when using random mode.')
         parser.add_argument('--random-seed', type=int,
             help='Optional random seed for generating random samples.')
+        parser.add_argument('--beam-size', type=int,
+            help='Beam size for beam search.')
         model_interface.add_arguments(parser)
         model_interface.add_forward_arguments(parser)
 
@@ -55,6 +58,9 @@ class LanguageModelingGenerateCommand(Command):
             vocab_file = args.training_data / 'main.vocab'
         else:
             parser.error('either --training-data or --vocabulary-file is required')
+
+        if args.mode == 'beam-search' and args.beam_size is None:
+            parser.error('--beam-size is required for beam search')
 
         saver = model_interface.construct_saver(args)
         model = saver.model
@@ -92,7 +98,13 @@ class LanguageModelingGenerateCommand(Command):
                             max_length=args.max_length
                         )
                     case 'beam-search':
-                        pass
+                        yield beam_search_single(
+                            initial_state=initial_state,
+                            beam_size=args.beam_size,
+                            eos_symbol=eos_index,
+                            max_length=args.max_length,
+                            device=device
+                        )
             for s in generate_outputs():
                 print(' '.join(map(vocab.to_string, s)))
 
