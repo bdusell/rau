@@ -1,4 +1,3 @@
-import random
 from collections.abc import Iterable
 
 import torch
@@ -9,7 +8,7 @@ def sample(
     initial_state: Unidirectional.State,
     eos_symbol: int,
     max_length: int,
-    device: torch.device
+    generator: torch.Generator | None = None
 ) -> list[list[int]]:
     r"""Given a state of an autoregressive language model or decoder containing
     any number of batch elements, generate a sequence for each element using
@@ -25,18 +24,19 @@ def sample(
         sequence.
     :param max_length: A hard upper limit on the number of symbols in the
         generated sequences.
-    :param device: A device used to evaluate the model.
+    :param generator: Optional random number generator to make sampling
+        deterministic.
     :return: A list of generated sequences, one per batch element in the initial
         state.
     """
     batch_size = initial_state.batch_size()
     return [
-        sample_single(
+        list(sample_single(
             initial_state.transform_tensors(lambda x: x[i:i+1, ...]),
             eos_symbol,
             max_length,
             device
-        )
+        ))
         for i in range(batch_size)
     ]
 
@@ -53,7 +53,7 @@ def sample_single(
     state = initial_state
     t = 0
     while True:
-        # output_probs : batch_size x output_vocab_size
+        # output_probs : output_vocab_size
         output_probs = torch.nn.functional.softmax(
             state.output().squeeze(0),
             dim=0
