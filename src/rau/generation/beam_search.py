@@ -31,7 +31,8 @@ def beam_search(
     :param max_length: A hard upper limit on the number of symbols in the
         generated sequences. If the limit is reached, decoding will start from
         the highest-scoring beam element at the last timestep.
-    :param device: A device used to evaluate the model.
+    :param device: The device where intermediate data (log probabilities,
+        backpointers) will be stored.
     :return: A list of decoded sequences, one per batch element in the initial
         state.
     """

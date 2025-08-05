@@ -54,7 +54,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
         self._hidden_units = hidden_units
         self._layers = layers
 
-    def _initial_tensors(self, batch_size: int) -> tuple[Any, torch.Tensor]:
+    def _initial_hidden_state(self, batch_size: int) -> Any:
         raise NotImplementedError
 
     def _apply_to_hidden_state(self,
@@ -63,30 +63,33 @@ class UnidirectionalBuiltinRNN(Unidirectional):
     ) -> Any:
         raise NotImplementedError
 
+    def _hidden_state_to_output(self, hidden_state: Any) -> torch.Tensor:
+        raise NotImplementedError
+
+    def _hidden_state_to_batch_size(self, hidden_state: Any) -> int:
+        raise NotImplementedError
+
     @dataclasses.dataclass
     class State(Unidirectional.State):
 
         rnn: 'UnidirectionalBuiltinRNN'
         hidden_state: Any
-        _output: torch.Tensor
 
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
             # input_tensor : batch_size x input_size
             # unsqueezed_input : batch_size x 1 x input_size
             unsqueezed_input = input_tensor.unsqueeze(1)
-            unsqueezed_output, new_hidden_state = self.rnn.rnn(
+            _, new_hidden_state = self.rnn.rnn(
                 unsqueezed_input,
                 self.hidden_state
             )
-            # unsqueezed_output : batch_size x 1 x hidden_units
             return dataclasses.replace(
                 self,
-                hidden_state=new_hidden_state,
-                _output=unsqueezed_output.squeeze(1)
+                hidden_state=new_hidden_state
             )
 
         def output(self) -> torch.Tensor:
-            return self._output
+            return self.rnn._hidden_state_to_output(self.hidden_state)
 
         def forward(self,
             input_sequence: torch.Tensor,
@@ -133,8 +136,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
                 if return_state:
                     state = dataclasses.replace(
                         self,
-                        hidden_state=new_hidden_state,
-                        _output=output_sequence[:, -1]
+                        hidden_state=new_hidden_state
                     )
                 else:
                     state = None
@@ -145,7 +147,7 @@ class UnidirectionalBuiltinRNN(Unidirectional):
             ))
 
         def batch_size(self) -> int:
-            return self._output.size(0)
+            return self.rnn._hidden_state_to_batch_size(self.hidden_state)
 
         def transform_tensors(self,
             func: Callable[[torch.Tensor], torch.Tensor]
@@ -160,13 +162,11 @@ class UnidirectionalBuiltinRNN(Unidirectional):
                     # The builtin hidden states also need to be contiguous when
                     # they are used as inputs to the builtin module.
                     lambda x: func(x.transpose(0, 1)).transpose(0, 1).contiguous()
-                ),
-                _output=func(self._output)
+                )
             )
 
     def initial_state(self, batch_size: int) -> Unidirectional.State:
-        hidden_state, output = self._initial_tensors(batch_size)
-        return self.State(self, hidden_state, output)
+        return self.State(self, self._initial_hidden_state(batch_size))
 
 def remove_extra_bias_parameters(module: torch.nn.Module) -> None:
     pairs = [

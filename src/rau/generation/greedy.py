@@ -4,15 +4,14 @@ import torch
 
 from rau.unidirectional import Unidirectional
 
-def sample(
+def decode_greedily(
     initial_state: Unidirectional.State,
     eos_symbol: int,
-    max_length: int,
-    generator: torch.Generator | None = None
+    max_length: int
 ) -> list[list[int]]:
     r"""Given a state of an autoregressive language model or decoder containing
     any number of batch elements, generate a sequence for each element using
-    ancestral sampling.
+    greedy decoding.
 
     :param initial_state: A state of an autoregressive decoder or language model
         from which decoding starts, containing any number of batch elements. A
@@ -24,23 +23,20 @@ def sample(
         sequence.
     :param max_length: A hard upper limit on the number of symbols in the
         generated sequences.
-    :param generator: Optional random number generator to make sampling
-        deterministic.
     :return: A list of generated sequences, one per batch element in the initial
         state.
     """
     batch_size = initial_state.batch_size()
     return [
-        list(sample_single(
+        decode_greedily_single(
             initial_state.transform_tensors(lambda x: x[i:i+1, ...]),
             eos_symbol,
-            max_length,
-            device
-        ))
+            max_length
+        )
         for i in range(batch_size)
     ]
 
-def sample_single(
+def decode_greedily_single(
     initial_state: Unidirectional.State,
     eos_symbol: int,
     max_length: int | None = None,
@@ -53,22 +49,15 @@ def sample_single(
     state = initial_state
     t = 0
     while True:
-        # output_probs : output_vocab_size
-        output_probs = torch.nn.functional.softmax(
-            state.output().squeeze(0),
-            dim=0
-        )
-        # next_symbol : 1
-        next_symbol = torch.multinomial(
-            output_probs,
-            num_samples=1,
-            generator=generator
-        )
+        # output_logits : output_vocab_size
+        output_logits = state.output().squeeze(0)
+        # next_symbol : ()
+        next_symbol = torch.argmax(output_logits, dim=0)
         next_symbol_int = next_symbol.item()
         if next_symbol_int == eos_symbol:
             break
         yield next_symbol_int
         if max_length is not None and t >= max_length - 1:
             break
-        state = state.next(next_symbol)
+        state = state.next(next_symbol.unsqueeze(0))
         t += 1

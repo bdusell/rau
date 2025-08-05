@@ -29,19 +29,22 @@ trap "rm -r -- $temp_dir" EXIT
 
 lm_data=$temp_dir/lm/data
 mkdir -p $lm_data
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train | sed 's/[a-z]\+\t.*//' > $lm_data/main-full.tok
+curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train > $lm_data/main-full.tok
 head -1000 $lm_data/main-full.tok > $lm_data/main.tok
 mkdir $lm_data/datasets
 mkdir $lm_data/datasets/validation
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.dev | sed 's/[a-z]\+\t.*//' > $lm_data/datasets/validation/main.tok
+curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.dev > $lm_data/datasets/validation/main.tok
 mkdir $lm_data/datasets/test
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test | sed 's/[a-z]\+\t.*//' > $lm_data/datasets/test/main.tok
+curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test > $lm_data/datasets/test/main.tok
+mkdir $lm_data/datasets/test-source
+head -10 $lm_data/datasets/test/main.tok | cut -f 1 > $lm_data/datasets/test-source/main.tok
 rm $lm_data/main-full.tok
 
 rau lm prepare \
   --training-data $lm_data \
   --more-data validation \
   --more-data test \
+  --more-data test-source \
   --never-allow-unk
 
 for architecture in \
@@ -145,6 +148,24 @@ for architecture in \
     --training-data $lm_data \
     --num-samples 10 \
     --max-length $max_length \
+    "${device_args[@]}"
+
+  rau lm generate \
+    --load-model $model \
+    --training-data $lm_data \
+    --prompt-datasets test-source \
+    --mode greedy \
+    --max-length $max_length \
+    "${device_args[@]}"
+
+  rau lm generate \
+    --load-model $model \
+    --training-data $lm_data \
+    --prompt-datasets test-source \
+    --mode beam-search \
+    --beam-size 4 \
+    --max-length $max_length \
+    --output $model/eval/beam-search \
     "${device_args[@]}"
 done
 
