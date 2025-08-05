@@ -4,4 +4,5 @@ autoregressive language models or decoders which are encapsulated in
 """
 
 from .sample import sample
+from .greedy import decode_greedily
 from .beam_search import beam_search

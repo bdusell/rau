@@ -6,6 +6,7 @@ from rau.tasks.common.command import Command
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.vocabulary import load_vocabulary_data_from_file
 from rau.generation.sample import sample_single
+from rau.generation.greedy import decode_greedily_single
 
 class LanguageModelingGenerateCommand(Command):
 
@@ -28,8 +29,15 @@ class LanguageModelingGenerateCommand(Command):
         parser.add_argument('--vocabulary-file', type=pathlib.Path,
             help='A .vocab file to be used as the vocabulary. This overrides '
                  '--training-data.')
+        parser.add_argument('--mode',
+            choices=['random', 'greedy', 'beam-search'],
+            default='random',
+            help='Which generation algorithm to use. Choices: '
+                 'random: Random sampling or ancestral sampling; '
+                 'greedy: Greedy decoding; '
+                 'beam-search: Beam search with length normalization.')
         parser.add_argument('--num-samples', type=int, default=1,
-            help='Number of samples to generate.')
+            help='Number of samples to generate when using random mode.')
         parser.add_argument('--max-length', type=int,
             help='Optional maximum number of tokens generated per sequence. If '
                  'this is not given, generation may run arbitrarily long.')
@@ -56,10 +64,6 @@ class LanguageModelingGenerateCommand(Command):
             load_vocabulary_data_from_file(vocab_file),
             include_embedding_vocab=False
         )
-        if args.random_seed is not None:
-            generator = torch.Generator(device=device).manual_seed(args.random_seed)
-        else:
-            generator = None
         model.eval()
         with torch.inference_mode():
             initial_state = model_interface.get_initial_state(
@@ -67,13 +71,29 @@ class LanguageModelingGenerateCommand(Command):
                 batch_size=1,
                 device=device
             )
-            for _ in range(args.num_samples):
-                s = sample_single(
-                    initial_state=initial_state,
-                    eos_symbol=eos_index,
-                    max_length=args.max_length,
-                    generator=generator
-                )
+            def generate_outputs():
+                match args.mode:
+                    case 'random':
+                        if args.random_seed is not None:
+                            generator = torch.Generator(device=device).manual_seed(args.random_seed)
+                        else:
+                            generator = None
+                        for _ in range(args.num_samples):
+                            yield sample_single(
+                                initial_state=initial_state,
+                                eos_symbol=eos_index,
+                                max_length=args.max_length,
+                                generator=generator
+                            )
+                    case 'greedy':
+                        yield decode_greedily_single(
+                            initial_state=initial_state,
+                            eos_symbol=eos_index,
+                            max_length=args.max_length
+                        )
+                    case 'beam-search':
+                        pass
+            for s in generate_outputs():
                 print(' '.join(map(vocab.to_string, s)))
 
 if __name__ == '__main__':
