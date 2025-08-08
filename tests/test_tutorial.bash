@@ -31,6 +31,7 @@ lm_data=$temp_dir/lm/data
 mkdir -p $lm_data
 curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train > $lm_data/main-full.tok
 head -1000 $lm_data/main-full.tok > $lm_data/main.tok
+rm $lm_data/main-full.tok
 mkdir $lm_data/datasets
 mkdir $lm_data/datasets/validation
 curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.dev > $lm_data/datasets/validation/main.tok
@@ -38,13 +39,15 @@ mkdir $lm_data/datasets/test
 curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test > $lm_data/datasets/test/main.tok
 mkdir $lm_data/datasets/test-source
 head -10 $lm_data/datasets/test/main.tok | cut -f 1 > $lm_data/datasets/test-source/main.tok
-rm $lm_data/main-full.tok
+mkdir $lm_data/datasets/test-target
+head -10 $lm_data/datasets/test/main.tok | cut -f 2 > $lm_data/datasets/test-target/main.tok
 
 rau lm prepare \
   --training-data $lm_data \
   --more-data validation \
   --more-data test \
   --more-data test-source \
+  --more-data test-target \
   --never-allow-unk
 
 for architecture in \
@@ -140,6 +143,14 @@ for architecture in \
     --load-model $model \
     --training-data $lm_data \
     --input test \
+    --batching-max-tokens 2048 \
+    "${device_args[@]}"
+
+  rau lm evaluate \
+    --load-model $model \
+    --training-data $lm_data \
+    --prompt-dataset test-source \
+    --input test-target \
     --batching-max-tokens 2048 \
     "${device_args[@]}"
 

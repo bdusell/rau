@@ -33,7 +33,7 @@ def group_into_batches(
 def group_sources_into_batches(
     sources: Iterable[torch.Tensor],
     is_small_enough: Callable[[int, int], bool]
-) -> Iterable[list[torch.Tensor]]:
+) -> Iterable[list[tuple[int, torch.Tensor]]]:
     examples = sorted(enumerate(sources), key=lambda x: len(x[1]))
     batch = []
     max_source_length = 0
