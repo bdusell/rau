@@ -137,8 +137,7 @@ Calculate the perplexity of this language model on the test set:
     rau lm evaluate \
       --load-model saved-language-model \
       --training-data language-modeling-example \
-      --input test \
-      --batching-max-tokens 2048
+      --input test
 
 Randomly sample 10 sequences from the trained language model:
 

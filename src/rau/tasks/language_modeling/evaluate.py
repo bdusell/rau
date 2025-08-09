@@ -37,65 +37,71 @@ class LanguageModelingEvaluateCommand(Command):
                  '<training-data>/datasets/<input>/main.prepared will be used '
                  'as input.')
         parser.add_argument('--input',
+            dest='prompt_and_input',
+            action='append',
             help='Name of a dataset in the training data directory that will '
                  'be used as input. The file '
                  '<training-data>/datasets/<input>/main.prepared will be used '
-                 'as input.')
-        parser.add_argument('--input-file', type=pathlib.Path,
-            help='A .prepared file to be used as input. This overrides '
-                 '--training-data and --input.')
-        parser.add_argument('--prompt-dataset',
-            help='Optional name of a dataset in the training data directory '
-                 'that will be used as prompts to the language model before '
-                 'measuring probabilities, so that what is computed will '
-                 'consist of conditional probabilities.')
-        parser.add_argument('--batching-max-tokens', type=int, required=True,
+                 'as input. This can be given multiple times to process '
+                 'multiple datasets.')
+        parser.add_argument('--prompt-and-input',
+            dest='prompt_and_input',
+            nargs=2,
+            action='append',
+            help='Names of two, parallel datasets in the training data '
+                 'directory. The first dataset will be used as prompts to the '
+                 'language model. The conditional cross-entropy of the second '
+                 'dataset will be computed, conditioned on the prompts from '
+                 'the first dataset.')
+        parser.add_argument('--output', type=pathlib.Path,
+            help='Directory where results will be saved as JSON files. There '
+                 'will be one file per input dataset.')
+        parser.add_argument('--batching-max-tokens', type=int, default=2048,
             help='The maximum number of tokens allowed per batch.')
         model_interface.add_arguments(parser)
         model_interface.add_forward_arguments(parser)
 
     def run(self, parser, args):
         model_interface = self.model_interface
-
-        if args.input_file is not None:
-            input_file = args.input_file
-        elif args.training_data is not None and args.input is not None:
-            input_file = args.training_data / 'datasets' / args.input / 'main.prepared'
-        else:
-            parser.error('either --training-data and --input or --input-file is required')
-
-        if args.prompt_dataset is not None:
-            prompt_file = args.training_data / 'datasets' / args.prompt_dataset / 'main.prepared'
-        else:
-            prompt_file = None
-
-        examples = load_prepared_data_file(input_file)
-        saver = model_interface.construct_saver(args)
-
-        if prompt_file is not None:
-            prompts = load_prepared_data_file(prompt_file)
-            result = evaluate_conditional_cross_entropy(
-                saver.model,
-                model_interface,
-                prompts,
-                examples,
-                args.batching_max_tokens
+        if not args.prompt_and_input:
+            parser.error(
+                'no datasets were provided; provide one or more of --input or '
+                '--prompt-and-input'
             )
-        else:
-            batches = generate_batches(examples, args.batching_max_tokens)
-            result = evaluate(saver.model, model_interface, batches, evaluate_batch)
-        json.dump(result, sys.stdout, indent=2)
-        print(file=sys.stdout)
+        saver = model_interface.construct_saver(args)
+        if args.output is not None:
+            args.output.mkdir(parents=True, exist_ok=True)
+        for arg in args.prompt_and_input:
+            if isinstance(arg, list):
+                prompt_dataset, input_dataset = arg
+            else:
+                prompt_dataset = None
+                input_dataset = arg
+            if prompt_dataset is not None:
+                prompt_file = get_dataset_file_name(args.training_data, prompt_dataset)
+                prompts = load_prepared_data_file(prompt_file)
+            input_file = get_dataset_file_name(args.training_data, input_dataset)
+            examples = load_prepared_data_file(input_file)
+            if prompt_dataset is None:
+                batches = generate_batches(examples, args.batching_max_tokens)
+                result = evaluate(saver.model, model_interface, batches, evaluate_batch)
+            else:
+                batches = generate_prompt_batches(prompts, examples, args.batching_max_tokens)
+                result = evaluate_conditional_cross_entropy(saver.model, model_interface, batches)
+            if args.output is None:
+                print_result(result, sys.stdout)
+            else:
+                output_file = args.output / f'{input_dataset}.json'
+                print(f'writing {output_file}')
+                with output_file.open('w') as fout:
+                    print_result(result, fout)
 
-def evaluate_conditional_cross_entropy(
-    model: torch.nn.Module,
-    model_interface: ModelInterface,
-    prompts: Iterable[torch.Tensor],
-    examples: Iterable[torch.Tensor],
-    max_tokens: int
-) -> dict[str, float]:
-    batches = generate_prompt_batches(prompts, examples, max_tokens)
-    return evaluate_conditional_cross_entropy_on_batches(model, model_interface, batches)
+def get_dataset_file_name(training_data, dataset):
+    return training_data / 'datasets' / dataset / 'main.prepared'
+
+def print_result(result, fout):
+    json.dump(result, fout)
+    print(file=fout)
 
 def generate_prompt_batches(
     prompts: Iterable[torch.Tensor],
@@ -111,7 +117,7 @@ def generate_prompt_batches(
         get_length=lambda x: len(x[1])
     )
 
-def evaluate_conditional_cross_entropy_on_batches(
+def evaluate_conditional_cross_entropy(
     model: torch.nn.Module,
     model_interface: ModelInterface,
     batches: Iterable[list[tuple[int, torch.Tensor]]]

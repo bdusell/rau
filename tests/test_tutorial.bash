@@ -92,16 +92,13 @@ for architecture in transformer rnn lstm; do
     --load-model $model \
     --training-data $lm_data \
     --input test \
-    --batching-max-tokens 2048 \
+    --prompt-and-input test-{source,target} \
+    --output $model/eval/cross-entropy \
     "${device_args[@]}"
-
-  rau lm evaluate \
-    --load-model $model \
-    --training-data $lm_data \
-    --prompt-dataset test-source \
-    --input test-target \
-    --batching-max-tokens 2048 \
-    "${device_args[@]}"
+  for d in test test-target; do
+    echo $d
+    cat $model/eval/cross-entropy/$d.json
+  done
 
   rau lm generate \
     --load-model $model \
