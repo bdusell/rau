@@ -5,7 +5,10 @@ import torch
 
 from rau.tasks.language_modeling.vocabulary import VocabularyData
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
-from rau.tasks.language_modeling.evaluate import evaluate_conditional_cross_entropy
+from rau.tasks.language_modeling.evaluate import (
+    generate_prompt_batches,
+    evaluate_conditional_cross_entropy
+)
 
 def test_conditional_cross_entropy():
     argv = [
@@ -60,11 +63,10 @@ def test_conditional_cross_entropy():
             expected_total_ce += ce.item()
             expected_num_tokens += len(example) + 1
     expected_ce = expected_total_ce / expected_num_tokens
+    batches = generate_prompt_batches(prompts, examples, max_tokens=10)
     result = evaluate_conditional_cross_entropy(
         model,
         model_interface,
-        prompts,
-        examples,
-        max_tokens=20
+        batches
     )
     torch.testing.assert_close(result['cross_entropy_per_token'], expected_ce)
