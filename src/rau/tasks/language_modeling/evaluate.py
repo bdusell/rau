@@ -107,7 +107,7 @@ def generate_prompt_batches(
     prompts: Iterable[torch.Tensor],
     examples: Iterable[torch.Tensor],
     max_tokens: int
-) -> Iterable[tuple[torch.Tensor, torch.Tensor]]:
+) -> Iterable[list[tuple[int, torch.Tensor]]]:
     return group_into_batches(
         [
             (len(prompt), torch.concat([prompt, example], dim=0))
