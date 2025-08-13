@@ -39,8 +39,7 @@ def decode_greedily(
 def decode_greedily_single(
     initial_state: Unidirectional.State,
     eos_symbol: int,
-    max_length: int | None = None,
-    generator: torch.Generator | None = None
+    max_length: int | None = None
 ) -> Iterable[int]:
     if max_length is not None and max_length < 1:
         return
