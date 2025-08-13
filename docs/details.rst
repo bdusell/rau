@@ -166,11 +166,13 @@ Features
    again later. Also implements a machine-readable log format that records data
    from the training process for later analysis. When training ends, the
    parameters of the best checkpoint have been saved to disk.
-#. Provides an implementation of beam search. Beam search is parallelized across
-   beam elements (but not minibatch elements).
-#. Implements length normalization in beam search.
-#. The beam search implementation stores and follows backpointers efficiently,
-   in parallel and without costly copy operations.
+#. Provides a command to generate sequences from a language model using one of
+   three algorithms: ancestral sampling, greedy decoding, and beam search.
+#. The implementation of greedy decoding is parallelized across batch elements.
+#. The implementation of beam search is parallelized across beam elements (but
+   not minibatch elements). It also stores and follows backpointers efficiently,
+   in parallel and without costly tensor concatenation operations.
+#. The beam search algorithm uses length normalization.
 #. Beam search terminates as soon as EOS is the top beam element, rather than
    waiting for the beam to fill up with EOS. This is correct because the a beam
    element can never have a descendant with higher probability than itself. The
@@ -188,8 +190,9 @@ Limitations
    LSTM, and transformer.
 #. The only architecture available for sequence-to-sequence generation is the
    transformer encoder-decoder.
-#. Ancestral sampling and beam search are the only available sampling algorithms
-   for now.
+#. Only three generation/decoding algorithms are implemented: ancestral
+   sampling, greedy decoding, and beam search. Sequence-to-sequence generation
+   only supports beam search for now (but the others can easily be added).
 #. Ancestral sampling is not parallelized across minibatch elements.
 #. Beam search is not parallelized across minibatch elements.
 #. Due to limitations in the API for PyTorch's transformer implementation,

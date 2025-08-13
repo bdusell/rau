@@ -34,8 +34,8 @@ def decode_greedily_single(
         t += 1
 
 def test_batched_matches_reference():
-    batch_size = 7
-    output_size = 5
+    batch_size = 17
+    output_size = 7
     eos = output_size - 1
     max_length = 50
     initial_state = RandomState(list(range(batch_size)), output_size)
@@ -45,9 +45,10 @@ def test_batched_matches_reference():
         max_length=max_length
     )
     for i, result_i in enumerate(result):
+        result_i = list(result_i)
         expected_i = list(decode_greedily_single(
             initial_state=initial_state.transform_tensors(lambda x: x[i:i+1]),
             eos_symbol=eos,
             max_length=max_length,
         ))
-        assert list(result[i]) == expected_i
+        assert result_i == expected_i
