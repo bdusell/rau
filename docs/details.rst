@@ -118,6 +118,16 @@ Features
    different architectures based on parameter count. Rau takes care to remove
    these redundant bias parameters, resulting in better parameter counts.
 #. Implements tied token embeddings.
+#. When the token embeddings in an encoder-decoder model are tied, the decoder
+   never assigns probability to tokens that occur only on the source side and
+   never on the target side; the decoder's vocabulary only includes tokens that
+   are observed on the target side of the training corpus. Conceptually, the
+   logits for source-only tokens are masked out, and so this technique is
+   sometimes called "token masking." Rau uses a clever and efficient way of
+   implementing this by slicing out only the decoder tokens when computing
+   decoder logits, instead of computing logits for all tokens and then adding a
+   mask. This is made possible by the way that Rau maps integers and tokens in
+   the token vocabulary during the data preparation step.
 #. Efficiently precomputes and caches sinusoidal positional encodings in the
    transformer.
 #. Parameters can be optimized using either simple gradient descent or Adam.
