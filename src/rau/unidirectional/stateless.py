@@ -121,6 +121,13 @@ class StatelessUnidirectional(Unidirectional):
 
         def batch_size(self) -> int:
             if self.input_tensor is None:
+                if self._batch_size is None:
+                    raise ValueError(
+                        '.batch_size() was called on a '
+                        'StatelessUnidirectional.State, but its batch size is '
+                        'indeterminate because .transform_tensors() was called '
+                        'between initialization and the first input'
+                    )
                 return self._batch_size
             else:
                 return self.input_tensor.size(0)
@@ -129,13 +136,13 @@ class StatelessUnidirectional(Unidirectional):
             func: Callable[[torch.Tensor], torch.Tensor]
         ) -> Unidirectional.State:
             if self.input_tensor is None:
-                # TODO Simply returning self would not change the batch size.
-                # It's possible to work around this by running func() on a
-                # dummy tensor.
-                raise ValueError(
-                    'cannot call transform_tensors() on initial state of '
-                    'StatelessUnidirectional'
-                )
+                # func() might change the batch size of the state, and simply
+                # returning self would not accurately reflect this change. We
+                # put the batch size in an indeterminate state by setting it to
+                # None. This will only raise an error if .transform_tensors()
+                # and then .batch_size() are called before reading the next
+                # input.
+                return dataclasses.replace(self, _batch_size=None)
             else:
                 return dataclasses.replace(
                     self,

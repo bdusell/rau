@@ -8,8 +8,9 @@ def sample(
     initial_state: Unidirectional.State,
     eos_symbol: int,
     max_length: int,
+    num_samples: int = 1,
     generator: torch.Generator | None = None
-) -> list[list[int]]:
+) -> list[list[list[int]]]:
     r"""Given a state of an autoregressive language model or decoder containing
     any number of batch elements, generate a sequence for each element using
     ancestral sampling.
@@ -31,12 +32,15 @@ def sample(
     """
     batch_size = initial_state.batch_size()
     return [
-        list(sample_single(
-            initial_state.transform_tensors(lambda x: x[i:i+1, ...]),
-            eos_symbol,
-            max_length,
-            device
-        ))
+        [
+            list(sample_single(
+                initial_state.transform_tensors(lambda x: x[i:i+1, ...]),
+                eos_symbol,
+                max_length,
+                generator
+            ))
+            for _ in range(num_samples)
+        ]
         for i in range(batch_size)
     ]
 

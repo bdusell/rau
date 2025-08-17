@@ -28,17 +28,24 @@ temp_dir=$(mktemp -d)
 trap "rm -r -- $temp_dir" EXIT
 
 lm_data=$temp_dir/lm/data
+url=https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data
 mkdir -p $lm_data
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train > $lm_data/main.tok
+curl -s $url/question.train > $lm_data/main.tok
 mkdir $lm_data/datasets
 mkdir $lm_data/datasets/validation
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.dev > $lm_data/datasets/validation/main.tok
+curl -s $url/question.dev > $lm_data/datasets/validation/main.tok
 mkdir $lm_data/datasets/test
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test > $lm_data/datasets/test/main.tok
+curl -s $url/question.test > $lm_data/datasets/test/main.tok
 mkdir $lm_data/datasets/test-source
 head -10 $lm_data/datasets/test/main.tok | cut -f 1 > $lm_data/datasets/test-source/main.tok
 mkdir $lm_data/datasets/test-target
 head -10 $lm_data/datasets/test/main.tok | cut -f 2 > $lm_data/datasets/test-target/main.tok
+mkdir $lm_data/datasets/generalization
+curl -s $url/question.gen > $lm_data/datasets/generalization/main.tok
+mkdir $lm_data/datasets/generalization-source
+head -10 $lm_data/datasets/generalization/main.tok | cut -f 1 > $lm_data/datasets/generalization-source/main.tok
+mkdir $lm_data/datasets/generalization-target
+head -10 $lm_data/datasets/generalization/main.tok | cut -f 2 > $lm_data/datasets/generalization-target/main.tok
 
 rau lm prepare \
   --training-data $lm_data \
@@ -46,6 +53,9 @@ rau lm prepare \
   --more-data test \
   --more-data test-source \
   --more-data test-target \
+  --more-data generalization \
+  --more-data generalization-source \
+  --more-data generalization-target \
   --never-allow-unk
 
 for architecture in transformer rnn lstm; do
@@ -93,32 +103,59 @@ for architecture in transformer rnn lstm; do
     --training-data $lm_data \
     --input test \
     --prompt-and-input test-{source,target} \
+    --input generalization \
+    --prompt-and-input generalization-{source,target} \
     --output $model/eval/cross-entropy \
     "${device_args[@]}"
-  for d in test test-target; do
+  for d in test test-target generalization generalization-target; do
     echo $d
     cat $model/eval/cross-entropy/$d.json
   done
 
+  echo 'random'
   rau lm generate \
     --load-model $model \
     --training-data $lm_data \
     --num-samples 10 \
     --max-length $max_length \
     "${device_args[@]}"
-
   rau lm generate \
     --load-model $model \
     --training-data $lm_data \
-    --prompt-datasets test-source \
+    --prompt-datasets {test,generalization}-source \
+    --num-samples 10 \
+    --max-length $max_length \
+    --output $model/eval/random \
+    "${device_args[@]}"
+
+  echo 'greedy'
+  rau lm generate \
+    --load-model $model \
+    --training-data $lm_data \
     --mode greedy \
     --max-length $max_length \
     "${device_args[@]}"
-
   rau lm generate \
     --load-model $model \
     --training-data $lm_data \
-    --prompt-datasets test-source \
+    --prompt-datasets {test,generalization}-source \
+    --mode greedy \
+    --max-length $max_length \
+    --output $model/eval/greedy \
+    "${device_args[@]}"
+
+  echo 'beam-search'
+  rau lm generate \
+    --load-model $model \
+    --training-data $lm_data \
+    --mode beam-search \
+    --beam-size 4 \
+    --max-length $max_length \
+    "${device_args[@]}"
+  rau lm generate \
+    --load-model $model \
+    --training-data $lm_data \
+    --prompt-datasets {test,generalization}-source \
     --mode beam-search \
     --beam-size 4 \
     --max-length $max_length \
@@ -127,17 +164,18 @@ for architecture in transformer rnn lstm; do
 done
 
 ss_data=$temp_dir/ss/data
+url=https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data
 mkdir -p $ss_data
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.train > $ss_data/train.tsv
+curl -s $url/question.train > $ss_data/train.tsv
 cut -f 1 < $ss_data/train.tsv > $ss_data/source.tok
 cut -f 2 < $ss_data/train.tsv > $ss_data/target.tok
 mkdir $ss_data/datasets
 mkdir $ss_data/datasets/validation
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.dev > $ss_data/validation.tsv
+curl -s $url/question.dev > $ss_data/validation.tsv
 cut -f 1 < $ss_data/validation.tsv > $ss_data/datasets/validation/source.tok
 cut -f 2 < $ss_data/validation.tsv > $ss_data/datasets/validation/target.tok
 mkdir $ss_data/datasets/test
-curl -s https://raw.githubusercontent.com/tommccoy1/rnn-hierarchical-biases/master/data/question.test > $ss_data/test-full.tsv
+curl -s $url/question.test > $ss_data/test-full.tsv
 head -100 $ss_data/test-full.tsv > $ss_data/test.tsv
 rm $ss_data/test-full.tsv
 cut -f 1 < $ss_data/test.tsv > $ss_data/datasets/test/source.tok

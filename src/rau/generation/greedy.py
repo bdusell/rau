@@ -33,7 +33,7 @@ def decode_greedily(
     symbol_batch_indexes = []
     if max_length is None or max_length > 0:
         state = initial_state
-        curr_symbol_batch_indexes = torch.arange(initial_batch_size)
+        curr_symbol_batch_indexes = None
         t = 0
         while True:
             # output_logits : current_batch_size x output_vocab_size
@@ -49,6 +49,10 @@ def decode_greedily(
             # Remember the symbols generated.
             symbols.append(next_non_eos_symbol)
             # Remember which batch elements the generated symbols belong to.
+            if curr_symbol_batch_indexes is None:
+                # Wait until here to initialize so we know which device to put
+                # it on.
+                curr_symbol_batch_indexes = torch.arange(initial_batch_size, device=output_logits.device)
             curr_symbol_batch_indexes = curr_symbol_batch_indexes[next_is_not_eos]
             symbol_batch_indexes.append(curr_symbol_batch_indexes)
             # Stop now if the maximum length is reached.
