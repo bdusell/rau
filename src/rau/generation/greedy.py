@@ -7,11 +7,11 @@ from rau.unidirectional import Unidirectional
 def decode_greedily(
     initial_state: Unidirectional.State,
     eos_symbol: int,
-    max_length: int
+    max_length: int | None = None
 ) -> list[list[int]]:
     r"""Given a state of an autoregressive language model or decoder containing
     any number of batch elements, generate a sequence for each element using
-    greedy decoding.
+    greedy decoding. Decoding is parallelized across batch elements.
 
     :param initial_state: A state of an autoregressive decoder or language model
         from which decoding starts, containing any number of batch elements. A
