@@ -118,6 +118,16 @@ Features
    different architectures based on parameter count. Rau takes care to remove
    these redundant bias parameters, resulting in better parameter counts.
 #. Implements tied token embeddings.
+#. When the token embeddings in an encoder-decoder model are tied, the decoder
+   never assigns probability to tokens that occur only on the source side and
+   never on the target side; the decoder's vocabulary only includes tokens that
+   are observed on the target side of the training corpus. Conceptually, the
+   logits for source-only tokens are masked out, and so this technique is
+   sometimes called "token masking." Rau uses a clever and efficient way of
+   implementing this by slicing out only the decoder tokens when computing
+   decoder logits, instead of computing logits for all tokens and then adding a
+   mask. This is made possible by the way that Rau maps integers and tokens in
+   the token vocabulary during the data preparation step.
 #. Efficiently precomputes and caches sinusoidal positional encodings in the
    transformer.
 #. Parameters can be optimized using either simple gradient descent or Adam.
@@ -156,11 +166,15 @@ Features
    again later. Also implements a machine-readable log format that records data
    from the training process for later analysis. When training ends, the
    parameters of the best checkpoint have been saved to disk.
-#. Provides an implementation of beam search. Beam search is parallelized across
-   beam elements (but not minibatch elements).
-#. Implements length normalization in beam search.
-#. The beam search implementation stores and follows backpointers efficiently,
-   in parallel and without costly copy operations.
+#. Provides a command to generate sequences from a language model using one of
+   three algorithms: ancestral sampling, greedy decoding, and beam search.
+#. The implementation of ancestral sampling is parallelized across batch
+   elements and multiple samples per batch element.
+#. The implementation of greedy decoding is parallelized across batch elements.
+#. The implementation of beam search is parallelized across beam elements (but
+   not minibatch elements). It also stores and follows backpointers efficiently,
+   in parallel and without costly tensor concatenation operations.
+#. The beam search algorithm uses length normalization.
 #. Beam search terminates as soon as EOS is the top beam element, rather than
    waiting for the beam to fill up with EOS. This is correct because the a beam
    element can never have a descendant with higher probability than itself. The
@@ -178,9 +192,9 @@ Limitations
    LSTM, and transformer.
 #. The only architecture available for sequence-to-sequence generation is the
    transformer encoder-decoder.
-#. Ancestral sampling and beam search are the only available sampling algorithms
-   for now.
-#. Ancestral sampling is not parallelized across minibatch elements.
+#. Only three generation/decoding algorithms are implemented: ancestral
+   sampling, greedy decoding, and beam search. Sequence-to-sequence generation
+   only supports beam search for now (but the others can easily be added).
 #. Beam search is not parallelized across minibatch elements.
 #. Due to limitations in the API for PyTorch's transformer implementation,
    decoding for transformers is very inefficient. At every step of decoding, all
