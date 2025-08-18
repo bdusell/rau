@@ -168,6 +168,8 @@ Features
    parameters of the best checkpoint have been saved to disk.
 #. Provides a command to generate sequences from a language model using one of
    three algorithms: ancestral sampling, greedy decoding, and beam search.
+#. The implementation of ancestral sampling is parallelized across batch
+   elements and multiple samples per batch element.
 #. The implementation of greedy decoding is parallelized across batch elements.
 #. The implementation of beam search is parallelized across beam elements (but
    not minibatch elements). It also stores and follows backpointers efficiently,
@@ -193,7 +195,6 @@ Limitations
 #. Only three generation/decoding algorithms are implemented: ancestral
    sampling, greedy decoding, and beam search. Sequence-to-sequence generation
    only supports beam search for now (but the others can easily be added).
-#. Ancestral sampling is not parallelized across minibatch elements.
 #. Beam search is not parallelized across minibatch elements.
 #. Due to limitations in the API for PyTorch's transformer implementation,
    decoding for transformers is very inefficient. At every step of decoding, all
