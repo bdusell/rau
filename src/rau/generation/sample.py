@@ -18,9 +18,9 @@ def sample(
 
     :param initial_state: A state of an autoregressive decoder or language model
         from which decoding starts, containing any number of batch elements. A
-        separate sequence will be decoded for each of the initial batch
-        elements. Note that this does not actually need to be the *initial*
-        state of a decoder; decoding can start from any state.
+        separate list of ``num_samples`` sequences will be decoded for each of
+        the initial batch elements. Note that this does not actually need to be
+        the *initial* state of a decoder; decoding can start from any state.
     :param eos_symbol: Identifier of a designated end-of-sequence (EOS) symbol
         that indicates that the model should stop generating symbols for a
         sequence.

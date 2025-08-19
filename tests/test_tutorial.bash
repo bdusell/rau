@@ -160,7 +160,21 @@ for architecture in \
     "${device_args[@]}"
   for d in test test-target generalization generalization-target; do
     echo $d
-    cat $model/eval/cross-entropy/$d.json
+    cat $model/eval/cross-entropy/$d.txt
+    echo
+  done
+
+  for granularity in position vocabulary logits; do
+    rau lm evaluate \
+      --load-model $model \
+      --training-data $lm_data \
+      --input test \
+      --prompt-and-input test-{source,target} \
+      --input generalization \
+      --prompt-and-input generalization-{source,target} \
+      --output $model/eval/$granularity \
+      --granularity $granularity \
+      "${device_args[@]}"
   done
 
   echo 'random'

@@ -322,6 +322,14 @@ class LanguageModelingModelInterface(ModelInterface):
             input_tensor[input_tensor == output_padding_index] = 0
         return input_tensor, output_tensor
 
+    def prepare_input_batch(self, batch, device):
+        return pad_sequences(
+            batch,
+            device,
+            bos=self.bos_index,
+            pad=self.output_padding_index if self.uses_bos else 0
+        )
+
     def on_before_process_pairs(self, saver, datasets):
         if saver.kwargs['architecture'] in ('transformer', 'stack-transformer'):
             max_length = max(
