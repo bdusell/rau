@@ -94,6 +94,14 @@ class LanguageModelingEvaluateCommand(Command):
                 process_sequences = process_sequences_dataset
                 write_result = write_txt
                 extension = 'txt'
+            case 'position':
+                process_sequences = process_sequences_position
+                write_result = write_pt
+                extension = 'pt'
+            case 'vocabulary':
+                process_sequences = process_sequences_vocabulary
+                write_result = write_pt
+                extension = 'pt'
             case 'logits':
                 process_sequences = process_sequences_logits
                 write_result = write_pt
@@ -196,6 +204,50 @@ def process_sequences_dataset(
         accumulator.update(cross_entropy.item(), num_symbols.item())
     return accumulator.get_value()
 
+def process_sequences_position(
+    model: torch.nn.Module,
+    model_interface: LanguageModelingModelInterface,
+    prompts: list[torch.Tensor] | None,
+    sequences: list[torch.Tensor],
+    max_tokens: int
+) -> list[torch.Tensor]:
+    device = model_interface.get_device(None)
+    pad_index = model_interface.output_padding_index
+    def get_outputs(sequences):
+        input_tensor, output_tensor = model_interface.prepare_batch(sequences, device)
+        logits = model_interface.get_logits(model, input_tensor)
+        return torch.nn.functional.cross_entropy(
+            logits.permute(0, 2, 1),
+            output_tensor,
+            ignore_index=pad_index,
+            reduction='none'
+        )
+    return process_sequences_token_level(
+        prompts,
+        sequences,
+        max_tokens,
+        get_outputs
+    )
+
+def process_sequences_vocabulary(
+    model: torch.nn.Module,
+    model_interface: LanguageModelingModelInterface,
+    prompts: list[torch.Tensor] | None,
+    sequences: list[torch.Tensor],
+    max_tokens: int
+) -> list[torch.Tensor]:
+    device = model_interface.get_device(None)
+    def get_outputs(sequences):
+        input_tensor = model_interface.prepare_input_batch(sequences, device)
+        logits = model_interface.get_logits(model, input_tensor)
+        return -torch.nn.functional.log_softmax(logits, dim=2)
+    return process_sequences_token_level(
+        prompts,
+        sequences,
+        max_tokens,
+        get_outputs
+    )
+
 def process_sequences_logits(
     model: torch.nn.Module,
     model_interface: LanguageModelingModelInterface,
@@ -203,19 +255,34 @@ def process_sequences_logits(
     sequences: list[torch.Tensor],
     max_tokens: int
 ) -> list[torch.Tensor]:
+    device = model_interface.get_device(None)
+    def get_outputs(sequences):
+        input_tensor = model_interface.prepare_input_batch(sequences, device)
+        return model_interface.get_logits(model, input_tensor)
+    return process_sequences_token_level(
+        prompts,
+        sequences,
+        max_tokens,
+        get_outputs
+    )
+
+def process_sequences_token_level(
+    prompts: list[torch.Tensor] | None,
+    sequences: list[torch.Tensor],
+    max_tokens: int,
+    get_outputs
+) -> list[torch.Tensor]:
     result = [None] * len(sequences)
     has_prompts = prompts is not None
     batches = generate_batches(prompts, sequences, max_tokens, include_indexes=True)
-    device = model_interface.get_device(None)
     for info, sequences in batches:
-        input_tensor = model_interface.prepare_input_batch(sequences, device)
-        logits = model_interface.get_logits(model, input_tensor)
-        for j, ((i, _), sequence, sequence_logits) in enumerate(zip(info, sequences, logits)):
+        outputs = get_outputs(sequences)
+        for j, ((i, _), sequence, sequence_outputs) in enumerate(zip(info, sequences, outputs)):
             if has_prompts:
                 start_pos = info[j][1][0]
             else:
                 start_pos = 0
-            result[i] = sequence_logits[start_pos:len(sequence)]
+            result[i] = sequence_outputs[start_pos:len(sequence)+1]
     return result
 
 def write_txt(result, output_file):

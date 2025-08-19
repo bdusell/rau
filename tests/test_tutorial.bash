@@ -113,16 +113,18 @@ for architecture in transformer rnn lstm; do
     echo
   done
 
-  rau lm evaluate \
-    --load-model $model \
-    --training-data $lm_data \
-    --input test \
-    --prompt-and-input test-{source,target} \
-    --input generalization \
-    --prompt-and-input generalization-{source,target} \
-    --output $model/eval/logits \
-    --granularity logits \
-    "${device_args[@]}"
+  for granularity in position vocabulary logits; do
+    rau lm evaluate \
+      --load-model $model \
+      --training-data $lm_data \
+      --input test \
+      --prompt-and-input test-{source,target} \
+      --input generalization \
+      --prompt-and-input generalization-{source,target} \
+      --output $model/eval/$granularity \
+      --granularity $granularity \
+      "${device_args[@]}"
+  done
 
   echo 'random'
   rau lm generate \
