@@ -9,7 +9,7 @@ import torch
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tasks.common.command import Command
 from rau.tasks.common.data import load_prepared_data_file
-from rau.tasks.common.training_loop import evaluate, DictScoreAccumulator
+from rau.tasks.common.training_loop import MicroAveragedScoreAccumulator
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.training_loop import generate_batches, evaluate_batch
 from rau.tasks.language_modeling.batching import group_into_batches
@@ -53,7 +53,28 @@ class LanguageModelingEvaluateCommand(Command):
                  'language model. The conditional cross-entropy of the second '
                  'dataset will be computed, conditioned on the prompts from '
                  'the first dataset.')
-        parser.add_argument('--output', type=pathlib.Path,
+        parser.add_argument('--granularity',
+            choices=[
+                'dataset',
+                'sequence',
+                'position',
+                'vocabulary',
+                'logits'
+            ],
+            default='dataset',
+            help='The level of specificity of the output. Options: '
+                 'dataset (default): Output a single, micro-averaged '
+                 'cross-entropy score for each dataset, normalized by sequence '
+                 'length plus one. '
+                 'sequence: Output an unnormalized cross-entropy score for '
+                 'every sequence. '
+                 'position: Output a cross-entropy score for every position in '
+                 'every sequence; this is the negative log probability of the '
+                 'correct token at each position. '
+                 'vocabulary: Output the negative log probability of every '
+                 'token in the vocabulary at every position. '
+                 'logits: Output the raw logits for every position.')
+        parser.add_argument('--output', type=pathlib.Path, required=True,
             help='Directory where results will be saved as JSON files. There '
                  'will be one file per input dataset.')
         parser.add_argument('--batching-max-tokens', type=int, default=2048,
@@ -68,82 +89,140 @@ class LanguageModelingEvaluateCommand(Command):
                 'no datasets were provided; provide one or more of --input or '
                 '--prompt-and-input'
             )
+        match args.granularity:
+            case 'dataset':
+                process_sequences = process_sequences_dataset
+                write_result = write_txt
+                extension = 'txt'
+            case 'logits':
+                process_sequences = process_sequences_logits
+                write_result = write_pt
+                extension = 'pt'
+            case _:
+                raise NotImplementedError
         saver = model_interface.construct_saver(args)
         if args.output is not None:
             args.output.mkdir(parents=True, exist_ok=True)
-        for arg in args.prompt_and_input:
-            if isinstance(arg, list):
-                prompt_dataset, input_dataset = arg
-            else:
-                prompt_dataset = None
-                input_dataset = arg
-            if prompt_dataset is not None:
-                prompt_file = get_dataset_file_name(args.training_data, prompt_dataset)
-                prompts = load_prepared_data_file(prompt_file)
-            input_file = get_dataset_file_name(args.training_data, input_dataset)
-            examples = load_prepared_data_file(input_file)
-            if prompt_dataset is None:
-                batches = generate_batches(examples, args.batching_max_tokens)
-                result = evaluate(saver.model, model_interface, batches, evaluate_batch)
-            else:
-                batches = generate_prompt_batches(prompts, examples, args.batching_max_tokens)
-                result = evaluate_conditional_cross_entropy(saver.model, model_interface, batches)
-            if args.output is None:
-                print_result(result, sys.stdout)
-            else:
-                output_file = args.output / f'{input_dataset}.json'
+        model = saver.model
+        model.eval()
+        with torch.inference_mode():
+            for arg in args.prompt_and_input:
+                if isinstance(arg, list):
+                    prompt_dataset, input_dataset = arg
+                else:
+                    prompt_dataset = None
+                    input_dataset = arg
+                prompts = load_file(args.training_data, prompt_dataset) if prompt_dataset is not None else None
+                sequences = load_file(args.training_data, input_dataset)
+                result = process_sequences(
+                    model,
+                    model_interface,
+                    prompts,
+                    sequences,
+                    args.batching_max_tokens
+                )
+                output_file = args.output / f'{input_dataset}.{extension}'
                 print(f'writing {output_file}')
-                with output_file.open('w') as fout:
-                    print_result(result, fout)
+                write_result(result, output_file)
 
 def get_dataset_file_name(training_data, dataset):
     return training_data / 'datasets' / dataset / 'main.prepared'
 
-def print_result(result, fout):
-    json.dump(result, fout)
-    print(file=fout)
+def load_file(training_data, dataset):
+    return load_prepared_data_file(get_dataset_file_name(training_data, dataset))
 
-def generate_prompt_batches(
-    prompts: Iterable[torch.Tensor],
-    examples: Iterable[torch.Tensor],
-    max_tokens: int
-) -> Iterable[list[tuple[int, torch.Tensor]]]:
-    return group_into_batches(
-        [
-            (len(prompt), torch.concat([prompt, example], dim=0))
-            for prompt, example in zip(prompts, examples, strict=True)
-        ],
+def generate_batches(
+    prompts: Iterable[torch.Tensor] | None,
+    sequences: Iterable[torch.Tensor],
+    max_tokens: int,
+    include_indexes: bool = False
+):
+    if prompts is None:
+        items = sequences
+        get_sequence = lambda x: x
+    else:
+        items = (
+            (len(prompt), torch.concat([prompt, sequence], dim=0))
+            for prompt, sequence in zip(prompts, sequences, strict=True)
+        )
+        get_sequence = lambda x: x[1]
+    if include_indexes:
+        items = enumerate(items)
+        old_get_sequence = get_sequence
+        get_sequence = lambda x: old_get_sequence(x[1])
+    batches = group_into_batches(
+        list(items),
         is_small_enough=lambda b, n: b * n <= max_tokens,
-        get_length=lambda x: len(x[1])
+        get_length=lambda x: len(get_sequence(x))
     )
+    if include_indexes:
+        return ((batch, [get_sequence(x) for x in batch]) for batch in batches)
+    else:
+        if prompts is None:
+            return ((None, batch) for batch in batches)
+        else:
+            return ((batch, [get_sequence(x) for x in batch]) for batch in batches)
 
-def evaluate_conditional_cross_entropy(
+def process_sequences_dataset(
     model: torch.nn.Module,
-    model_interface: ModelInterface,
-    batches: Iterable[list[tuple[int, torch.Tensor]]]
-) -> dict[str, float]:
-    pad_index = model_interface.output_padding_index
+    model_interface: LanguageModelingModelInterface,
+    prompts: list[torch.Tensor] | None,
+    sequences: list[torch.Tensor],
+    max_tokens: int
+) -> float:
+    batches = generate_batches(prompts, sequences, max_tokens)
     device = model_interface.get_device(None)
-    accumulator = DictScoreAccumulator()
-    model.eval()
-    with torch.inference_mode():
-        for batch in batches:
-            input_tensor, output_tensor = model_interface.prepare_batch([x[1] for x in batch], device)
-            # Make sure the in-place modifications to the output tensor don't
-            # affect the input tensor.
-            input_tensor = input_tensor.clone()
+    pad_index = model_interface.output_padding_index
+    accumulator = MicroAveragedScoreAccumulator()
+    for prompts, sequences in batches:
+        input_tensor, output_tensor = model_interface.prepare_batch(sequences, device)
+        logits = model_interface.get_logits(model, input_tensor)
+        if prompts is not None:
             # In the output tensor only, mask out the prompt with padding
             # tokens so that the prompt won't contribute to the total
             # cross-entropy or the total number of tokens.
-            for (prompt_length, _), output_tensor_element in zip(batch, output_tensor, strict=True):
+            # Since input_tensor has already been used to compute the logits,
+            # it doesn't matter if modifying output_tensor also modifies
+            # input_tensor.
+            for (prompt_length, _), output_tensor_element in zip(prompts, output_tensor, strict=True):
                 output_tensor_element[:prompt_length] = pad_index
-            batch_score_dict = evaluate_batch(
-                model,
-                model_interface,
-                (input_tensor, output_tensor)
-            )
-            accumulator.update(batch_score_dict)
+        cross_entropy = torch.nn.functional.cross_entropy(
+            logits.permute(0, 2, 1),
+            output_tensor,
+            ignore_index=pad_index,
+            reduction='sum'
+        )
+        num_symbols = torch.sum(output_tensor != pad_index)
+        accumulator.update(cross_entropy.item(), num_symbols.item())
     return accumulator.get_value()
+
+def process_sequences_logits(
+    model: torch.nn.Module,
+    model_interface: LanguageModelingModelInterface,
+    prompts: list[torch.Tensor] | None,
+    sequences: list[torch.Tensor],
+    max_tokens: int
+) -> list[torch.Tensor]:
+    result = [None] * len(sequences)
+    has_prompts = prompts is not None
+    batches = generate_batches(prompts, sequences, max_tokens, include_indexes=True)
+    device = model_interface.get_device(None)
+    for info, sequences in batches:
+        input_tensor = model_interface.prepare_input_batch(sequences, device)
+        logits = model_interface.get_logits(model, input_tensor)
+        for j, ((i, _), sequence, sequence_logits) in enumerate(zip(info, sequences, logits)):
+            if has_prompts:
+                start_pos = info[j][1][0]
+            else:
+                start_pos = 0
+            result[i] = sequence_logits[start_pos:len(sequence)]
+    return result
+
+def write_txt(result, output_file):
+    output_file.write_text(str(result))
+
+def write_pt(result, output_file):
+    torch.save(result, output_file)
 
 if __name__ == '__main__':
     LanguageModelingEvaluateCommand().main()
