@@ -64,73 +64,66 @@ for architecture in \
   transformer \
   rnn \
   lstm \
-  superposition-stack-transformer \
-  nondeterministic-stack-transformer \
-  superposition-stack-lstm \
-  vector-nondeterministic-stack-lstm \
+  {superposition,nondeterministic}-stack-transformer \
+  {stratification,superposition,nondeterministic,vector-nondeterministic}-stack-{rnn,lstm}{,-r} \
   ; do
-
-  case $architecture in
-    transformer)
-      model_args=( \
-        --architecture $architecture \
-        --num-layers $num_layers \
-        --d-model $d_model \
-        --num-heads $num_heads \
-        --feedforward-size $feedforward_size \
-        --dropout 0.1 \
-      )
-      ;;
-    rnn|lstm)
-      model_args=( \
-        --architecture $architecture \
-        --num-layers $num_layers \
-        --hidden-units $hidden_units \
-        --dropout 0.1 \
-      )
-      ;;
-    superposition-stack-transformer)
-      model_args=( \
-        --architecture stack-transformer \
-        --d-model $d_model \
-        --num-heads $num_heads \
-        --feedforward-size $feedforward_size \
-        --dropout 0.1 \
-        --stack-transformer-layers 1.superposition-10.1 \
-      )
-      ;;
-    nondeterministic-stack-transformer)
-      model_args=( \
-        --architecture stack-transformer \
-        --d-model $d_model \
-        --num-heads $num_heads \
-        --feedforward-size $feedforward_size \
-        --dropout 0.1 \
-        --stack-transformer-layers 1.nondeterministic-2-3-2.1
-      )
-      ;;
-    superposition-stack-lstm)
-      model_args=( \
-        --architecture stack-rnn \
-        --num-layers $num_layers \
-        --dropout 0.1 \
-        --hidden-units $hidden_units \
-        --stack-rnn-controller lstm \
-        --stack-rnn-stack superposition-10 \
-      )
-      ;;
-    vector-nondeterministic-stack-lstm)
-      model_args=( \
-        --architecture stack-rnn \
-        --num-layers $num_layers \
-        --dropout 0.1 \
-        --hidden-units $hidden_units \
-        --stack-rnn-controller lstm \
-        --stack-rnn-stack vector-nondeterministic-2-3-2 \
-      )
-      ;;
-    *) exit 1 ;;
-  esac
+  if [[ $architecture = transformer ]]; then
+    model_args=( \
+      --architecture $architecture \
+      --num-layers $num_layers \
+      --d-model $d_model \
+      --num-heads $num_heads \
+      --feedforward-size $feedforward_size \
+      --dropout 0.1 \
+    )
+  elif [[ $architecture =~ ^(rnn|lstm)$ ]]; then
+    model_args=( \
+      --architecture $architecture \
+      --num-layers $num_layers \
+      --hidden-units $hidden_units \
+      --dropout 0.1 \
+    )
+  elif [[ $architecture =~ ^(.+)-stack-transformer$ ]]; then
+    stack=${BASH_REMATCH[1]}
+    if [[ $stack = superposition ]]; then
+      stack_transformer_layers=1.superposition-10.1
+    elif [[ $stack = nondeterministic ]]; then
+      stack_transformer_layers=1.nondeterministic-2-3-2.1
+    fi
+    model_args=( \
+      --architecture stack-transformer \
+      --d-model $d_model \
+      --num-heads $num_heads \
+      --feedforward-size $feedforward_size \
+      --dropout 0.1 \
+      --stack-transformer-layers $stack_transformer_layers \
+    )
+  elif [[ $architecture =~ ^(.+)-stack-(rnn|lstm)(-r)?$ ]]; then
+    stack=${BASH_REMATCH[1]}
+    stack_rnn_controller=${BASH_REMATCH[2]}
+    stack_reading=${BASH_REMATCH[3]}
+    case $stack in
+      stratification) stack_rnn_stack=stratification-10 ;;
+      superposition) stack_rnn_stack=superposition-10 ;;
+      nondeterministic) stack_rnn_stack=nondeterministic-2-3 ;;
+      vector-nondeterministic) stack_rnn_stack=vector-nondeterministic-2-3-2 ;;
+      *) exit 1 ;;
+    esac
+    model_args=( \
+      --architecture stack-rnn \
+      --num-layers $num_layers \
+      --dropout 0.1 \
+      --hidden-units $hidden_units \
+      --stack-rnn-controller $stack_rnn_controller \
+      --stack-rnn-stack $stack_rnn_stack \
+    )
+    if [[ $stack_reading ]]; then
+      model_args+=(--stack-rnn-connect-reading-to-output)
+    fi
+  else
+    echo "unknown architecture: $architecture" >&2
+    exit 1
+  fi
   model=$temp_dir/lm/models/$architecture
 
   rau lm train \
