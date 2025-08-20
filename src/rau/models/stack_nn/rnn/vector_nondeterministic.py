@@ -13,7 +13,7 @@ from .nondeterministic import NondeterministicStackRNN
 class VectorNondeterministicStackRNN(NondeterministicStackRNN):
 
     def __init__(self,
-        input_size: int,
+        input_size: int | None,
         num_states: int,
         stack_alphabet_size: int,
         stack_embedding_size: int,
@@ -42,7 +42,7 @@ class VectorNondeterministicStackRNN(NondeterministicStackRNN):
         self.stack_embedding_size = stack_embedding_size
         self.pushed_vector_layer = torch.nn.Sequential(
             torch.nn.Linear(
-                self.output_size(),
+                controller_output_size,
                 stack_embedding_size
             ),
             torch.nn.LogSigmoid()
@@ -101,3 +101,6 @@ class VectorNondeterministicStackRNN(NondeterministicStackRNN):
             actions = (push, repl, pop, pushed_vector)
             stack.update(push, repl, pop, pushed_vector)
             return stack, actions
+
+        def transform_stack_actions(self, actions, func):
+            return tuple(map(func, actions))

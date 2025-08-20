@@ -10,7 +10,7 @@ from .stack_rnn import StackRNN, StackRNNController, ReadingLayerSizes
 class StratificationStackRNN(StackRNN):
 
     def __init__(self,
-        input_size: int,
+        input_size: int | None,
         stack_embedding_size: int,
         controller: StackRNNController,
         controller_output_size: int,

@@ -23,7 +23,7 @@ ReadingLayerSizes = list[int | None] | None
 class StackRNN(Unidirectional):
 
     def __init__(self,
-        input_size: int,
+        input_size: int | None,
         stack_reading_size: int,
         controller: StackRNNController,
         controller_output_size: int,
@@ -31,7 +31,9 @@ class StackRNN(Unidirectional):
         reading_layer_sizes: ReadingLayerSizes = None
     ) -> None:
         """
-        :param input_size: The size of the input vectors to this module.
+        :param input_size: The size of the input vectors to this module. If
+            ``None`` is given, the input size will be made equal to the output
+            size of this module so that it is compatible with tied embeddings.
         :param stack_reading_size: The size of the reading vector returned
             from the stack module.
         :param controller: A constructor function that takes an input size and
@@ -59,10 +61,14 @@ class StackRNN(Unidirectional):
             self.reading_layer = torch.nn.Identity()
             reading_layer_output_size = stack_reading_size
         self.include_reading_in_output = include_reading_in_output
-        self.controller = controller(input_size + reading_layer_output_size)
         self._output_size = controller_output_size
         if self.include_reading_in_output:
             self._output_size += reading_layer_output_size
+        # If input_size is not given, automatically make it equal to the output
+        # size.
+        if input_size is None:
+            input_size = self._output_size
+        self.controller = controller(input_size + reading_layer_output_size)
 
     def output_size(self) -> int:
         return self._output_size
@@ -101,6 +107,8 @@ class StackRNN(Unidirectional):
 
         def __post_init__(self):
             self._cached_tensors = {}
+            self._stack = None
+            self._actions = None
 
         def next(self, input_tensor: torch.Tensor) -> Unidirectional.State:
             # Get the current state of the differentiable stack.
@@ -155,24 +163,26 @@ class StackRNN(Unidirectional):
             stack, actions = self.get_stack_and_actions()
             return stack
 
-        @cached_tensor
         def get_stack_and_actions(self) -> tuple[DifferentiableStack, Any]:
-            if self.previous_stack is None:
-                stack = self.rnn.initial_stack(
-                    self.hidden_state.batch_size(),
-                    self.sequence_length,
-                    *self.stack_args,
-                    **self.stack_kwargs
-                )
-                actions = None
-            else:
-                stack, actions = self.compute_stack(
-                    self.get_hidden_state_output(),
-                    self.previous_stack
-                )
-                # The previous stack is no longer needed now.
-                self.previous_stack = None
-            return stack, actions
+            if self._stack is None:
+                if self.previous_stack is None:
+                    stack = self.rnn.initial_stack(
+                        self.hidden_state.batch_size(),
+                        self.sequence_length,
+                        *self.stack_args,
+                        **self.stack_kwargs
+                    )
+                    actions = None
+                else:
+                    stack, actions = self.compute_stack(
+                        self.get_hidden_state_output(),
+                        self.previous_stack
+                    )
+                    # The previous stack is no longer needed now.
+                    self.previous_stack = None
+                self._stack = stack
+                self._actions = actions
+            return self._stack, self._actions
 
         @cached_tensor
         def get_reading(self) -> torch.Tensor:
@@ -209,13 +219,22 @@ class StackRNN(Unidirectional):
             )
             for k, v in self._cached_tensors.items():
                 result._cached_tensors[k] = func(v)
+            if self._stack is not None:
+                result._stack = self._stack.transform_tensors(func)
+                result._actions = self.transform_stack_actions(self._actions, func) if self._actions is not None else None
             return result
 
         def compute_stack(self,
             hidden_state: Unidirectional.State,
             stack: DifferentiableStack
-        ) -> DifferentiableStack:
+        ) -> tuple[DifferentiableStack, Any]:
             raise NotImplementedError
+
+        def transform_stack_actions(self,
+            actions: Any,
+            func: Callable[[torch.Tensor], torch.Tensor]
+        ) -> Any:
+            return func(actions)
 
     def initial_state(self,
         batch_size: int,

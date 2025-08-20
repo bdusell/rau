@@ -17,7 +17,7 @@ class SuperpositionStackRNN(StackRNN):
     stack data structure."""
 
     def __init__(self,
-        input_size: int,
+        input_size: int | None,
         stack_embedding_size: int | Sequence[int],
         push_hidden_state: bool,
         controller: StackRNNController,
@@ -108,7 +108,7 @@ class SuperpositionStackRNN(StackRNN):
         def compute_stack(self,
             hidden_state: Unidirectional.State,
             stack: DifferentiableStack
-        ) -> DifferentiableStack:
+        ) -> tuple[DifferentiableStack, torch.Tensor]:
             # unexpanded_actions : batch_size x num_stacks x num_actions
             unexpanded_actions = self.rnn.action_layer(hidden_state)
             # actions : batch_size x total_stack_embedding_size x num_actions

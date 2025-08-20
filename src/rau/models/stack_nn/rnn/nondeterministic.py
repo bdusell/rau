@@ -15,7 +15,7 @@ from .stack_rnn import StackRNN, StackRNNController, ReadingLayerSizes
 class NondeterministicStackRNN(StackRNN):
 
     def __init__(self,
-        input_size: int,
+        input_size: int | None,
         num_states: int,
         stack_alphabet_size: int,
         controller: StackRNNController,
@@ -103,6 +103,9 @@ class NondeterministicStackRNN(StackRNN):
             push, repl, pop = actions = self.rnn.operation_log_scores(hidden_state)
             stack.update(push, repl, pop)
             return stack, actions
+
+        def transform_stack_actions(self, actions, func):
+            return tuple(map(func, actions))
 
     def viterbi_decoder(self, input_sequence, block_size, wrapper=None):
         """Return an object that can be used to run the Viterbi algorithm on
