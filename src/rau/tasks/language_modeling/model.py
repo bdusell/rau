@@ -98,6 +98,9 @@ class LanguageModelingModelInterface(ModelInterface):
                  '<m> are integers, indicating a vector nondeterministic '
                  'stack with <q> states, <s> stack symbol types, and stack '
                  'embedding type <m>.')
+        group.add_argument('--stack-rnn-connect-reading-to-output', action='store_true', default=False,
+            help='(stack-rnn) Connect the stack reading directly to the output '
+                 'at the same timestep when making predictions.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
@@ -120,6 +123,7 @@ class LanguageModelingModelInterface(ModelInterface):
             stack_transformer_layers=args.stack_transformer_layers,
             stack_rnn_controller=args.stack_rnn_controller,
             stack_rnn_stack=args.stack_rnn_stack,
+            stack_rnn_connect_reading_to_output=args.stack_rnn_connect_reading_to_output,
             input_vocabulary_size=len(input_vocab),
             output_vocabulary_size=len(output_vocab),
             bos_index=input_vocab.bos_index if uses_bos else None,
@@ -137,6 +141,7 @@ class LanguageModelingModelInterface(ModelInterface):
         stack_transformer_layers,
         stack_rnn_controller,
         stack_rnn_stack,
+        stack_rnn_connect_reading_to_output,
         input_vocabulary_size,
         output_vocabulary_size,
         bos_index,
@@ -241,6 +246,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     stack=stack_rnn_stack,
                     dropout=dropout,
                     learned_initial_state=True,
+                    include_reading_in_output=stack_rnn_connect_reading_to_output,
                     use_padding=False,
                     tag=(
                         'nondeterministic'
