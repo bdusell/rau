@@ -59,9 +59,9 @@ class StratificationStack(DifferentiableStack):
 
     def transform_tensors(self, func):
         return StratificationStack(
-            func(self.elements),
+            [tuple(map(func, x)) for x in self.elements],
             func(self.bottom)
         )
 
     def batch_size(self):
-        return self.elements.size(0)
+        return self.bottom.size(0)
