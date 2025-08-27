@@ -5,7 +5,6 @@ import torch
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tasks.common.training_loop import (
     add_training_loop_arguments as common_add_training_loop_arguments,
-    get_training_loop_kwargs,
     TrainingLoop
 )
 from rau.tasks.language_modeling.training_loop import (

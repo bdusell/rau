@@ -132,12 +132,11 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     ) -> dict[str, tuple[float, float]]:
         raise NotImplementedError
 
-    @classmethod
-    def get_state(cls,
+    @staticmethod
+    def check_args(
         parser: argparse.ArgumentParser,
         args: argparse.Namespace,
-        model: torch.nn.Module
-    ) -> 'TrainingLoopState':
+    ) -> None:
         if args.continue_:
             raise NotImplementedError
         else:
@@ -152,6 +151,16 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             ]:
                 if getattr(args, name) is None:
                     parser.error(f'--{name.replace("_", "-")} is required')
+
+    @classmethod
+    def get_state(cls,
+        parser: argparse.ArgumentParser,
+        args: argparse.Namespace,
+        model: torch.nn.Module
+    ) -> 'TrainingLoopState':
+        if args.continue_:
+            raise NotImplementedError
+        else:
             kwargs = {}
             for name in [
                 'max_epochs',

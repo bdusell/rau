@@ -13,7 +13,6 @@ from rau.tasks.sequence_to_sequence.data import (
 from rau.tasks.sequence_to_sequence.model import SequenceToSequenceModelInterface
 from rau.tasks.sequence_to_sequence.training_loop import (
     add_training_loop_arguments,
-    get_training_loop_kwargs,
     SequenceToSequenceTrainingLoop
 )
 
@@ -38,16 +37,12 @@ class SequenceToSequenceTrainCommand(Command):
         model_interface = self.model_interface
         console_logger.info(f'arguments: {sys.argv}')
         console_logger.info(f'parsed arguments: {args}')
+        SequenceToSequenceTrainingLoop.check_args(parser, args)
 
         # Are we training on CPU or GPU?
         device = model_interface.get_device(args)
         console_logger.info(f'device: {device}')
         do_profile_memory = device.type == 'cuda'
-
-        # Configure the training loop.
-        training_loop = SequenceToSequenceTrainingLoop(
-            **get_training_loop_kwargs(parser, args)
-        )
 
         # Load the tokens in the vocabulary. This determines the sizes of the
         # embedding and softmax layers in the model.
@@ -69,6 +64,16 @@ class SequenceToSequenceTrainCommand(Command):
         else:
             model_size_in_bytes = None
 
+        # Configure the training loop.
+        # This will either initialize a new training loop from scratch using the
+        # options passed from the command line or load a saved training loop
+        # state.
+        training_loop_state = SequenceToSequenceTrainingLoop.get_state(
+            parser,
+            args,
+            saver.model
+        )
+
         # Load the data.
         training_data, validation_data, vocabulary = \
             load_prepared_data(args, parser, vocabulary_data, model_interface)
@@ -81,14 +86,15 @@ class SequenceToSequenceTrainCommand(Command):
                 num_parameters=num_parameters
             ))
             # Run the training loop.
-            training_loop.run(
+            training_loop_state.run(
                 saver,
                 model_interface,
                 training_data,
                 validation_data,
                 vocabulary,
                 console_logger,
-                event_logger
+                event_logger,
+                not args.no_progress
             )
 
 if __name__ == '__main__':
