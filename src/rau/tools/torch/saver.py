@@ -1,8 +1,8 @@
-import base64
 import contextlib
+import dataclasses
 import json
 import os
-import pickle
+from typing import Any
 
 import torch
 
@@ -47,9 +47,15 @@ def save_kwargs(directory_name, kwargs):
     with open(kwargs_path, 'w') as fout:
         write_json(fout, kwargs)
 
-def read_saver(model_constructor, directory_name,
-        parameter_file=DEFAULT_PARAMETER_FILE, device=None):
+def read_saver(
+    model_constructor,
+    directory_name,
+    parameter_file=DEFAULT_PARAMETER_FILE,
+    device=None
+):
     kwargs = read_kwargs(directory_name)
+    # TODO Skip default parameter initialization.
+    # TODO Initialize tensors on the final device.
     model = model_constructor(**kwargs)
     created_param_dir = False
     if parameter_file is not None:
@@ -75,21 +81,19 @@ def read_saver(model_constructor, directory_name,
         read_directory_name=directory_name
     )
 
+@dataclasses.dataclass
 class ModelSaver:
 
-    def __init__(self, model, kwargs, directory_name, created_output_dir,
-            saved_kwargs, created_param_dir, created_metadata_dir,
-            created_logs_dir, metadata_cache, read_directory_name):
-        self.model = model
-        self.kwargs = kwargs
-        self.directory_name = directory_name
-        self.created_output_dir = created_output_dir
-        self.saved_kwargs = saved_kwargs
-        self.created_param_dir = created_param_dir
-        self.created_metadata_dir = created_metadata_dir
-        self.created_logs_dir = created_logs_dir
-        self.metadata_cache = metadata_cache
-        self.read_directory_name = read_directory_name
+    model: torch.nn.Module
+    kwargs: dict[str, Any]
+    directory_name: str
+    created_output_dir: bool
+    saved_kwargs: bool
+    created_param_dir: bool
+    created_metadata_dir: bool
+    created_logs_dir: bool
+    metadata_cache: dict[str, Any]
+    read_directory_name: str
 
     def save(self, file_name=DEFAULT_PARAMETER_FILE):
         self.ensure_output_dir_created()
@@ -219,37 +223,8 @@ def read_logs(directory_name, name=DEFAULT_LOG_FILE):
     with open(file_name) as fin:
         yield read_log_file(fin)
 
-class DirectoryExists(Exception):
+class DirectoryExists(RuntimeError):
     pass
-
-def _serialize_pytorch_object(obj):
-    class_name = type(obj).__name__
-    state_dict = obj.state_dict()
-    pickled_state_dict = pickle.dumps(state_dict)
-    str_state_dict = base64.b64encode(pickled_state_dict).decode('ascii')
-    return { 'class_name' : class_name, 'state_dict' : str_state_dict }
-
-def _deserialize_pytorch_object(namespace, data, *args, **kwargs):
-    Class = getattr(namespace, data['class_name'])
-    obj = Class(*args, **kwargs)
-    str_state_dict = data['state_dict']
-    pickled_state_dict = base64.b64decode(str_state_dict.encode('ascii'))
-    state_dict = pickle.loads(pickled_state_dict)
-    obj.load_state_dict(state_dict)
-    return obj
-
-def serialize_optimizer(optimizer):
-    return _serialize_pytorch_object(optimizer)
-
-def deserialize_optimizer(data, parameters):
-    return _deserialize_pytorch_object(torch.optim, data, parameters, lr=1.0)
-
-def serialize_lr_scheduler(scheduler):
-    return _serialize_pytorch_object(scheduler)
-
-def deserialize_lr_scheduler(data, *args, **kwargs):
-    return _deserialize_pytorch_object(
-        torch.optim.lr_scheduler, data, *args, **kwargs)
 
 class NullModelSaver:
 
