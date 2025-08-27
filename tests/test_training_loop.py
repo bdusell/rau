@@ -137,23 +137,3 @@ def test_new_loop_matches_old(tmp_path):
     for name, reference_param in reference_params.items():
         param = params[name]
         torch.testing.assert_close(param, reference_param, msg=lambda msg: f'mismatch in parameter {name}: {msg}')
-
-def test_load_loop_that_was_canceled_before_first_checkpoint(tmp_path):
-    with pytest.raises(SimulatedTrainingLoopError):
-        with saver.logger() as event_logger:
-            training_loop_state.run(
-                saver=saver,
-                model_interface=model_interface,
-                training_data=training_data,
-                validation_data=validation_data,
-                vocabulary=vocabulary,
-                console_logger=console_logger,
-                event_logger=event_logger,
-                show_progress=not args.no_progress,
-                fail_after_examples=200
-            )
-    model = read_saver(
-        model_interface.construct_model,
-        model_path
-    ).model
-    assert False

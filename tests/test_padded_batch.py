@@ -8,7 +8,6 @@ from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.training_loop import (
     LanguageModelingTrainingLoop,
     add_training_loop_arguments,
-    get_training_loop_kwargs,
 )
 
 def test_single_matches_batched():
@@ -43,12 +42,12 @@ def test_single_matches_batched():
     args = parser.parse_args(argv)
 
     device = model_interface.get_device(args)
-    training_loop = LanguageModelingTrainingLoop(**get_training_loop_kwargs(parser, args))
     vocabulary_data = VocabularyData(
         tokens=['0', '1'],
         allow_unk=False
     )
     saver = model_interface.construct_saver(args, vocabulary_data)
+    training_loop = LanguageModelingTrainingLoop.get_state(parser, args, saver.model).training_loop
 
     generator = random.Random(123)
     lengths = [0, 1, 3, 7, 10, 13, 23]
