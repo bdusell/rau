@@ -9,7 +9,6 @@ from .data import load_prepared_data_file
 from .model import pad_sequences
 from .training_loop import (
     add_training_loop_arguments,
-    get_training_loop_kwargs,
     TrainingLoop,
     get_random_generator_and_seed,
     get_random_seed,

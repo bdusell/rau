@@ -3,12 +3,13 @@ from typing import Any
 import torch
 
 from rau.tools.torch.model_interface import ModelInterface
-from rau.tasks.common.training_loop import (
+from old_training_loop.training_loop import (
     add_training_loop_arguments as common_add_training_loop_arguments,
+    get_training_loop_kwargs,
     TrainingLoop
 )
-from .batching import group_into_batches
-from .data import VocabularyContainer
+from rau.tasks.language_modeling.batching import group_into_batches
+from rau.tasks.language_modeling.data import VocabularyContainer
 
 def add_training_loop_arguments(parser):
     common_add_training_loop_arguments(parser,

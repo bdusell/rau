@@ -30,16 +30,15 @@ def add_training_loop_arguments(
     group = parser.add_argument_group('Training options')
     group.add_argument('--no-progress', action='store_true', default=False,
         help='Do not print progress messages during training.')
-    group.add_argument('--continue', dest='continue_', action='store_true', default=False)
-    group.add_argument('--max-epochs', type=int,
+    group.add_argument('--max-epochs', type=int, required=True,
         help='The maximum number of epochs to run training for.')
     group.add_argument('--random-shuffling-seed', type=int,
         help='Random seed used for random shuffling of the training data.')
-    group.add_argument('--max-tokens-per-batch', type=int,
+    group.add_argument('--max-tokens-per-batch', type=int, required=True,
         help=max_tokens_per_batch_help)
     group.add_argument('--optimizer', choices=['SGD', 'Adam'], default='Adam',
         help='The algorithm to use for parameter optimization.')
-    group.add_argument('--initial-learning-rate', type=float,
+    group.add_argument('--initial-learning-rate', type=float, required=True,
         help='The initial learning rate.')
     group.add_argument('--label-smoothing-factor', type=float, default=0.0,
         help='The label smoothing factor to use with the cross-entropy '
@@ -47,28 +46,48 @@ def add_training_loop_arguments(
     group.add_argument('--gradient-clipping-threshold', type=float,
         help='The threshold to use for L2 gradient clipping. If not given, '
              'gradients are never clipped.')
-    group.add_argument('--early-stopping-patience', type=int,
+    group.add_argument('--early-stopping-patience', type=int, required=True,
         help='The allowed number of epochs of no improvement in performance '
              'on the validation data before training stops early. The minimum '
              'value is 1 (immediate).')
-    group.add_argument('--learning-rate-patience', type=int,
+    group.add_argument('--learning-rate-patience', type=int, required=True,
         help='The allowed number of epochs of no improvement in performance '
              'on the validation data before the learning rate is reduced. The '
              'minimum value is 1 (immediate).')
-    group.add_argument('--learning-rate-decay-factor', type=float,
+    group.add_argument('--learning-rate-decay-factor', type=float, required=True,
         help='A value between 0 and 1 that the learning rate will be '
              'multiplied by whenever it should be decreased.')
-    group.add_argument('--examples-per-checkpoint', type=int,
+    group.add_argument('--examples-per-checkpoint', type=int, required=True,
         help='An evaluation checkpoint will be run on the validation data '
              'every time this many training examples have been processed.')
     return group
 
-class SimulatedTrainingLoopError(RuntimeError):
-    pass
+def get_training_loop_kwargs(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace
+) -> dict[str, object]:
+    result = {}
+    result['show_progress'] = not args.no_progress
+    for name in [
+        'max_epochs',
+        'random_shuffling_seed',
+        'max_tokens_per_batch',
+        'optimizer',
+        'initial_learning_rate',
+        'label_smoothing_factor',
+        'gradient_clipping_threshold',
+        'early_stopping_patience',
+        'learning_rate_patience',
+        'learning_rate_decay_factor',
+        'examples_per_checkpoint'
+    ]:
+        result[name] = getattr(args, name)
+    return result
 
 @dataclasses.dataclass
 class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
 
+    show_progress: bool
     max_epochs: int
     random_shuffling_seed: int
     max_tokens_per_batch: int
@@ -132,66 +151,36 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     ) -> dict[str, tuple[float, float]]:
         raise NotImplementedError
 
-    @classmethod
-    def get_state(cls,
-        parser: argparse.ArgumentParser,
-        args: argparse.Namespace,
-        model: torch.nn.Module
-    ) -> 'TrainingLoopState':
-        if args.continue_:
-            raise NotImplementedError
-        else:
-            for name in [
-                'max_epochs',
-                'max_tokens_per_batch',
-                'initial_learning_rate',
-                'early_stopping_patience',
-                'learning_rate_patience',
-                'learning_rate_decay_factor',
-                'examples_per_checkpoint'
-            ]:
-                if getattr(args, name) is None:
-                    parser.error(f'--{name.replace("_", "-")} is required')
-            kwargs = {}
-            for name in [
-                'max_epochs',
-                'random_shuffling_seed',
-                'max_tokens_per_batch',
-                'optimizer',
-                'initial_learning_rate',
-                'label_smoothing_factor',
-                'gradient_clipping_threshold',
-                'early_stopping_patience',
-                'learning_rate_patience',
-                'learning_rate_decay_factor',
-                'examples_per_checkpoint'
-            ]:
-                kwargs[name] = getattr(args, name)
-            return cls(**kwargs).initial_state(model)
-
-    def initial_state(self, model: torch.nn.Module) -> 'TrainingLoopState':
-        # Initialize the RNG for random shuffling.
-        random_shuffling_generator, self.random_shuffling_seed = \
+    def run(self,
+        saver: ModelSaver,
+        model_interface: ModelInterface,
+        training_data: list[Example],
+        validation_data: list[Example],
+        vocabulary: VocabularyContainer,
+        console_logger: logging.Logger,
+        event_logger: Logger
+    ) -> None:
+        """
+        NOTE: When this function returns, the model's parameters will be those of
+        the *last* epoch, not necessarily the *best* epoch. However, the saved
+        model will be the best one.
+        """
+        device = model_interface.get_device(None)
+        do_profile_memory = device.type == 'cuda'
+        random_shuffling_generator, random_shuffling_seed = \
             get_random_generator_and_seed(self.random_shuffling_seed)
-        # Initialize the optimizer.
-        match self.optimizer:
-            case 'SGD':
-                OptimizerClass = torch.optim.SGD
-            case 'Adam':
-                OptimizerClass = torch.optim.Adam
-            case _:
-                raise ValueError(f'unknown optimizer: {self.optimizer}')
+        console_logger.info(f'random shuffling seed: {random_shuffling_seed}')
+        OptimizerClass = getattr(torch.optim, self.optimizer)
         optimizer = OptimizerClass(
-            model.parameters(),
+            saver.model.parameters(),
             lr=self.initial_learning_rate
         )
-        # Configure early stopping.
+        validation_metric = self.get_validation_metric_name()
         validation_metric_mode = self.get_validation_metric_mode()
         early_stopping = UpdatesWithoutImprovement(
             validation_metric_mode,
             patience=self.early_stopping_patience
         )
-        # Initialize the learning rate schedule.
         if self.learning_rate_patience < 1:
             raise ValueError('learning rate patience must be at least 1')
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -205,43 +194,6 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             factor=self.learning_rate_decay_factor,
             threshold=0.0
         )
-        return TrainingLoopState(
-            training_loop=self,
-            epoch_no=0,
-            batch_no=0,
-            random_shuffling_generator=random_shuffling_generator,
-            optimizer=optimizer,
-            early_stopping=early_stopping,
-            lr_scheduler=lr_scheduler,
-            examples_since_checkpoint=0,
-            checkpoint_no=0,
-            best_validation_scores=None,
-            best_checkpoint_no=None,
-            best_epoch_no=None,
-            duration=datetime.timedelta(),
-            torch_rng_state=None
-        )
-
-    def run(self,
-        state: 'TrainingLoopState',
-        saver: ModelSaver,
-        model_interface: ModelInterface,
-        training_data: list[Example],
-        validation_data: list[Example],
-        vocabulary: VocabularyContainer,
-        console_logger: logging.Logger,
-        event_logger: Logger,
-        show_progress: bool,
-        fail_after_examples: int | None = None
-    ) -> None:
-        r"""NOTE: When this function returns, the model's parameters will be
-        those of the *last* epoch, not necessarily the *best* epoch. However,
-        the saved model will be the best one.
-        """
-        device = model_interface.get_device(None)
-        do_profile_memory = device.type == 'cuda'
-        console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
-        validation_metric = self.get_validation_metric_name()
         console_logger.info(f'training examples: {len(training_data)}')
         num_validation_examples = len(validation_data)
         console_logger.info(f'validation examples: {num_validation_examples}')
@@ -255,49 +207,39 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             [training_data, validation_data]
         )
         del validation_data
-        if state.is_initial_state:
-            # TODO Save training loop info to file
-            event_logger.log('start_training', dict(
-                num_training_examples=len(training_data),
-                num_validation_examples=num_validation_examples,
-                num_validation_batches=len(validation_batches),
-                max_epochs=self.max_epochs,
-                random_shuffling_seed=self.random_shuffling_seed,
-                optimizer=self.optimizer,
-                initial_learning_rate=self.initial_learning_rate,
-                label_smoothing_factor=self.label_smoothing_factor,
-                early_stopping_patience=self.early_stopping_patience,
-                learning_rate_patience=self.learning_rate_patience,
-                learning_rate_decay_factor=self.learning_rate_decay_factor,
-                gradient_clipping_threshold=self.gradient_clipping_threshold,
-                examples_per_checkpoint=self.examples_per_checkpoint
-            ))
-        else:
-            event_logger.log('continue_training')
-        if fail_after_examples is not None:
-            examples_seen = 0
-        initial_duration = state.duration
+        event_logger.log('start_training', dict(
+            num_training_examples=len(training_data),
+            num_validation_examples=num_validation_examples,
+            num_validation_batches=len(validation_batches),
+            max_epochs=self.max_epochs,
+            random_shuffling_seed=random_shuffling_seed,
+            optimizer=self.optimizer,
+            initial_learning_rate=self.initial_learning_rate,
+            label_smoothing_factor=self.label_smoothing_factor,
+            early_stopping_patience=self.early_stopping_patience,
+            learning_rate_patience=self.learning_rate_patience,
+            learning_rate_decay_factor=self.learning_rate_decay_factor,
+            gradient_clipping_threshold=self.gradient_clipping_threshold,
+            examples_per_checkpoint=self.examples_per_checkpoint
+        ))
+        epoch_no = 0
+        examples_since_checkpoint = 0
+        checkpoint_no = 0
+        best_validation_scores = None
+        best_checkpoint_no = None
+        best_epoch_no = None
         total_start_time = datetime.datetime.now()
-        while state.epoch_no < self.max_epochs:
+        for _ in range(self.max_epochs):
             epoch_start_time = datetime.datetime.now()
-            console_logger.info(f'epoch #{state.epoch_no + 1}')
-            # Randomly shuffle the training data and group it into batches.
-            # Perform the random shuffling out-of-place so that the input to
-            # shuffle is always the original ordering. This allows us to ensure
-            # that the shuffle order is always the same if restored from a saved
-            # training loop state.
-            training_data_copy = training_data.copy()
-            state.random_shuffling_generator.shuffle(training_data_copy)
+            console_logger.info(f'epoch #{epoch_no + 1}')
+            random_shuffling_generator.shuffle(training_data)
             batches = list(self.generate_batches(
-                training_data_copy,
+                training_data,
                 self.max_tokens_per_batch
             ))
-            del training_data_copy
-            state.random_shuffling_generator.shuffle(batches)
-            # Initialize some things for tracking loss, memory, and early
-            # stopping.
+            random_shuffling_generator.shuffle(batches)
             epoch_loss = DictScoreAccumulator()
-            if show_progress:
+            if self.show_progress:
                 progress_loss = DictScoreAccumulator()
                 progress_num_examples = 0
                 progress_start_time = datetime.datetime.now()
@@ -305,21 +247,17 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             if do_profile_memory:
                 reset_memory_profiler(device)
             should_stop = False
-            # If we restored a saved training loop state in the middle of an
-            # epoch, then this will start from the last batch it was on.
-            num_batches = len(batches)
-            while state.batch_no < num_batches:
-                batch = batches[state.batch_no]
+            for batch_no, batch in enumerate(batches):
                 try:
                     loss_numerator, loss_denominator, loss_terms = self.run_parameter_update(
                         saver,
                         model_interface,
-                        state.optimizer,
+                        optimizer,
                         batch
                     )
                     loss_terms['loss'] = (loss_numerator, loss_denominator)
                     epoch_loss.update(loss_terms)
-                    if show_progress:
+                    if self.show_progress:
                         progress_loss.update(loss_terms)
                 except OutOfCUDAMemoryError as e:
                     self.handle_out_of_cuda_memory(
@@ -331,11 +269,10 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         event_logger
                     )
                     raise
-                state.batch_no += 1
                 batch_size = len(batch)
-                if show_progress:
+                if self.show_progress:
                     progress_num_examples += batch_size
-                    ticker.progress = state.batch_no
+                    ticker.progress = batch_no + 1
                     if ticker.tick():
                         progress_loss_dict = progress_loss.get_value()
                         progress_loss = progress_loss_dict.pop('loss')
@@ -352,15 +289,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         progress_loss = DictScoreAccumulator()
                         progress_start_time = datetime.datetime.now()
                         progress_num_examples = 0
-                # Trigger a simulated error if requested.
-                if fail_after_examples is not None:
-                    examples_seen += batch_size
-                    if examples_seen >= fail_after_examples:
-                        raise SimulatedTrainingLoopError
-                # If we have processed enough examples, take a checkpoint.
-                state.examples_since_checkpoint += batch_size
-                if state.examples_since_checkpoint >= self.examples_per_checkpoint:
-                    console_logger.info(f'  checkpoint #{state.checkpoint_no + 1}')
+                examples_since_checkpoint += batch_size
+                if examples_since_checkpoint >= self.examples_per_checkpoint:
+                    console_logger.info(f'  checkpoint #{checkpoint_no + 1}')
                     validation_scores = self.evaluate(
                         saver.model,
                         model_interface,
@@ -371,37 +302,30 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         console_logger.info(f'      {key}: {value:.2f}')
                     validation_score = validation_scores[validation_metric]
                     # Update the learning rate.
-                    state.lr_scheduler.step(validation_score)
+                    lr_scheduler.step(validation_score)
                     # Show the current learning rate.
-                    curr_learning_rate = state.lr_scheduler.get_last_lr()[0]
+                    curr_learning_rate = lr_scheduler.get_last_lr()[0]
                     console_logger.info(f'    learning rate: {curr_learning_rate}')
                     # Decide whether to save the model parameters and whether to
                     # stop early.
-                    is_best, should_stop = state.early_stopping.update(validation_score)
+                    is_best, should_stop = early_stopping.update(validation_score)
                     if is_best:
-                        state.duration = initial_duration + (datetime.datetime.now() - total_start_time)
                         console_logger.info('    saving parameters')
                         saver.save()
-                        state.best_validation_scores = validation_scores
-                        state.best_checkpoint_no = state.checkpoint_no
-                        state.best_epoch_no = state.epoch_no
-                    # Reset the count of examples seen since the last checkpoint.
-                    # If `state.examples_since_checkpoint` is not exactly equal
-                    # to `self.examples_per_checkpoint` after `batch_size` is
-                    # added to it, but is greater than it, include the extra
-                    # examples in the updated count.
-                    state.examples_since_checkpoint %= self.examples_per_checkpoint
-                    state.checkpoint_no += 1
-                    # If the device is cpu, save the state of the PyTorch RNG.
-                    # This allows us to make dropout consistent.
-                    if device.type == 'cpu':
-                        state.torch_rng_state = torch.get_rng_state()
-                    # TODO Save the checkpoint
-                    # TODO Make saving checkpoints optional
+                        best_validation_scores = validation_scores
+                        best_checkpoint_no = checkpoint_no
+                        best_epoch_no = epoch_no
                     event_logger.log('checkpoint', dict(
                         is_best=is_best,
                         scores=validation_scores
                     ))
+                    # Reset the count of examples seen since the last checkpoint.
+                    # If `examples_since_checkpoint` is not exactly equal to
+                    # `self.examples_per_checkpoint` after `batch_size` is
+                    # added to it, but is greater than it, include the extra
+                    # examples in the updated count.
+                    examples_since_checkpoint %= self.examples_per_checkpoint
+                    checkpoint_no += 1
                     if should_stop:
                         console_logger.info('  stopping early')
                         break
@@ -409,7 +333,6 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 break
             epoch_loss_dict = epoch_loss.get_value()
             epoch_loss = epoch_loss_dict.pop('loss')
-            # TODO Correct the epoch duration when loaded from a saved state
             epoch_duration = datetime.datetime.now() - epoch_start_time
             epoch_duration_seconds = epoch_duration.total_seconds()
             console_logger.info(f'  epoch loss: {epoch_loss:.2f}')
@@ -432,34 +355,31 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 peak_memory=peak_memory,
                 num_training_batches=len(batches)
             ))
-            state.epoch_no += 1
-            state.batch_no = 0
-        state.duration = initial_duration + (datetime.datetime.now() - total_start_time)
-        # TODO Check for this ahead of time. Stop early to avoid unneccessary
-        # iterations after the last checkpoint given the max number of epochs.
-        if state.best_validation_scores is None:
+            epoch_no += 1
+        total_duration = datetime.datetime.now() - total_start_time
+        # TODO Check for this ahead of time.
+        if best_validation_scores is None:
             raise ValueError(
                 'the maximum number of epochs has been reached, but no '
                 'checkpoints have been made'
             )
-        # TODO Clean up the saved checkpoint
         console_logger.info(f'best validation scores:')
-        for key, value in state.best_validation_scores.items():
+        for key, value in best_validation_scores.items():
             console_logger.info(f'  {key}: {value:.2f}')
-        console_logger.info(f'completed epochs: {state.epoch_no}')
-        console_logger.info(f'best epoch: #{state.best_epoch_no+1}')
-        console_logger.info(f'completed checkpoints: {state.checkpoint_no}')
-        console_logger.info(f'best checkpoint: #{state.best_checkpoint_no+1}')
-        console_logger.info(f'checkpoints since improvement: {state.early_stopping.updates_since_improvement}')
-        console_logger.info(f'total training duration: {state.duration}')
+        console_logger.info(f'completed epochs: {epoch_no}')
+        console_logger.info(f'best epoch: #{best_epoch_no+1}')
+        console_logger.info(f'completed checkpoints: {checkpoint_no}')
+        console_logger.info(f'best checkpoint: #{best_checkpoint_no+1}')
+        console_logger.info(f'checkpoints since improvement: {early_stopping.updates_since_improvement}')
+        console_logger.info(f'total training duration: {total_duration}')
         event_logger.log('train', dict(
-            best_validation_scores=state.best_validation_scores,
-            num_epochs=state.epoch_no,
-            best_epoch=state.best_epoch_no,
-            num_checkpoints=state.checkpoint_no,
-            best_checkpoint=state.best_checkpoint_no,
-            checkpoints_since_improvement=state.early_stopping.updates_since_improvement,
-            duration=state.duration.total_seconds()
+            best_validation_scores=best_validation_scores,
+            num_epochs=epoch_no,
+            best_epoch=best_epoch_no,
+            num_checkpoints=checkpoint_no,
+            best_checkpoint=best_checkpoint_no,
+            checkpoints_since_improvement=early_stopping.updates_since_improvement,
+            duration=total_duration.total_seconds()
         ))
 
     def handle_out_of_cuda_memory(self,
@@ -560,7 +480,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         loss_term_numerators, loss_term_denominator = value
                         coefficient = None
                     # Sum up all of the numerators. We will divide all of the
-                    # numerators by the number of examples in the batch at the
+                    # numereators by the number of examples in the batch at the
                     # end to get the average. Not all loss terms necessarily
                     # have a value for every example.
                     loss_term_sum = torch.sum(loss_term_numerators)
@@ -615,52 +535,6 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             batches,
             self.evaluate_batch
         )
-
-@dataclasses.dataclass
-class TrainingLoopState:
-
-    training_loop: TrainingLoop
-    epoch_no: int
-    batch_no: int
-    random_shuffling_generator: random.Random
-    optimizer: torch.optim.SGD | torch.optim.Adam
-    early_stopping: UpdatesWithoutImprovement
-    lr_scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
-    examples_since_checkpoint: int
-    checkpoint_no: int
-    best_validation_scores: dict[str, float] | None
-    best_checkpoint_no: int | None
-    best_epoch_no: int | None
-    duration: datetime.timedelta
-    torch_rng_state: torch.Tensor | None
-
-    def run(self,
-        saver: ModelSaver,
-        model_interface: ModelInterface,
-        training_data: list[Example],
-        validation_data: list[Example],
-        vocabulary: VocabularyContainer,
-        console_logger: logging.Logger,
-        event_logger: Logger,
-        show_progress: bool,
-        fail_after_examples: int | None = None
-    ) -> None:
-        return self.training_loop.run(
-            state=self,
-            saver=saver,
-            model_interface=model_interface,
-            training_data=training_data,
-            validation_data=validation_data,
-            vocabulary=vocabulary,
-            console_logger=console_logger,
-            event_logger=event_logger,
-            show_progress=show_progress,
-            fail_after_examples=fail_after_examples
-        )
-
-    @property
-    def is_initial_state(self) -> bool:
-        return self.best_checkpoint_no is None
 
 def get_random_generator_and_seed(random_seed):
     random_seed = get_random_seed(random_seed)

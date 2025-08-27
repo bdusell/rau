@@ -45,9 +45,10 @@ class LanguageModelingTrainCommand(Command):
         do_profile_memory = device.type == 'cuda'
 
         # Configure the training loop.
-        training_loop = LanguageModelingTrainingLoop(
-            **get_training_loop_kwargs(parser, args)
-        )
+        # This will either initialize a new training loop from scratch using the
+        # options passed from the command line or load a saved training loop
+        # state.
+        training_loop_state = LanguageModelingTrainingLoop.get_state(parser, args)
 
         # Load the tokens in the vocabulary. This determines the sizes of the
         # embedding and softmax layers in the model.
@@ -81,7 +82,7 @@ class LanguageModelingTrainCommand(Command):
                 num_parameters=num_parameters
             ))
             # Run the training loop.
-            training_loop.run(
+            training_loop_state.run(
                 saver,
                 model_interface,
                 training_data,
