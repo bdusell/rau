@@ -87,10 +87,7 @@ class ModelInterface:
                 kwargs = self.get_kwargs(args, *_args, **_kwargs)
             except ValueError as e:
                 self.fail_argument_check(e)
-            if self.use_output:
-                output = args.output
-            else:
-                output = None
+            output = args.output if self.use_output else None
             # TODO Skip default parameter initialization.
             # See https://pytorch.org/tutorials/prototype/skip_param_init.html
             # TODO Allocate parameters directly on the device using a context manager.
@@ -110,7 +107,11 @@ class ModelInterface:
             if args.load_model is None:
                 self.fail_argument_check('Argument --load-model is missing.')
             saver = read_saver(
-                self.construct_model, args.load_model, args.load_parameters, device)
+                self.construct_model,
+                args.load_model,
+                args.load_parameters,
+                device
+            )
             if self.use_output:
                 saver = saver.to_directory(args.output)
                 saver.check_output()
