@@ -6,7 +6,7 @@ def pad_sequences(
     pad: int,
     bos: int | None = None,
     eos: int | None = None,
-    return_lengths: bool=False
+    return_lengths: bool = False
 ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
     batch_size = len(sequences)
     max_length = max(map(len, sequences))
