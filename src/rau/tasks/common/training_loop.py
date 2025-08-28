@@ -142,7 +142,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         args: argparse.Namespace,
     ) -> None:
         if args.continue_:
-            raise NotImplementedError
+            pass
         else:
             for name in [
                 'max_epochs',
