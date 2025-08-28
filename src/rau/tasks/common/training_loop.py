@@ -230,7 +230,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             training_loop=self,
             epoch_no=0,
             batch_no=0,
-            random_shuffling_generator=random_shuffling_generator,
+            random_shuffling_state=random_shuffling_generator.getstate(),
             optimizer=optimizer,
             early_stopping=early_stopping,
             lr_scheduler=lr_scheduler,
@@ -261,11 +261,14 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         those of the *last* epoch, not necessarily the *best* epoch. However,
         the saved model will be the best one.
         """
+        if state.is_initial_state:
+            console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
+        else:
+            console_logger.info(f'continuing training')
+        console_logger.info(f'training examples: {len(training_data)}')
         device = model_interface.get_device(None)
         do_profile_memory = device.type == 'cuda'
-        console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
         validation_metric = self.get_validation_metric_name()
-        console_logger.info(f'training examples: {len(training_data)}')
         num_validation_examples = len(validation_data)
         console_logger.info(f'validation examples: {num_validation_examples}')
         validation_batches = list(self.generate_batches(
@@ -298,6 +301,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             event_logger.log('continue_training')
         if fail_after_examples is not None:
             examples_seen = 0
+        random_shuffling_generator = random.Random()
+        random_shuffling_generator.setstate(state.random_shuffling_state)
         initial_duration = state.duration
         total_start_time = datetime.datetime.now()
         while state.epoch_no < self.max_epochs:
@@ -309,14 +314,17 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             # shuffle is always the original ordering. This allows us to ensure
             # that the shuffle order is always the same if restored from a saved
             # training loop state.
+            # Make sure that we save the RNG state at this point so it can be
+            # restored later.
+            state.random_shuffling_state = random_shuffling_generator.getstate()
             training_data_copy = training_data.copy()
-            state.random_shuffling_generator.shuffle(training_data_copy)
+            random_shuffling_generator.shuffle(training_data_copy)
             batches = list(self.generate_batches(
                 training_data_copy,
                 self.max_tokens_per_batch
             ))
             del training_data_copy
-            state.random_shuffling_generator.shuffle(batches)
+            random_shuffling_generator.shuffle(batches)
             # Initialize some things for tracking loss, memory, and early
             # stopping.
             if show_progress:
@@ -674,7 +682,7 @@ class TrainingLoopState:
     training_loop: TrainingLoop
     epoch_no: int
     batch_no: int
-    random_shuffling_generator: random.Random
+    random_shuffling_state: object
     optimizer: torch.optim.SGD | torch.optim.Adam
     early_stopping: UpdatesWithoutImprovement
     lr_scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
@@ -754,7 +762,7 @@ class TrainingLoopState:
 _NORMAL_TRAINING_LOOP_FIELDS = [
     'epoch_no',
     'batch_no',
-    'random_shuffling_generator',
+    'random_shuffling_state',
     'early_stopping',
     'examples_since_checkpoint',
     'checkpoint_no',
