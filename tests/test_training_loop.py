@@ -182,7 +182,8 @@ def test_new_loop_matches_old(tmp_path):
         )
     assert_models_are_equal(info.saver.model, reference_saver.model)
 
-def test_cancel_and_continue(tmp_path):
+@pytest.mark.parametrize('fail_after_examples', [2200, 2700, 200, 0])
+def test_cancel_and_continue(tmp_path, fail_after_examples):
     console_logger = get_logger()
     training_data, validation_data, vocabulary_data = get_datasets()
     common_argv = [
@@ -239,7 +240,7 @@ def test_cancel_and_continue(tmp_path):
                 console_logger,
                 event_logger,
                 info.show_progress,
-                fail_after_examples=2200
+                fail_after_examples=fail_after_examples
             )
     info = parse_argv(
         [
