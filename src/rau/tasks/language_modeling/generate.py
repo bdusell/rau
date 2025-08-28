@@ -14,12 +14,7 @@ class LanguageModelingGenerateCommand(Command):
 
     def __init__(self):
         super().__init__()
-        self.model_interface = LanguageModelingModelInterface(
-            use_load=True,
-            use_init=False,
-            use_output=False,
-            require_output=False
-        )
+        self.model_interface = LanguageModelingModelInterface(use_load=True)
 
     DESCRIPTION = (
         'Generate sequences of tokens from a language model.'

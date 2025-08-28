@@ -1,27 +1,23 @@
+import pathlib
 import random
 
 import torch
 
-from .saver import (
-    DEFAULT_PARAMETER_FILE,
-    construct_saver,
-    read_saver
-)
+from .saver import ModelSaver
 from .init import smart_init
 
 class ModelInterface:
 
     def __init__(self,
-        use_load=True,
-        use_init=True,
-        use_output=True,
-        require_output=True
-    ):
+        use_load: bool = False,
+        use_init: bool = False,
+        use_continue: bool = False
+    ) -> None:
         super().__init__()
         self.use_load = use_load
         self.use_init = use_init
-        self.use_output = use_output
-        self.require_output = require_output
+        self.use_continue = use_continue
+        self.use_output = use_init or use_continue
         self.parser = None
         self.device = None
         self.parameter_seed = None
@@ -29,7 +25,7 @@ class ModelInterface:
     def add_arguments(self, parser):
         self.add_device_arguments(parser)
         if self.use_output:
-            parser.add_argument('--output', required=self.require_output,
+            parser.add_argument('--output', type=pathlib.Path, required=True,
                 help='Output directory where logs and model parameters will '
                      'be saved.')
         if self.use_load:
@@ -46,13 +42,9 @@ class ModelInterface:
                  'use cuda if available, otherwise cpu.')
 
     def add_load_arguments(self, group):
-        group.add_argument('--load-model',
+        group.add_argument('--load-model', type=pathlib.Path,
             help='Load a pre-existing model. The argument should be a '
                  'directory containing a model.')
-        group.add_argument('--load-parameters',
-            default=DEFAULT_PARAMETER_FILE,
-            help='If --load-model is given, the name of the parameter file to '
-                 'load (default is "{}").'.format(DEFAULT_PARAMETER_FILE))
 
     def add_init_arguments(self, group):
         group.add_argument('--parameter-seed',
@@ -82,20 +74,28 @@ class ModelInterface:
 
     def construct_saver(self, args, *_args, **_kwargs):
         device = self.get_device(args)
-        if self.use_init and (not self.use_load or args.load_model is None):
+        if self.use_continue and args.continue_:
+            if args.output is None:
+                self.fail_argument_check('When --continue is used, --output is required.')
+            saver = ModelSaver.read(
+                self.construct_model,
+                args.output,
+                device=device,
+                continue_=True
+            )
+        elif self.use_init and (not self.use_load or args.load_model is None):
+            # Initialize a new model.
             try:
                 kwargs = self.get_kwargs(args, *_args, **_kwargs)
             except ValueError as e:
                 self.fail_argument_check(e)
-            if self.use_output:
-                output = args.output
-            else:
-                output = None
+            output = args.output if self.use_output else None
             # TODO Skip default parameter initialization.
             # See https://pytorch.org/tutorials/prototype/skip_param_init.html
             # TODO Allocate parameters directly on the device using a context manager.
-            saver = construct_saver(self.construct_model, output, **kwargs)
+            saver = ModelSaver.construct(self.construct_model, output, **kwargs)
             saver.check_output()
+            saver.save_kwargs()
             saver.model.to(device)
             self.parameter_seed = args.parameter_seed
             if self.parameter_seed is None:
@@ -107,13 +107,15 @@ class ModelInterface:
                 param_generator = torch.manual_seed(self.parameter_seed)
             self.initialize(args, saver.model, param_generator)
         else:
+            # Load an existing model.
             if args.load_model is None:
                 self.fail_argument_check('Argument --load-model is missing.')
-            saver = read_saver(
-                self.construct_model, args.load_model, args.load_parameters, device)
-            if self.use_output:
-                saver = saver.to_directory(args.output)
-                saver.check_output()
+            saver = ModelSaver.read(
+                self.construct_model,
+                args.load_model,
+                device=device,
+                continue_=False
+            )
         self.on_saver_constructed(args, saver)
         return saver
 

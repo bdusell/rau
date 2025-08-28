@@ -1,137 +1,84 @@
-import base64
 import contextlib
+import dataclasses
 import json
 import os
-import pickle
+import pathlib
+from collections.abc import Callable, Generator, Iterable
+from contextlib import AbstractContextManager
+from typing import Any, IO
 
 import torch
 
-from ..logging import FileLogger, NullLogger, read_log_file
+from rau.tools.logging import FileLogger, LogEvent, read_log_file
 
-KWARGS_FILE = 'kwargs.json'
-PARAMETERS_DIR = 'parameters'
-METADATA_DIR = 'metadata'
-LOGS_DIR = 'logs'
-DEFAULT_PARAMETER_FILE = 'main'
-DEFAULT_LOG_FILE = 'main.log'
-DEFAULT_METADATA_NAME = 'main'
-
-def construct_saver(model_constructor, directory_name, **kwargs):
-    model = model_constructor(**kwargs)
-    return construct_saver_from_model(model, directory_name, **kwargs)
-
-def construct_saver_from_model(model, directory_name, **kwargs):
-    if directory_name is None:
-        return NullModelSaver(model, kwargs, {})
-    else:
-        return ModelSaver(
-            model=model,
-            kwargs=kwargs,
-            directory_name=directory_name,
-            created_output_dir=False,
-            saved_kwargs=False,
-            created_param_dir=False,
-            created_metadata_dir=False,
-            created_logs_dir=False,
-            metadata_cache={},
-            read_directory_name=directory_name
-        )
-
-def read_kwargs(directory_name):
-    kwargs_path = os.path.join(directory_name, KWARGS_FILE)
-    with open(kwargs_path) as fin:
-        return json.load(fin)
-
-def save_kwargs(directory_name, kwargs):
-    kwargs_path = os.path.join(directory_name, KWARGS_FILE)
-    with open(kwargs_path, 'w') as fout:
-        write_json(fout, kwargs)
-
-def read_saver(model_constructor, directory_name,
-        parameter_file=DEFAULT_PARAMETER_FILE, device=None):
-    kwargs = read_kwargs(directory_name)
-    model = model_constructor(**kwargs)
-    created_param_dir = False
-    if parameter_file is not None:
-        parameter_path = os.path.join(
-            directory_name, PARAMETERS_DIR, parameter_file + '.pt')
-        load_kwargs = {}
-        if device is not None:
-            load_kwargs['map_location'] = device
-        model.load_state_dict(torch.load(parameter_path, **load_kwargs))
-        created_param_dir = True
-    if device is not None and device.type == 'cuda':
-        model.to(device)
-    return ModelSaver(
-        model=model,
-        kwargs=kwargs,
-        directory_name=directory_name,
-        created_output_dir=True,
-        saved_kwargs=True,
-        created_param_dir=created_param_dir,
-        created_metadata_dir=False,
-        created_logs_dir=False,
-        metadata_cache={},
-        read_directory_name=directory_name
-    )
-
+@dataclasses.dataclass
 class ModelSaver:
 
-    def __init__(self, model, kwargs, directory_name, created_output_dir,
-            saved_kwargs, created_param_dir, created_metadata_dir,
-            created_logs_dir, metadata_cache, read_directory_name):
-        self.model = model
-        self.kwargs = kwargs
-        self.directory_name = directory_name
-        self.created_output_dir = created_output_dir
-        self.saved_kwargs = saved_kwargs
-        self.created_param_dir = created_param_dir
-        self.created_metadata_dir = created_metadata_dir
-        self.created_logs_dir = created_logs_dir
-        self.metadata_cache = metadata_cache
-        self.read_directory_name = read_directory_name
+    model: torch.nn.Module
+    kwargs: dict[str, Any]
+    saved_kwargs: bool
+    directory: pathlib.Path
+    created_directory: bool
+    is_read_only: bool
+    append_to_logs: bool
 
-    def save(self, file_name=DEFAULT_PARAMETER_FILE):
-        self.ensure_output_dir_created()
-        self.ensure_kwargs_file_written()
-        self.ensure_param_dir_created()
-        param_path = os.path.join(
-            self.directory_name, PARAMETERS_DIR, file_name + '.pt')
-        torch.save(self.model.state_dict(), param_path)
+    def _ensure_directory_created(self) -> None:
+        if not self.created_directory:
+            self._ensure_writable(lambda: f'create model directory {self.directory}')
+            try:
+                self.directory.mkdir(parents=True, exist_ok=False)
+            except FileExistsError:
+                raise DirectoryExists(
+                    f'the model directory {self.directory} already exists'
+                )
+            self.created_directory = True
 
-    def save_metadata(self, data, name=DEFAULT_METADATA_NAME):
-        self.ensure_output_dir_created()
-        file_name = os.path.join(self.directory_name, METADATA_DIR, name + '.json')
-        self.ensure_metadata_dir_created()
-        with open(file_name, 'w') as fout:
-            write_json(fout, data)
-        self.metadata_cache[name] = data
+    def _ensure_writable(self, msg: Callable[[], str]) -> None:
+        if self.is_read_only:
+            raise ValueError(
+                f'cannot perform the following action because this model saver '
+                f'is read-only: {msg()}'
+            )
 
-    def metadata(self, path, name=DEFAULT_METADATA_NAME):
-        if name in self.metadata_cache:
-            data = self.metadata_cache[name]
-        else:
-            file_name = os.path.join(self.read_directory_name, METADATA_DIR,
-                name + '.json')
-            with open(file_name) as fin:
-                data = json.load(fin)
-            self.metadata_cache[name] = data
-        return path_lookup(data, path)
+    def check_output(self) -> None:
+        self._ensure_directory_created()
 
-    def check_output(self):
-        self.ensure_output_dir_created()
+    @property
+    def kwargs_file(self) -> pathlib.Path:
+        return get_kwargs_file(self.directory)
+
+    def save_kwargs(self) -> None:
+        self._ensure_writable(lambda: f'save kwargs to {self.kwargs_file}')
+        self._ensure_directory_created()
+        with self.kwargs_file.open('x') as fout:
+            write_json(fout, self.kwargs)
+
+    @property
+    def parameters_file(self) -> pathlib.Path:
+        return get_parameters_file(self.directory)
+
+    def save_parameters(self) -> None:
+        self._ensure_writable(lambda: f'save model parameters to {self.parameters_file}')
+        self._ensure_directory_created()
+        torch.save(self.model.state_dict(), self.parameters_file)
+
+    @property
+    def log_file(self) -> pathlib.Path:
+        return get_log_file(self.directory)
 
     @contextlib.contextmanager
-    def logger(self, name=DEFAULT_LOG_FILE):
-        self.ensure_output_dir_created()
-        self.ensure_logs_dir_created()
-        file_name = os.path.join(self.directory_name, LOGS_DIR, name)
-        # If a directory is specified, open the log file and return a
-        # logger object.
-        # Attempt to open the log file in *exclusive* mode so the
-        # operation will fail early if the log file already exists.
-        with open(file_name, 'x') as fout:
-            logger = FileLogger(fout)
+    def logger(self,
+        flush: bool = False,
+        reopen: bool = False
+    ) -> Generator[FileLogger, None, None]:
+        self._ensure_writable(lambda: f'start writing logs to {self.log_file}')
+        self._ensure_directory_created()
+        # Unless we are supposed to append to the log file, attempt to open the
+        # log file in *exclusive* mode so the operation will fail early if the
+        # log file already exists.
+        mode = 'a' if self.append_to_logs else 'x'
+        with self.log_file.open(mode) as fout:
+            logger = FileLogger(fout, flush=flush, reopen=reopen)
             try:
                 yield logger
             except KeyboardInterrupt:
@@ -147,136 +94,144 @@ class ModelSaver:
                 logger.log('exception', { 'exception' : e_str })
                 raise
 
-    def logs(self, name=DEFAULT_LOG_FILE):
-        return read_logs(self.directory_name, name)
+    def logs(self) -> AbstractContextManager[Iterable[LogEvent]]:
+        return read_logs(self.directory)
 
-    def ensure_output_dir_created(self):
-        if not self.created_output_dir:
-            try:
-                os.makedirs(self.directory_name)
-            except FileExistsError:
-                raise DirectoryExists('the directory %s already exists' % self.directory_name)
-            self.created_output_dir = True
+    @property
+    def temporary_checkpoint_file(self) -> pathlib.Path:
+        return self.directory / 'temp-checkpoint.pt'
 
-    def ensure_kwargs_file_written(self):
-        if not self.saved_kwargs:
-            save_kwargs(self.directory_name, self.kwargs)
-            self.saved_kwargs = True
+    @property
+    def checkpoint_file(self) -> pathlib.Path:
+        return self.directory / 'checkpoint.pt'
 
-    def ensure_param_dir_created(self):
-        if not self.created_param_dir:
-            param_dir_path = os.path.join(self.directory_name, PARAMETERS_DIR)
-            os.makedirs(param_dir_path, exist_ok=True)
-            self.created_param_dir = True
+    @property
+    def checkpoint_lock_file(self) -> pathlib.Path:
+        return self.directory / 'checkpoint.lock'
 
-    def ensure_metadata_dir_created(self):
-        if not self.created_metadata_dir:
-            metadata_dir_path = os.path.join(self.directory_name, METADATA_DIR)
-            os.makedirs(metadata_dir_path, exist_ok=True)
-            self.created_metadata_dir = True
+    def save_checkpoint(self, metadata: Any) -> None:
+        self._ensure_writable(lambda: f'save checkpoint to {self.temporary_checkpoint_file}')
+        # Make sure that the saved checkpoint, if there is one, is in a
+        # predictable state.
+        self.heal_checkpoint()
+        # Write the checkpoint to a temporary file.
+        with self.temporary_checkpoint_file.open('xb') as fout:
+            torch.save(dict(
+                parameters=self.model.state_dict(),
+                metadata=metadata
+            ), fout)
+            fout.flush()
+            os.fsync(fout.fileno())
+        # Create a lock file while the temporary file is moved.
+        with self.checkpoint_lock_file.open('w') as fout:
+            os.fsync(fout.fileno())
+        # Overwrite the previous checkpoint with the temporary checkpoint.
+        self.temporary_checkpoint_file.replace(self.checkpoint_file)
+        # Remove the lock file.
+        self.checkpoint_lock_file.unlink()
 
-    def ensure_logs_dir_created(self):
-        if not self.created_logs_dir:
-            logs_dir_path = os.path.join(self.directory_name, LOGS_DIR)
-            os.makedirs(logs_dir_path, exist_ok=True)
-            self.created_logs_dir = True
+    def load_checkpoint(self, device: torch.device) -> Any:
+        self.heal_checkpoint()
+        data = torch.load(
+            self.checkpoint_file,
+            map_location=device,
+            weights_only=False
+        )
+        self.model.load_state_dict(data['parameters'])
+        self.model.to(device)
+        return data['metadata']
 
-    def to_directory(self, directory_name):
-        if directory_name is None:
-            # TODO Allow this to use self.read_directory_name
-            return NullModelSaver(
-                model=self.model,
-                kwargs=self.kwargs,
-                metadata_cache=self.metadata_cache
-            )
+    def heal_checkpoint(self) -> None:
+        self._ensure_writable(lambda: f'heal checkpoint')
+        if self.checkpoint_lock_file.exists():
+            # If the lock file exists, it means that the move did not complete.
+            # Finish it now.
+            if self.temporary_checkpoint_file.exists():
+                self.temporary_checkpoint_file.replace(self.checkpoint_file)
+            self.checkpoint_lock_file.unlink()
         else:
-            return ModelSaver(
-                model=self.model,
-                kwargs=self.kwargs,
-                directory_name=directory_name,
-                created_output_dir=False,
-                saved_kwargs=False,
-                created_param_dir=False,
-                created_metadata_dir=False,
-                created_logs_dir=False,
-                metadata_cache=self.metadata_cache,
-                read_directory_name=self.read_directory_name
-            )
+            # If a temporary file exists, assume the write was incomplete and
+            # delete it.
+            self.temporary_checkpoint_file.unlink(missing_ok=True)
 
-def write_json(fout, data):
-    json.dump(data, fout, indent=2, sort_keys=True)
+    def delete_checkpoint(self) -> None:
+        self._ensure_writable(lambda: f'delete checkpoint')
+        self.checkpoint_file.unlink(missing_ok=True)
 
-def path_lookup(data, path):
-    if isinstance(path, str):
-        path = path.split('.')
-    for key in path:
-        data = data[key]
-    return data
+    @staticmethod
+    def construct(
+        model_constructor: Callable[..., torch.nn.Module],
+        directory: pathlib.Path,
+        **kwargs: Any
+    ) -> 'ModelSaver':
+        model = model_constructor(**kwargs)
+        return ModelSaver.from_model(model, directory, **kwargs)
+
+    def from_model(
+        model: torch.nn.Module,
+        directory: pathlib.Path,
+        **kwargs: Any
+    ) -> 'ModelSaver':
+        return ModelSaver(
+            model=model,
+            kwargs=kwargs,
+            saved_kwargs=False,
+            directory=directory,
+            created_directory=False,
+            is_read_only=False,
+            append_to_logs=False
+        )
+
+    @staticmethod
+    def read(
+        model_constructor: Callable[..., torch.nn.Module],
+        directory: pathlib.Path,
+        device: torch.device | None = None,
+        continue_: bool = False
+    ) -> 'ModelSaver':
+        if not directory.exists():
+            raise ValueError(f'model directory does not exist: {directory}')
+        kwargs = read_kwargs(directory)
+        # TODO Skip default parameter initialization.
+        # TODO Initialize tensors on the final device.
+        model = model_constructor(**kwargs)
+        if not continue_:
+            load_kwargs = {}
+            if device is not None:
+                load_kwargs['map_location'] = device
+            model.load_state_dict(torch.load(get_parameters_file(directory), **load_kwargs))
+            if device is not None:
+                model.to(device)
+        return ModelSaver(
+            model=model,
+            kwargs=kwargs,
+            saved_kwargs=True,
+            directory=directory,
+            created_directory=True,
+            is_read_only=not continue_,
+            append_to_logs=continue_
+        )
+
+def get_kwargs_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'kwargs.json'
+
+def read_kwargs(directory: pathlib.Path) -> dict[str, Any]:
+    with get_kwargs_file(directory).open() as fin:
+        return json.load(fin)
+
+def get_parameters_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'parameters.pt'
+
+def get_log_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'logs.log'
 
 @contextlib.contextmanager
-def read_logs(directory_name, name=DEFAULT_LOG_FILE):
-    file_name = os.path.join(directory_name, LOGS_DIR, name)
-    with open(file_name) as fin:
+def read_logs(directory) -> Generator[Iterable[LogEvent], None, None]:
+    with get_log_file(directory).open() as fin:
         yield read_log_file(fin)
 
-class DirectoryExists(Exception):
+def write_json(fout: IO, data: dict[str, Any]) -> None:
+    json.dump(data, fout, indent=2, sort_keys=True)
+
+class DirectoryExists(RuntimeError):
     pass
-
-def _serialize_pytorch_object(obj):
-    class_name = type(obj).__name__
-    state_dict = obj.state_dict()
-    pickled_state_dict = pickle.dumps(state_dict)
-    str_state_dict = base64.b64encode(pickled_state_dict).decode('ascii')
-    return { 'class_name' : class_name, 'state_dict' : str_state_dict }
-
-def _deserialize_pytorch_object(namespace, data, *args, **kwargs):
-    Class = getattr(namespace, data['class_name'])
-    obj = Class(*args, **kwargs)
-    str_state_dict = data['state_dict']
-    pickled_state_dict = base64.b64decode(str_state_dict.encode('ascii'))
-    state_dict = pickle.loads(pickled_state_dict)
-    obj.load_state_dict(state_dict)
-    return obj
-
-def serialize_optimizer(optimizer):
-    return _serialize_pytorch_object(optimizer)
-
-def deserialize_optimizer(data, parameters):
-    return _deserialize_pytorch_object(torch.optim, data, parameters, lr=1.0)
-
-def serialize_lr_scheduler(scheduler):
-    return _serialize_pytorch_object(scheduler)
-
-def deserialize_lr_scheduler(data, *args, **kwargs):
-    return _deserialize_pytorch_object(
-        torch.optim.lr_scheduler, data, *args, **kwargs)
-
-class NullModelSaver:
-
-    def __init__(self, model, kwargs, metadata_cache):
-        self.model = model
-        self.kwargs = kwargs
-        self.metadata_cache = metadata_cache
-
-    def save(self, file_name=None):
-        pass
-
-    def save_metadata(self, data, name=DEFAULT_METADATA_NAME):
-        self.metadata_cache[name] = data
-
-    def metadata(self, path, name=DEFAULT_METADATA_NAME):
-        return path_lookup(self.metadata_cache[name], path)
-
-    def check_output(self):
-        pass
-
-    @contextlib.contextmanager
-    def logger(self, name=None):
-        yield NullLogger()
-
-    def to_directory(self, directory_name):
-        if directory_name is None:
-            return self
-        else:
-            # TODO
-            raise NotImplementedError

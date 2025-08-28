@@ -14,12 +14,7 @@ class SequenceToSequenceTranslateCommand(Command):
     def __init__(self, console_logger: logging.Logger):
         super().__init__()
         self.console_logger = console_logger
-        self.model_interface = SequenceToSequenceModelInterface(
-            use_load=True,
-            use_init=False,
-            use_output=False,
-            require_output=False
-        )
+        self.model_interface = SequenceToSequenceModelInterface(use_load=True)
 
     DESCRIPTION = 'Given a trained model, translate input sequences to output sequences.'
 

@@ -9,8 +9,9 @@ from rau.tasks.language_modeling.evaluate import (
     process_sequences_dataset
 )
 
-def test_conditional_cross_entropy():
+def test_conditional_cross_entropy(tmp_path):
     argv = [
+        '--output', str(tmp_path / 'model'),
         '--device', 'cpu',
         '--parameter-seed', '123',
         '--architecture', 'transformer',
@@ -22,7 +23,7 @@ def test_conditional_cross_entropy():
         '--init-scale', '0.1'
     ]
 
-    model_interface = LanguageModelingModelInterface(use_load=False, use_output=False)
+    model_interface = LanguageModelingModelInterface(use_init=True)
     parser = argparse.ArgumentParser()
     model_interface.add_arguments(parser)
     model_interface.add_forward_arguments(parser)
