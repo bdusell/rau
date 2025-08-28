@@ -188,22 +188,12 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'examples_per_checkpoint'
             ]:
                 kwargs[name] = getattr(args, name)
-            return cls(**kwargs).initial_state(saver)
+            return cls(**kwargs).initial_state(saver, device)
 
-    def get_optimizer(self, model: torch.nn.Module) -> torch.optim.Optimizer:
-        match self.optimizer:
-            case 'SGD':
-                OptimizerClass = torch.optim.SGD
-            case 'Adam':
-                OptimizerClass = torch.optim.Adam
-            case _:
-                raise ValueError(f'unknown optimizer: {self.optimizer}')
-        return OptimizerClass(
-            model.parameters(),
-            lr=self.initial_learning_rate
-        )
-
-    def initial_state(self, saver: ModelSaver) -> 'TrainingLoopState':
+    def initial_state(self,
+        saver: ModelSaver,
+        device: torch.device
+    ) -> 'TrainingLoopState':
         # Initialize the RNG for random shuffling.
         random_shuffling_generator, self.random_shuffling_seed = \
             get_random_generator_and_seed(self.random_shuffling_seed)
@@ -218,15 +208,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         if self.learning_rate_patience < 1:
             raise ValueError('learning rate patience must be at least 1')
         lr_scheduler = self.get_lr_scheduler(optimizer)
-        # Save the training loop configuration to the model directory.
-        with get_training_loop_file(saver).open('x') as fout:
-            json.dump(
-                { f.name : getattr(self, f.name) for f in dataclasses.fields(self) },
-                fout,
-                indent=2,
-                sort_keys=True
-            )
-        return TrainingLoopState(
+        state = TrainingLoopState(
             training_loop=self,
             epoch_no=0,
             batch_no=0,
@@ -244,6 +226,33 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             duration=datetime.timedelta(),
             torch_rng_state=None
         )
+        # Save the initial state so that training can be restarted consistently
+        # even if no checkpoint has been taken.
+        self.save_config(saver)
+        state.save(saver, device)
+        return state
+
+    def get_optimizer(self, model: torch.nn.Module) -> torch.optim.Optimizer:
+        match self.optimizer:
+            case 'SGD':
+                OptimizerClass = torch.optim.SGD
+            case 'Adam':
+                OptimizerClass = torch.optim.Adam
+            case _:
+                raise ValueError(f'unknown optimizer: {self.optimizer}')
+        return OptimizerClass(
+            model.parameters(),
+            lr=self.initial_learning_rate
+        )
+
+    def save_config(self, saver: ModelSaver) -> None:
+        with get_training_loop_file(saver).open('x') as fout:
+            json.dump(
+                { f.name : getattr(self, f.name) for f in dataclasses.fields(self) },
+                fout,
+                indent=2,
+                sort_keys=True
+            )
 
     def run(self,
         state: 'TrainingLoopState',
@@ -261,13 +270,13 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         those of the *last* epoch, not necessarily the *best* epoch. However,
         the saved model will be the best one.
         """
+        device = model_interface.get_device(None)
+        do_profile_memory = device.type == 'cuda'
         if state.is_initial_state:
             console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
         else:
             console_logger.info(f'continuing training')
         console_logger.info(f'training examples: {len(training_data)}')
-        device = model_interface.get_device(None)
-        do_profile_memory = device.type == 'cuda'
         validation_metric = self.get_validation_metric_name()
         num_validation_examples = len(validation_data)
         console_logger.info(f'validation examples: {num_validation_examples}')
@@ -301,6 +310,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             event_logger.log('continue_training')
         if fail_after_examples is not None:
             examples_seen = 0
+            if examples_seen >= fail_after_examples:
+                raise SimulatedTrainingLoopError
         random_shuffling_generator = random.Random()
         random_shuffling_generator.setstate(state.random_shuffling_state)
         initial_duration = state.duration
@@ -439,7 +450,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         now = datetime.datetime.now()
                         state.epoch_duration = initial_epoch_duration + (now - epoch_start_time)
                         state.duration = initial_duration + (now - total_start_time)
-                        saver.save_checkpoint(state.get_serializable_data(device))
+                        state.save(saver, device)
                     # If the early stopping criterion has been met, stop here.
                     if should_stop:
                         console_logger.info('  stopping early')
@@ -723,6 +734,9 @@ class TrainingLoopState:
     @property
     def is_initial_state(self) -> bool:
         return self.best_checkpoint_no is None
+
+    def save(self, saver: ModelSaver, device: torch.device) -> None:
+        saver.save_checkpoint(self.get_serializable_data(device))
 
     def get_serializable_data(self, device: torch.device) -> dict[str, Any]:
         result = {
