@@ -474,7 +474,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'the maximum number of epochs has been reached, but no '
                 'checkpoints have been made'
             )
-        # TODO Clean up the saved checkpoint
+        # Delete the checkpoint data.
+        # TODO Make this optional.
+        saver.delete_checkpoint()
         console_logger.info(f'best validation scores:')
         for key, value in state.best_validation_scores.items():
             console_logger.info(f'  {key}: {value:.2f}')

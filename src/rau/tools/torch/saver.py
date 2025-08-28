@@ -154,6 +154,10 @@ class ModelSaver:
             # delete it.
             self.temporary_checkpoint_file.unlink(missing_ok=True)
 
+    def delete_checkpoint(self) -> None:
+        self._ensure_writable(lambda: f'delete checkpoint')
+        self.checkpoint_file.unlink(missing_ok=True)
+
     @staticmethod
     def construct(
         model_constructor: Callable[..., torch.nn.Module],
