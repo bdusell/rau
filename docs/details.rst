@@ -130,6 +130,9 @@ Features
    the token vocabulary during the data preparation step.
 #. Efficiently precomputes and caches sinusoidal positional encodings in the
    transformer.
+#. If training is interrupted or crashes, it can be resumed from the last
+   checkpoint using the ``--continue`` option. The final result will be
+   equivalent to having run training without interruption.
 #. Parameters can be optimized using either simple gradient descent or Adam.
    This can be configured with ``--optimizer``.
 #. Supports minibatching with padding. For the sake of efficiency, Rau groups
@@ -211,7 +214,5 @@ Limitations
 #. It only implements one kind of learning rate schedule. Learning rate warmup
    is not included (although it is not badly needed for transformers with
    pre-norm).
-#. Training cannot be stopped and restarted, so it cannot recover from crashes.
-   This feature might be added in the future.
 #. Does not implement distributed training or inference across multiple devices
    or machines, so it cannot be used for very large models.
