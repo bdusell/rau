@@ -13,7 +13,7 @@ from rau.tasks.sequence_to_sequence.vocabulary import (
 from rau.tasks.sequence_to_sequence.model import SequenceToSequenceModelInterface
 from rau.models.stack_nn.transformer.decoder import get_stack_transformer_decoder
 
-def test_custom_matches_builtin():
+def test_custom_matches_builtin(tmp_path):
 
     batch_size = 7
 
@@ -57,12 +57,7 @@ def test_custom_matches_builtin():
 
     def construct_model(use_builtin):
         parser = argparse.ArgumentParser()
-        model_interface = SequenceToSequenceModelInterface(
-            use_load=False,
-            use_init=True,
-            use_output=False,
-            require_output=False
-        )
+        model_interface = SequenceToSequenceModelInterface(use_init=True)
         model_interface.add_arguments(parser)
         model_interface.add_forward_arguments(parser)
         if use_builtin:
@@ -84,7 +79,8 @@ def test_custom_matches_builtin():
             '--feedforward-size', '128',
             '--dropout', '0.2',
             '--init-scale', '0.1',
-            '--device', 'cpu'
+            '--device', 'cpu',
+            '--output', str(tmp_path / f'model-{use_builtin}')
         ])
         saver = model_interface.construct_saver(args, vocabulary_data)
         return model_interface, saver
