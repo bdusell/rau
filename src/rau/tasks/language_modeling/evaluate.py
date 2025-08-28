@@ -18,12 +18,7 @@ class LanguageModelingEvaluateCommand(Command):
 
     def __init__(self):
         super().__init__()
-        self.model_interface = LanguageModelingModelInterface(
-            use_load=True,
-            use_init=False,
-            use_output=False,
-            require_output=False
-        )
+        self.model_interface = LanguageModelingModelInterface(use_load=True)
 
     DESCRIPTION = (
         'Evaluate the likelihood of a dataset under a language model. Output '

@@ -10,8 +10,9 @@ from rau.tasks.language_modeling.training_loop import (
     add_training_loop_arguments,
 )
 
-def test_single_matches_batched():
+def test_single_matches_batched(tmp_path):
     argv = [
+        '--output', str(tmp_path / 'model'),
         '--device', 'cpu',
         '--parameter-seed', '123',
         '--architecture', 'transformer',
@@ -34,7 +35,7 @@ def test_single_matches_batched():
         '--examples-per-checkpoint', '1'
     ]
 
-    model_interface = LanguageModelingModelInterface(use_load=False, use_output=False)
+    model_interface = LanguageModelingModelInterface(use_init=True)
     parser = argparse.ArgumentParser()
     model_interface.add_arguments(parser)
     model_interface.add_forward_arguments(parser)
@@ -47,7 +48,12 @@ def test_single_matches_batched():
         allow_unk=False
     )
     saver = model_interface.construct_saver(args, vocabulary_data)
-    training_loop = LanguageModelingTrainingLoop.get_state(parser, args, saver.model).training_loop
+    training_loop = LanguageModelingTrainingLoop.get_state(
+        parser,
+        args,
+        saver,
+        device
+    ).training_loop
 
     generator = random.Random(123)
     lengths = [0, 1, 3, 7, 10, 13, 23]

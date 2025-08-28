@@ -21,7 +21,10 @@ class LanguageModelingTrainCommand(Command):
     def __init__(self, console_logger: logging.Logger):
         super().__init__()
         self.console_logger = console_logger
-        self.model_interface = LanguageModelingModelInterface()
+        self.model_interface = LanguageModelingModelInterface(
+            use_init=True,
+            use_continue=True
+        )
 
     DESCRIPTION = 'Train a language model.'
 
@@ -71,7 +74,8 @@ class LanguageModelingTrainCommand(Command):
         training_loop_state = LanguageModelingTrainingLoop.get_state(
             parser,
             args,
-            saver.model
+            saver,
+            device
         )
 
         # Load the data.

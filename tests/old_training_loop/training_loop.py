@@ -311,7 +311,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     is_best, should_stop = early_stopping.update(validation_score)
                     if is_best:
                         console_logger.info('    saving parameters')
-                        saver.save()
+                        saver.save_parameters()
                         best_validation_scores = validation_scores
                         best_checkpoint_no = checkpoint_no
                         best_epoch_no = epoch_no

@@ -1,9 +1,10 @@
 import argparse
-import collections
 import dataclasses
 import datetime
 import functools
+import json
 import logging
+import pathlib
 import random
 from collections.abc import Callable, Iterable
 from typing import Any, Generic, Literal, TypeVar
@@ -30,7 +31,9 @@ def add_training_loop_arguments(
     group = parser.add_argument_group('Training options')
     group.add_argument('--no-progress', action='store_true', default=False,
         help='Do not print progress messages during training.')
-    group.add_argument('--continue', dest='continue_', action='store_true', default=False)
+    group.add_argument('--continue', dest='continue_', action='store_true', default=False,
+        help='Continue a training run saved in the directory given by '
+             '--output.')
     group.add_argument('--max-epochs', type=int,
         help='The maximum number of epochs to run training for.')
     group.add_argument('--random-shuffling-seed', type=int,
@@ -156,10 +159,18 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     def get_state(cls,
         parser: argparse.ArgumentParser,
         args: argparse.Namespace,
-        model: torch.nn.Module
+        saver: ModelSaver,
+        device: torch.device
     ) -> 'TrainingLoopState':
         if args.continue_:
-            raise NotImplementedError
+            data = saver.load_checkpoint(device)
+            with get_training_loop_file(saver).open() as fin:
+                training_loop = cls(**json.load(fin))
+            return TrainingLoopState.from_serializable_data(
+                saver.model,
+                training_loop,
+                data
+            )
         else:
             kwargs = {}
             for name in [
@@ -176,13 +187,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'examples_per_checkpoint'
             ]:
                 kwargs[name] = getattr(args, name)
-            return cls(**kwargs).initial_state(model)
+            return cls(**kwargs).initial_state(saver)
 
-    def initial_state(self, model: torch.nn.Module) -> 'TrainingLoopState':
-        # Initialize the RNG for random shuffling.
-        random_shuffling_generator, self.random_shuffling_seed = \
-            get_random_generator_and_seed(self.random_shuffling_seed)
-        # Initialize the optimizer.
+    def get_optimizer(self, model: torch.nn.Module) -> torch.optim.Optimizer:
         match self.optimizer:
             case 'SGD':
                 OptimizerClass = torch.optim.SGD
@@ -190,30 +197,34 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 OptimizerClass = torch.optim.Adam
             case _:
                 raise ValueError(f'unknown optimizer: {self.optimizer}')
-        optimizer = OptimizerClass(
+        return OptimizerClass(
             model.parameters(),
             lr=self.initial_learning_rate
         )
+
+    def initial_state(self, saver: ModelSaver) -> 'TrainingLoopState':
+        # Initialize the RNG for random shuffling.
+        random_shuffling_generator, self.random_shuffling_seed = \
+            get_random_generator_and_seed(self.random_shuffling_seed)
+        # Initialize the optimizer.
+        optimizer = self.get_optimizer(saver.model)
         # Configure early stopping.
-        validation_metric_mode = self.get_validation_metric_mode()
         early_stopping = UpdatesWithoutImprovement(
-            validation_metric_mode,
+            self.get_validation_metric_mode(),
             patience=self.early_stopping_patience
         )
         # Initialize the learning rate schedule.
         if self.learning_rate_patience < 1:
             raise ValueError('learning rate patience must be at least 1')
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode=validation_metric_mode,
-            # According to PyTorch, a patience of 0 means we reduce the LR as
-            # soon as performance does not improve, and a patience of 1 means
-            # we wait one checkpoint. We subtract 1 so that the patience means
-            # the number of epochs without improvement before reducing the LR.
-            patience=self.learning_rate_patience - 1,
-            factor=self.learning_rate_decay_factor,
-            threshold=0.0
-        )
+        lr_scheduler = self.get_lr_scheduler(optimizer)
+        # Save the training loop configuration to the model directory.
+        with get_training_loop_file(saver).open('x') as fout:
+            json.dump(
+                { f.name : getattr(self, f.name) for f in dataclasses.fields(self) },
+                fout,
+                indent=2,
+                sort_keys=True
+            )
         return TrainingLoopState(
             training_loop=self,
             epoch_no=0,
@@ -265,7 +276,6 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         )
         del validation_data
         if state.is_initial_state:
-            # TODO Save training loop info to file
             event_logger.log('start_training', dict(
                 num_training_examples=len(training_data),
                 num_validation_examples=num_validation_examples,
@@ -390,7 +400,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     if is_best:
                         state.duration = initial_duration + (datetime.datetime.now() - total_start_time)
                         console_logger.info('    saving parameters')
-                        saver.save()
+                        saver.save_parameters()
                         state.best_validation_scores = validation_scores
                         state.best_checkpoint_no = state.checkpoint_no
                         state.best_epoch_no = state.epoch_no
@@ -405,12 +415,19 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     # This allows us to make dropout consistent.
                     if device.type == 'cpu':
                         state.torch_rng_state = torch.get_rng_state()
-                    # TODO Save the checkpoint
-                    # TODO Make saving checkpoints optional
+                    # TODO Make the logging of events consistent in case of
+                    # crashes.
                     event_logger.log('checkpoint', dict(
                         is_best=is_best,
                         scores=validation_scores
                     ))
+                    # If we're not stopping early, save this training checkpoint
+                    # to disk so it can be restored later in case of a crash.
+                    # TODO Make saving checkpoints optional and decoupled from
+                    # validation checkpoints.
+                    if not should_stop:
+                        saver.save_checkpoint(state.get_serializable_data(device))
+                    # If the early stopping criterion has been met, stop here.
                     if should_stop:
                         console_logger.info('  stopping early')
                         break
@@ -625,6 +642,24 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             self.evaluate_batch
         )
 
+    def get_lr_scheduler(self,
+        optimizer: torch.optim.Optimizer
+    ) -> torch.optim.lr_scheduler.LRScheduler:
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=self.get_validation_metric_mode(),
+            # According to PyTorch, a patience of 0 means we reduce the LR as
+            # soon as performance does not improve, and a patience of 1 means
+            # we wait one checkpoint. We subtract 1 so that the patience means
+            # the number of epochs without improvement before reducing the LR.
+            patience=self.learning_rate_patience - 1,
+            factor=self.learning_rate_decay_factor,
+            threshold=0.0
+        )
+
+def get_training_loop_file(saver: ModelSaver) -> pathlib.Path:
+    return saver.directory / 'training-loop.json'
+
 @dataclasses.dataclass
 class TrainingLoopState:
 
@@ -670,6 +705,54 @@ class TrainingLoopState:
     @property
     def is_initial_state(self) -> bool:
         return self.best_checkpoint_no is None
+
+    def get_serializable_data(self, device: torch.device) -> dict[str, Any]:
+        result = {
+            name : getattr(self, name)
+            for name in _NORMAL_TRAINING_LOOP_FIELDS
+        }
+        result['optimizer_state'] = self.optimizer.state_dict()
+        result['lr_scheduler_state'] = self.lr_scheduler.state_dict()
+        result['torch_rng_state'] = torch.get_rng_state() if device.type == 'cpu' else None
+        return result
+
+    @staticmethod
+    def from_serializable_data(
+        model: torch.nn.Module,
+        training_loop: TrainingLoop,
+        data: dict[str, Any]
+    ) -> 'TrainingLoopState':
+        kwargs = {
+            name : data[name]
+            for name in _NORMAL_TRAINING_LOOP_FIELDS
+        }
+        optimizer = training_loop.get_optimizer(model)
+        # The state of the optimizer needs to be loaded after initializing
+        # lr_scheduler.
+        lr_scheduler = training_loop.get_lr_scheduler(optimizer)
+        lr_scheduler.load_state_dict(data['lr_scheduler_state'])
+        optimizer.load_state_dict(data['optimizer_state'])
+        torch_rng_state = data['torch_rng_state']
+        if torch_rng_state is not None:
+            torch.set_rng_state(torch_rng_state)
+        kwargs['training_loop'] = training_loop
+        kwargs['optimizer'] = optimizer
+        kwargs['lr_scheduler'] = lr_scheduler
+        kwargs['torch_rng_state'] = torch_rng_state
+        return TrainingLoopState(**kwargs)
+
+_NORMAL_TRAINING_LOOP_FIELDS = [
+    'epoch_no',
+    'batch_no',
+    'random_shuffling_generator',
+    'early_stopping',
+    'examples_since_checkpoint',
+    'checkpoint_no',
+    'best_validation_scores',
+    'best_checkpoint_no',
+    'best_epoch_no',
+    'duration'
+]
 
 def get_random_generator_and_seed(random_seed):
     random_seed = get_random_seed(random_seed)

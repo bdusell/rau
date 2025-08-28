@@ -21,7 +21,10 @@ class SequenceToSequenceTrainCommand(Command):
     def __init__(self, console_logger: logging.Logger):
         super().__init__()
         self.console_logger = console_logger
-        self.model_interface = SequenceToSequenceModelInterface()
+        self.model_interface = SequenceToSequenceModelInterface(
+            use_init=True,
+            use_continue=True
+        )
 
     DESCRIPTION = 'Train a sequence-to-sequence model.'
 
@@ -71,7 +74,8 @@ class SequenceToSequenceTrainCommand(Command):
         training_loop_state = SequenceToSequenceTrainingLoop.get_state(
             parser,
             args,
-            saver.model
+            saver,
+            device
         )
 
         # Load the data.

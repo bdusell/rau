@@ -1,4 +1,5 @@
 import math
+import operator
 import typing
 
 class UpdateResult(typing.NamedTuple):
@@ -44,10 +45,10 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
             raise ValueError
         self.mode = mode
         if mode == 'min':
-            self.is_better = lambda x, y: x < y
+            self.is_better = operator.lt
             self.best = math.inf
         else:
-            self.is_better = lambda x, y: x > y
+            self.is_better = operator.gt
             self.best = -math.inf
         self.patience = patience
         self.updates_since_improvement = 0
