@@ -9,7 +9,7 @@ import torch
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tasks.common.command import Command
 from rau.tasks.common.data import load_prepared_data_file
-from rau.tasks.common.training_loop import MicroAveragedScoreAccumulator
+from rau.tasks.common.accumulator import MicroAveragedScoreAccumulator
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.training_loop import generate_batches, evaluate_batch
 from rau.tasks.language_modeling.batching import group_into_batches

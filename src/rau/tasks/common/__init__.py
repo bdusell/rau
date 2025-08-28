@@ -12,8 +12,10 @@ from .training_loop import (
     TrainingLoop,
     get_random_generator_and_seed,
     get_random_seed,
-    MicroAveragedScoreAccumulator,
-    DictScoreAccumulator,
     evaluate,
     OutOfCUDAMemoryError
+)
+from .accumulator import (
+    MicroAveragedScoreAccumulator,
+    DictScoreAccumulator
 )

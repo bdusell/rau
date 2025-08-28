@@ -18,6 +18,7 @@ from rau.tools.torch.saver import ModelSaver
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.profile import reset_memory_profiler, get_peak_memory
 from rau.training.early_stopping import UpdatesWithoutImprovement
+from .accumulator import DictScoreAccumulator
 
 Example = TypeVar('Example')
 Batch = list[Example]
@@ -238,6 +239,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             best_validation_scores=None,
             best_checkpoint_no=None,
             best_epoch_no=None,
+            epoch_loss=DictScoreAccumulator(),
+            epoch_duration=datetime.timedelta(),
             duration=datetime.timedelta(),
             torch_rng_state=None
         )
@@ -298,6 +301,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         initial_duration = state.duration
         total_start_time = datetime.datetime.now()
         while state.epoch_no < self.max_epochs:
+            initial_epoch_duration = state.epoch_duration
             epoch_start_time = datetime.datetime.now()
             console_logger.info(f'epoch #{state.epoch_no + 1}')
             # Randomly shuffle the training data and group it into batches.
@@ -315,7 +319,6 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             state.random_shuffling_generator.shuffle(batches)
             # Initialize some things for tracking loss, memory, and early
             # stopping.
-            epoch_loss = DictScoreAccumulator()
             if show_progress:
                 progress_loss = DictScoreAccumulator()
                 progress_num_examples = 0
@@ -337,7 +340,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         batch
                     )
                     loss_terms['loss'] = (loss_numerator, loss_denominator)
-                    epoch_loss.update(loss_terms)
+                    state.epoch_loss.update(loss_terms)
                     if show_progress:
                         progress_loss.update(loss_terms)
                 except OutOfCUDAMemoryError as e:
@@ -357,12 +360,12 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     ticker.progress = state.batch_no
                     if ticker.tick():
                         progress_loss_dict = progress_loss.get_value()
-                        progress_loss = progress_loss_dict.pop('loss')
+                        progress_loss_value = progress_loss_dict.pop('loss')
                         progress_duration = datetime.datetime.now() - progress_start_time
                         progress_examples_per_second = progress_num_examples / progress_duration.total_seconds()
                         progress_parts = [
                             f'{ticker.int_percent}%',
-                            f'loss: {progress_loss:.2f}',
+                            f'loss: {progress_loss_value:.2f}',
                             f'examples/s: {progress_examples_per_second:.2f}'
                         ]
                         for key, value in progress_loss_dict.items():
@@ -398,7 +401,6 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     # stop early.
                     is_best, should_stop = state.early_stopping.update(validation_score)
                     if is_best:
-                        state.duration = initial_duration + (datetime.datetime.now() - total_start_time)
                         console_logger.info('    saving parameters')
                         saver.save_parameters()
                         state.best_validation_scores = validation_scores
@@ -426,6 +428,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     # TODO Make saving checkpoints optional and decoupled from
                     # validation checkpoints.
                     if not should_stop:
+                        now = datetime.datetime.now()
+                        state.epoch_duration = initial_epoch_duration + (now - epoch_start_time)
+                        state.duration = initial_duration + (now - total_start_time)
                         saver.save_checkpoint(state.get_serializable_data(device))
                     # If the early stopping criterion has been met, stop here.
                     if should_stop:
@@ -433,12 +438,11 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         break
             if should_stop:
                 break
-            epoch_loss_dict = epoch_loss.get_value()
-            epoch_loss = epoch_loss_dict.pop('loss')
-            # TODO Correct the epoch duration when loaded from a saved state
-            epoch_duration = datetime.datetime.now() - epoch_start_time
+            epoch_loss_dict = state.epoch_loss.get_value()
+            epoch_loss_value = epoch_loss_dict.pop('loss')
+            epoch_duration = initial_epoch_duration + (datetime.datetime.now() - epoch_start_time)
             epoch_duration_seconds = epoch_duration.total_seconds()
-            console_logger.info(f'  epoch loss: {epoch_loss:.2f}')
+            console_logger.info(f'  epoch loss: {epoch_loss_value:.2f}')
             if epoch_loss_dict:
                 console_logger.info('  epoch scores:')
                 for key, value in epoch_loss_dict.items():
@@ -452,7 +456,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             else:
                 peak_memory = None
             event_logger.log('epoch', dict(
-                loss=epoch_loss,
+                loss=epoch_loss_value,
                 scores=epoch_loss_dict,
                 duration=epoch_duration_seconds,
                 peak_memory=peak_memory,
@@ -460,6 +464,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             ))
             state.epoch_no += 1
             state.batch_no = 0
+            state.epoch_loss = DictScoreAccumulator()
+            state.epoch_duration = datetime.timedelta()
         state.duration = initial_duration + (datetime.datetime.now() - total_start_time)
         # TODO Check for this ahead of time. Stop early to avoid unneccessary
         # iterations after the last checkpoint given the max number of epochs.
@@ -675,6 +681,8 @@ class TrainingLoopState:
     best_validation_scores: dict[str, float] | None
     best_checkpoint_no: int | None
     best_epoch_no: int | None
+    epoch_loss: DictScoreAccumulator
+    epoch_duration: datetime.timedelta
     duration: datetime.timedelta
     torch_rng_state: torch.Tensor | None
 
@@ -751,6 +759,8 @@ _NORMAL_TRAINING_LOOP_FIELDS = [
     'best_validation_scores',
     'best_checkpoint_no',
     'best_epoch_no',
+    'epoch_loss',
+    'epoch_duration',
     'duration'
 ]
 
@@ -760,37 +770,6 @@ def get_random_generator_and_seed(random_seed):
 
 def get_random_seed(random_seed):
     return random.getrandbits(32) if random_seed is None else random_seed
-
-class MicroAveragedScoreAccumulator:
-
-    def __init__(self):
-        super().__init__()
-        self.numerator = 0
-        self.denominator = 0
-
-    def update(self, numerator: float, denominator: float) -> None:
-        self.numerator += numerator
-        self.denominator += denominator
-
-    def get_value(self) -> float:
-        return self.numerator / self.denominator
-
-class DictScoreAccumulator:
-
-    def __init__(self):
-        super().__init__()
-        self.loss = None
-
-    def update(self, scores: dict[str, tuple[float, float]]) -> None:
-        if self.loss is None:
-            self.loss = { k : MicroAveragedScoreAccumulator() for k in scores.keys() }
-        elif scores.keys() != self.loss.keys():
-            raise ValueError
-        for key, (numerator, denominator) in scores.items():
-            self.loss[key].update(numerator, denominator)
-
-    def get_value(self) -> dict[str, float]:
-        return { k : v.get_value() for k, v in self.loss.items() }
 
 def evaluate(
     model: torch.nn.Module,
