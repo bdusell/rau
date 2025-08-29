@@ -210,6 +210,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         lr_scheduler = self.get_lr_scheduler(optimizer)
         state = TrainingLoopState(
             training_loop=self,
+            is_continued=False,
             epoch_no=0,
             batch_no=0,
             random_shuffling_state=random_shuffling_generator.getstate(),
@@ -224,7 +225,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             epoch_loss=DictScoreAccumulator(),
             epoch_duration=datetime.timedelta(),
             duration=datetime.timedelta(),
-            torch_rng_state=None
+            torch_rng_state=torch.get_rng_state() if device.type == 'cpu' else None
         )
         # Save the initial state so that training can be restarted consistently
         # even if no checkpoint has been taken.
@@ -270,12 +271,12 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         those of the *last* epoch, not necessarily the *best* epoch. However,
         the saved model will be the best one.
         """
+        if state.is_continued:
+            console_logger.info('continuing training')
+        else:
+            console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
         device = model_interface.get_device(None)
         do_profile_memory = device.type == 'cuda'
-        if state.is_initial_state:
-            console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
-        else:
-            console_logger.info(f'continuing training')
         console_logger.info(f'training examples: {len(training_data)}')
         validation_metric = self.get_validation_metric_name()
         num_validation_examples = len(validation_data)
@@ -290,7 +291,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             [training_data, validation_data]
         )
         del validation_data
-        if state.is_initial_state:
+        if state.is_continued:
+            event_logger.log('continue_training')
+        else:
             event_logger.log('start_training', dict(
                 num_training_examples=len(training_data),
                 num_validation_examples=num_validation_examples,
@@ -306,14 +309,16 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 gradient_clipping_threshold=self.gradient_clipping_threshold,
                 examples_per_checkpoint=self.examples_per_checkpoint
             ))
-        else:
-            event_logger.log('continue_training')
         if fail_after_examples is not None:
             examples_seen = 0
             if examples_seen >= fail_after_examples:
                 raise SimulatedTrainingLoopError
+        # Restore the saved RNG state for random shuffling.
         random_shuffling_generator = random.Random()
         random_shuffling_generator.setstate(state.random_shuffling_state)
+        # Restore the saved global RNG state for dropout (only on CPU).
+        if state.torch_rng_state is not None:
+            torch.set_rng_state(state.torch_rng_state)
         initial_duration = state.duration
         total_start_time = datetime.datetime.now()
         while state.epoch_no < self.max_epochs:
@@ -349,20 +354,26 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             # If we restored a saved training loop state in the middle of an
             # epoch, then this will start from the last batch it was on.
             num_batches = len(batches)
+            # Iterate over the randomly shuffled batches.
             while state.batch_no < num_batches:
                 batch = batches[state.batch_no]
                 try:
+                    # Run a forward-backward pass and parameter update using the
+                    # batch.
                     loss_numerator, loss_denominator, loss_terms = self.run_parameter_update(
                         saver,
                         model_interface,
                         state.optimizer,
                         batch
                     )
+                    # Record the loss.
                     loss_terms['loss'] = (loss_numerator, loss_denominator)
                     state.epoch_loss.update(loss_terms)
                     if show_progress:
                         progress_loss.update(loss_terms)
                 except OutOfCUDAMemoryError as e:
+                    # If there's a CUDA memory error, output some diagnostic
+                    # information.
                     self.handle_out_of_cuda_memory(
                         vocabulary,
                         batch,
@@ -374,6 +385,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     raise
                 state.batch_no += 1
                 batch_size = len(batch)
+                # If requested, show progress messages at regular intervals.
                 if show_progress:
                     progress_num_examples += batch_size
                     ticker.progress = state.batch_no
@@ -402,6 +414,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 state.examples_since_checkpoint += batch_size
                 if state.examples_since_checkpoint >= self.examples_per_checkpoint:
                     console_logger.info(f'  checkpoint #{state.checkpoint_no + 1}')
+                    # Evaluate the current model on the validation data.
                     validation_scores = self.evaluate(
                         saver.model,
                         model_interface,
@@ -457,6 +470,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         break
             if should_stop:
                 break
+            # Output some statistics at the end of each epoch.
             epoch_loss_dict = state.epoch_loss.get_value()
             epoch_loss_value = epoch_loss_dict.pop('loss')
             epoch_duration = initial_epoch_duration + (datetime.datetime.now() - epoch_start_time)
@@ -493,9 +507,10 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'the maximum number of epochs has been reached, but no '
                 'checkpoints have been made'
             )
-        # Delete the checkpoint data.
+        # Once training is finished, clean up the checkpoint data.
         # TODO Make this optional.
         saver.delete_checkpoint()
+        # Output some statistics at the end of training.
         console_logger.info(f'best validation scores:')
         for key, value in state.best_validation_scores.items():
             console_logger.info(f'  {key}: {value:.2f}')
@@ -691,6 +706,7 @@ def get_training_loop_file(saver: ModelSaver) -> pathlib.Path:
 class TrainingLoopState:
 
     training_loop: TrainingLoop
+    is_continued: bool
     epoch_no: int
     batch_no: int
     random_shuffling_state: object
@@ -731,10 +747,6 @@ class TrainingLoopState:
             fail_after_examples=fail_after_examples
         )
 
-    @property
-    def is_initial_state(self) -> bool:
-        return self.best_checkpoint_no is None
-
     def save(self, saver: ModelSaver, device: torch.device) -> None:
         saver.save_checkpoint(self.get_serializable_data(device))
 
@@ -768,6 +780,7 @@ class TrainingLoopState:
         if torch_rng_state is not None:
             torch.set_rng_state(torch_rng_state)
         kwargs['training_loop'] = training_loop
+        kwargs['is_continued'] = True
         kwargs['optimizer'] = optimizer
         kwargs['lr_scheduler'] = lr_scheduler
         kwargs['torch_rng_state'] = torch_rng_state
