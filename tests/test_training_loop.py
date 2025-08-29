@@ -183,7 +183,8 @@ def test_new_loop_matches_old(tmp_path):
     assert_models_are_equal(info.saver.model, reference_saver.model)
 
 @pytest.mark.parametrize('fail_after_examples', [2200, 2700, 200, 0])
-def test_cancel_and_continue(tmp_path, fail_after_examples):
+@pytest.mark.parametrize('dropout', [0, 0.1])
+def test_cancel_and_continue(tmp_path, fail_after_examples, dropout):
     console_logger = get_logger()
     training_data, validation_data, vocabulary_data = get_datasets()
     common_argv = [
@@ -194,7 +195,7 @@ def test_cancel_and_continue(tmp_path, fail_after_examples):
         '--d-model', '32',
         '--num-heads', '4',
         '--feedforward-size', '32',
-        '--dropout', '0',
+        '--dropout', str(dropout),
         '--init-scale', '0.01',
         '--max-epochs', '100',
         '--random-shuffling-seed', '123',
