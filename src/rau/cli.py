@@ -9,6 +9,7 @@ from rau.tasks.language_modeling.generate import LanguageModelingGenerateCommand
 from rau.tasks.sequence_to_sequence.prepare_data import SequenceToSequencePrepareDataCommand
 from rau.tasks.sequence_to_sequence.train import SequenceToSequenceTrainCommand
 from rau.tasks.sequence_to_sequence.translate import SequenceToSequenceTranslateCommand
+from rau.tasks.common.is_finished import IsFinishedCommand
 
 def main():
     parser = argparse.ArgumentParser()
@@ -22,6 +23,7 @@ def main():
     ss_prepare_command = SequenceToSequencePrepareDataCommand()
     ss_train_command = SequenceToSequenceTrainCommand(console_logger)
     ss_translate_command = SequenceToSequenceTranslateCommand(console_logger)
+    is_finished_command = IsFinishedCommand()
 
     # Language Modeling
     lm_parser = subparsers.add_parser('lm', help='Language modeling.')
@@ -59,6 +61,11 @@ def main():
         description=ss_translate_command.description()
     ))
 
+    is_finished_command.add_arguments(subparsers.add_parser('is-finished',
+        help='Tell whether training for a saved model is finished.',
+        description=is_finished_command.description()
+    ))
+
     args = parser.parse_args()
 
     match args.task_command:
@@ -80,6 +87,8 @@ def main():
                     ss_train_command.run(parser, args)
                 case 'translate':
                     ss_translate_command.run(parser, args)
+        case 'is-finished':
+            is_finished_command.run(parser, args)
 
 if __name__ == '__main__':
     main()

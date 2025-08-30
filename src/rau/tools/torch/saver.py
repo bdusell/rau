@@ -98,16 +98,16 @@ class ModelSaver:
         return read_logs(self.directory)
 
     @property
-    def temporary_checkpoint_file(self) -> pathlib.Path:
-        return self.directory / 'temp-checkpoint.pt'
+    def checkpoint_file(self) -> pathlib.Path:
+        return get_checkpoint_file(self.directory)
 
     @property
-    def checkpoint_file(self) -> pathlib.Path:
-        return self.directory / 'checkpoint.pt'
+    def temporary_checkpoint_file(self) -> pathlib.Path:
+        return get_temporary_checkpoint_file(self.directory)
 
     @property
     def checkpoint_lock_file(self) -> pathlib.Path:
-        return self.directory / 'checkpoint.lock'
+        return get_checkpoint_lock_file(self.directory)
 
     def save_checkpoint(self, metadata: Any) -> None:
         self._ensure_writable(lambda: f'save checkpoint to {self.temporary_checkpoint_file}')
@@ -225,10 +225,31 @@ def get_parameters_file(directory: pathlib.Path) -> pathlib.Path:
 def get_log_file(directory: pathlib.Path) -> pathlib.Path:
     return directory / 'logs.log'
 
+def get_checkpoint_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'checkpoint.pt'
+
+def get_temporary_checkpoint_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'temp-checkpoint.pt'
+
+def get_checkpoint_lock_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'checkpoint.lock'
+
 @contextlib.contextmanager
-def read_logs(directory) -> Generator[Iterable[LogEvent], None, None]:
+def read_logs(directory: pathlib.Path) -> Generator[Iterable[LogEvent], None, None]:
     with get_log_file(directory).open() as fin:
         yield read_log_file(fin)
+
+def is_finished(directory: pathlib.Path) -> bool:
+    return (
+        get_kwargs_file(directory).exists() and
+        get_parameters_file(directory).exists() and
+        get_log_file(directory).exists() and
+        not (
+            get_checkpoint_file(directory).exists() or
+            get_temporary_checkpoint_file(directory).exists() or
+            get_checkpoint_lock_file(directory).exists()
+        )
+    )
 
 def write_json(fout: IO, data: dict[str, Any]) -> None:
     json.dump(data, fout, indent=2, sort_keys=True)
