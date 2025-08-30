@@ -4,6 +4,7 @@ import sys
 import humanfriendly
 
 from rau.tasks.common.command import Command, get_logger
+from rau.tasks.common.training_loop import TimeLimitExceeded
 from rau.tools.torch.profile import get_current_memory
 from rau.tasks.sequence_to_sequence.data import (
     add_data_arguments,
@@ -82,24 +83,28 @@ class SequenceToSequenceTrainCommand(Command):
         training_data, validation_data, vocabulary = \
             load_prepared_data(args, parser, vocabulary_data, model_interface)
 
-        # Start logging events to disk.
-        with saver.logger() as event_logger:
-            event_logger.log('model_info', dict(
-                parameter_seed=model_interface.parameter_seed,
-                size_in_bytes=model_size_in_bytes,
-                num_parameters=num_parameters
-            ))
-            # Run the training loop.
-            training_loop_state.run(
-                saver,
-                model_interface,
-                training_data,
-                validation_data,
-                vocabulary,
-                console_logger,
-                event_logger,
-                not args.no_progress
-            )
+        try:
+            # Start logging events to disk.
+            with saver.logger() as event_logger:
+                event_logger.log('model_info', dict(
+                    parameter_seed=model_interface.parameter_seed,
+                    size_in_bytes=model_size_in_bytes,
+                    num_parameters=num_parameters
+                ))
+                # Run the training loop.
+                training_loop_state.run(
+                    saver,
+                    model_interface,
+                    training_data,
+                    validation_data,
+                    vocabulary,
+                    console_logger,
+                    event_logger,
+                    not args.no_progress,
+                    args.time_limit
+                )
+        except TimeLimitExceeded:
+            sys.exit(1)
 
 if __name__ == '__main__':
     SequenceToSequenceTrainCommand(get_logger()).main()

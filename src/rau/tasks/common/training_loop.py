@@ -28,7 +28,7 @@ VocabularyContainer = TypeVar('VocabularyContainer')
 def add_training_loop_arguments(
     parser: argparse.ArgumentParser,
     max_tokens_per_batch_help: str
-):
+) -> None:
     group = parser.add_argument_group('Training options')
     group.add_argument('--no-progress', action='store_true', default=False,
         help='Do not print progress messages during training.')
@@ -37,6 +37,11 @@ def add_training_loop_arguments(
              '--output.')
     group.add_argument('--max-epochs', type=int,
         help='The maximum number of epochs to run training for.')
+    group.add_argument('--time-limit', type=parse_time_limit,
+        help='Optional time limit to impose on training. If time runs out '
+             'before training completes, a checkpoint will be saved so that '
+             'training can be continued later, and the program will exit with '
+             'an error code.')
     group.add_argument('--random-shuffling-seed', type=int,
         help='Random seed used for random shuffling of the training data.')
     group.add_argument('--max-tokens-per-batch', type=int,
@@ -66,6 +71,9 @@ def add_training_loop_arguments(
         help='An evaluation checkpoint will be run on the validation data '
              'every time this many training examples have been processed.')
     return group
+
+def parse_time_limit(s: str) -> datetime.timedelta:
+    return datetime.timedelta(seconds=humanfriendly.parse_timespan(s))
 
 class SimulatedTrainingLoopError(RuntimeError):
     pass
@@ -265,6 +273,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         console_logger: logging.Logger,
         event_logger: Logger,
         show_progress: bool,
+        time_limit: datetime.timedelta | None = None,
         fail_after_examples: int | None = None
     ) -> None:
         r"""NOTE: When this function returns, the model's parameters will be
@@ -412,7 +421,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         raise SimulatedTrainingLoopError
                 # If we have processed enough examples, take a checkpoint.
                 state.examples_since_checkpoint += batch_size
-                if state.examples_since_checkpoint >= self.examples_per_checkpoint:
+                take_checkpoint = state.examples_since_checkpoint >= self.examples_per_checkpoint
+                if take_checkpoint:
                     console_logger.info(f'  checkpoint #{state.checkpoint_no + 1}')
                     # Evaluate the current model on the validation data.
                     validation_scores = self.evaluate(
@@ -445,29 +455,40 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     # examples in the updated count.
                     state.examples_since_checkpoint %= self.examples_per_checkpoint
                     state.checkpoint_no += 1
-                    # If the device is cpu, save the state of the PyTorch RNG.
-                    # This allows us to make dropout consistent.
-                    if device.type == 'cpu':
-                        state.torch_rng_state = torch.get_rng_state()
                     # TODO Make the logging of events consistent in case of
                     # crashes.
                     event_logger.log('checkpoint', dict(
                         is_best=is_best,
                         scores=validation_scores
                     ))
-                    # If we're not stopping early, save this training checkpoint
-                    # to disk so it can be restored later in case of a crash.
-                    # TODO Make saving checkpoints optional and decoupled from
-                    # validation checkpoints.
-                    if not should_stop:
-                        now = datetime.datetime.now()
-                        state.epoch_duration = initial_epoch_duration + (now - epoch_start_time)
-                        state.duration = initial_duration + (now - total_start_time)
-                        state.save(saver, device)
                     # If the early stopping criterion has been met, stop here.
                     if should_stop:
                         console_logger.info('  stopping early')
                         break
+                # Check if the time limit has been reached.
+                out_of_time = (
+                    time_limit is not None and
+                    datetime.datetime.now() - total_start_time > time_limit
+                )
+                # If we're at a checkpoint or we've reached the time limit, save
+                # the state of the training loop to disk so it can be resumed
+                # later in case of a crash.
+                # TODO Make saving checkpoints optional and decoupled from
+                # validation checkpoints.
+                if take_checkpoint or out_of_time:
+                    # If the device is cpu, save the state of the PyTorch RNG.
+                    # This allows us to make dropout consistent.
+                    if device.type == 'cpu':
+                        state.torch_rng_state = torch.get_rng_state()
+                    now = datetime.datetime.now()
+                    state.epoch_duration = initial_epoch_duration + (now - epoch_start_time)
+                    state.duration = initial_duration + (now - total_start_time)
+                    state.save(saver, device)
+                # Quit if we've reached the time limit.
+                if out_of_time:
+                    event_logger.log('time_limit_exceeded')
+                    console_logger.info('time limit exceeded')
+                    raise TimeLimitExceeded
             if should_stop:
                 break
             # Output some statistics at the end of each epoch.
@@ -732,6 +753,7 @@ class TrainingLoopState:
         console_logger: logging.Logger,
         event_logger: Logger,
         show_progress: bool,
+        time_limit: datetime.timedelta | None = None,
         fail_after_examples: int | None = None
     ) -> None:
         return self.training_loop.run(
@@ -744,6 +766,7 @@ class TrainingLoopState:
             console_logger=console_logger,
             event_logger=event_logger,
             show_progress=show_progress,
+            time_limit=time_limit,
             fail_after_examples=fail_after_examples
         )
 
@@ -834,3 +857,6 @@ def evaluate(
 @dataclasses.dataclass
 class OutOfCUDAMemoryError(RuntimeError):
     info: dict[str, Any]
+
+class TimeLimitExceeded(RuntimeError):
+    pass
