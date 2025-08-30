@@ -2,7 +2,7 @@ import pathlib
 import sys
 
 from rau.tasks.common.command import Command
-from rau.tools.torch.saver import is_finished
+from rau.tasks.common.training_loop import is_finished
 
 class IsFinishedCommand(Command):
 

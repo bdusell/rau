@@ -46,7 +46,7 @@ class LanguageModelingTrainCommand(Command):
         # Are we training on CPU or GPU?
         device = model_interface.get_device(args)
         console_logger.info(f'device: {device}')
-        do_profile_memory = device.type == 'cuda'
+        do_profile_memory = device.type == 'cuda' and not args.continue_
 
         # Load the tokens in the vocabulary. This determines the sizes of the
         # embedding and softmax layers in the model.
@@ -78,6 +78,9 @@ class LanguageModelingTrainCommand(Command):
             saver,
             device
         )
+        if training_loop_state is None:
+            console_logger.info('training is already finished')
+            return
 
         # Load the data.
         training_data, validation_data, vocabulary = \
@@ -86,11 +89,12 @@ class LanguageModelingTrainCommand(Command):
         try:
             # Start logging events to disk.
             with saver.logger() as event_logger:
-                event_logger.log('model_info', dict(
-                    parameter_seed=model_interface.parameter_seed,
-                    size_in_bytes=model_size_in_bytes,
-                    num_parameters=num_parameters
-                ))
+                if not training_loop_state.is_continued:
+                    event_logger.log('model_info', dict(
+                        parameter_seed=model_interface.parameter_seed,
+                        size_in_bytes=model_size_in_bytes,
+                        num_parameters=num_parameters
+                    ))
                 # Run the training loop.
                 training_loop_state.run(
                     saver,

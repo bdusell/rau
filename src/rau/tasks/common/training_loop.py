@@ -4,6 +4,7 @@ import datetime
 import functools
 import json
 import logging
+import os
 import pathlib
 import random
 from collections.abc import Callable, Iterable
@@ -14,7 +15,7 @@ import torch
 
 from rau.tools.logging import Logger
 from rau.tools.ticker import TimedTicker
-from rau.tools.torch.saver import ModelSaver
+from rau.tools.torch.saver import ModelSaver, is_finished as model_saver_is_finished
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.profile import reset_memory_profiler, get_peak_memory
 from rau.training.early_stopping import UpdatesWithoutImprovement
@@ -170,16 +171,19 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         args: argparse.Namespace,
         saver: ModelSaver,
         device: torch.device
-    ) -> 'TrainingLoopState':
+    ) -> 'TrainingLoopState | None':
         if args.continue_:
-            data = saver.load_checkpoint(device)
-            with get_training_loop_file(saver).open() as fin:
-                training_loop = cls(**json.load(fin))
-            return TrainingLoopState.from_serializable_data(
-                saver.model,
-                training_loop,
-                data
-            )
+            if is_finished(saver.directory):
+                return None
+            else:
+                data = saver.load_checkpoint(device)
+                with get_training_loop_file(saver).open() as fin:
+                    training_loop = cls(**json.load(fin))
+                return TrainingLoopState.from_serializable_data(
+                    saver.model,
+                    training_loop,
+                    data
+                )
         else:
             kwargs = {}
             for name in [
@@ -276,14 +280,53 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         time_limit: datetime.timedelta | None = None,
         fail_after_examples: int | None = None
     ) -> None:
-        r"""NOTE: When this function returns, the model's parameters will be
-        those of the *last* epoch, not necessarily the *best* epoch. However,
+        r"""NOTE: After training runs to completion, the model's parameters will
+        be those of the *last* epoch, not necessarily the *best* epoch. However,
         the saved model will be the best one.
         """
-        if state.is_continued:
-            console_logger.info('continuing training')
-        else:
-            console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
+        # Protect the training loop with a lock file to avoid multiple processes
+        # training in the same directory and overwriting each other.
+        lock_file = get_lock_file(saver.directory)
+        try:
+            with lock_file.open('x') as fout:
+                os.fsync(fout.fileno())
+        except FileExistsError:
+            raise TrainingLockedError(
+                f'Training is locked; either another process is currently '
+                f'training a model in {saver.directory}, or a previous process '
+                f'did not exit cleanly. To override this, delete the file '
+                f'{lock_file}.'
+            )
+        try:
+            self._run_unlocked(
+                state,
+                saver,
+                model_interface,
+                training_data,
+                validation_data,
+                vocabulary,
+                console_logger,
+                event_logger,
+                show_progress,
+                time_limit,
+                fail_after_examples
+            )
+        finally:
+            lock_file.unlink()
+
+    def _run_unlocked(self,
+        state: 'TrainingLoopState',
+        saver: ModelSaver,
+        model_interface: ModelInterface,
+        training_data: list[Example],
+        validation_data: list[Example],
+        vocabulary: VocabularyContainer,
+        console_logger: logging.Logger,
+        event_logger: Logger,
+        show_progress: bool,
+        time_limit: datetime.timedelta | None,
+        fail_after_examples: int | None
+    ) -> None:
         device = model_interface.get_device(None)
         do_profile_memory = device.type == 'cuda'
         console_logger.info(f'training examples: {len(training_data)}')
@@ -301,8 +344,10 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         )
         del validation_data
         if state.is_continued:
+            console_logger.info('continuing training')
             event_logger.log('continue_training')
         else:
+            console_logger.info(f'random shuffling seed: {self.random_shuffling_seed}')
             event_logger.log('start_training', dict(
                 num_training_examples=len(training_data),
                 num_validation_examples=num_validation_examples,
@@ -723,6 +768,12 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
 def get_training_loop_file(saver: ModelSaver) -> pathlib.Path:
     return saver.directory / 'training-loop.json'
 
+def get_lock_file(directory: pathlib.Path) -> pathlib.Path:
+    return directory / 'training.lock'
+
+def is_finished(directory: pathlib.Path) -> bool:
+    return model_saver_is_finished(directory) and not get_lock_file(directory).exists()
+
 @dataclasses.dataclass
 class TrainingLoopState:
 
@@ -859,4 +910,7 @@ class OutOfCUDAMemoryError(RuntimeError):
     info: dict[str, Any]
 
 class TimeLimitExceeded(RuntimeError):
+    pass
+
+class TrainingLockedError(RuntimeError):
     pass
