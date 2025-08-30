@@ -263,3 +263,50 @@ def test_cancel_and_continue(tmp_path, fail_after_examples, dropout):
             info.show_progress
         )
     assert_models_are_equal(info.saver.model, reference_model)
+
+def test_continue_already_finished(tmp_path):
+    console_logger = get_logger()
+    training_data, validation_data, vocabulary_data = get_datasets()
+    model_path = tmp_path / 'model'
+    info = parse_argv([
+        '--device', 'cpu',
+        '--parameter-seed', '123',
+        '--architecture', 'transformer',
+        '--num-layers', '2',
+        '--d-model', '32',
+        '--num-heads', '4',
+        '--feedforward-size', '32',
+        '--dropout', '0.1',
+        '--init-scale', '0.01',
+        '--max-epochs', '100',
+        '--random-shuffling-seed', '123',
+        '--max-tokens-per-batch', '256',
+        '--optimizer', 'Adam',
+        '--initial-learning-rate', '0.01',
+        '--gradient-clipping-threshold', '5',
+        '--early-stopping-patience', '4',
+        '--learning-rate-patience', '2',
+        '--learning-rate-decay-factor', '0.5',
+        '--examples-per-checkpoint', '500',
+        '--output', str(model_path)
+    ], vocabulary_data)
+    with info.saver.logger() as event_logger:
+        info.state.run(
+            info.saver,
+            info.model_interface,
+            training_data,
+            validation_data,
+            info.vocabulary,
+            console_logger,
+            event_logger,
+            info.show_progress
+        )
+    info = parse_argv(
+        [
+            '--device', 'cpu',
+            '--continue',
+            '--output', str(model_path)
+        ],
+        vocabulary_data
+    )
+    assert info.state is None

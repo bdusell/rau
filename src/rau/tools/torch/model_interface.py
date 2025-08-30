@@ -17,14 +17,13 @@ class ModelInterface:
         self.use_load = use_load
         self.use_init = use_init
         self.use_continue = use_continue
-        self.use_output = use_init or use_continue
         self.parser = None
         self.device = None
         self.parameter_seed = None
 
     def add_arguments(self, parser):
         self.add_device_arguments(parser)
-        if self.use_output:
+        if self.use_init or self.use_continue:
             parser.add_argument('--output', type=pathlib.Path, required=True,
                 help='Output directory where logs and model parameters will '
                      'be saved.')
@@ -85,15 +84,16 @@ class ModelInterface:
             )
         elif self.use_init and (not self.use_load or args.load_model is None):
             # Initialize a new model.
+            if args.output is None:
+                self.fail_argument_check('When initializing a new model, --output is required.')
             try:
                 kwargs = self.get_kwargs(args, *_args, **_kwargs)
             except ValueError as e:
                 self.fail_argument_check(e)
-            output = args.output if self.use_output else None
             # TODO Skip default parameter initialization.
             # See https://pytorch.org/tutorials/prototype/skip_param_init.html
             # TODO Allocate parameters directly on the device using a context manager.
-            saver = ModelSaver.construct(self.construct_model, output, **kwargs)
+            saver = ModelSaver.construct(self.construct_model, args.output, **kwargs)
             saver.check_output()
             saver.save_kwargs()
             saver.model.to(device)
