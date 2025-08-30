@@ -13,10 +13,10 @@ case $mode in
     ;;
   small)
     num_layers=2
-    d_model=32
-    num_heads=4
-    feedforward_size=64
-    hidden_units=32
+    d_model=8
+    num_heads=2
+    feedforward_size=8
+    hidden_units=8
     max_epochs=1
     max_length=10
     ;;
@@ -88,7 +88,7 @@ for architecture in \
     if [[ $stack = superposition ]]; then
       stack_transformer_layers=1.superposition-10.1
     elif [[ $stack = nondeterministic ]]; then
-      stack_transformer_layers=1.nondeterministic-2-3-2.1
+      stack_transformer_layers=1.nondeterministic-2-2-2.1
     fi
     model_args=( \
       --architecture stack-transformer \
@@ -105,8 +105,8 @@ for architecture in \
     case $stack in
       stratification) stack_rnn_stack=stratification-10 ;;
       superposition) stack_rnn_stack=superposition-10 ;;
-      nondeterministic) stack_rnn_stack=nondeterministic-2-3 ;;
-      vector-nondeterministic) stack_rnn_stack=vector-nondeterministic-2-3-2 ;;
+      nondeterministic) stack_rnn_stack=nondeterministic-2-2 ;;
+      vector-nondeterministic) stack_rnn_stack=vector-nondeterministic-2-2-2 ;;
       *) exit 1 ;;
     esac
     model_args=( \
@@ -271,8 +271,8 @@ for architecture in \
     nondeterministic-stack-transformer)
       model_args=( \
         --architecture stack-transformer \
-        --stack-transformer-encoder-layers 1.nondeterministic-2-3-2.1 \
-        --stack-transformer-decoder-layers 1.nondeterministic-2-3-2.1 \
+        --stack-transformer-encoder-layers 1.nondeterministic-2-2-2.1 \
+        --stack-transformer-decoder-layers 1.nondeterministic-2-2-2.1 \
       )
       ;;
     *) exit 1 ;;
