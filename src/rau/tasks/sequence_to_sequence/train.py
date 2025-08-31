@@ -46,7 +46,7 @@ class SequenceToSequenceTrainCommand(Command):
         # Are we training on CPU or GPU?
         device = model_interface.get_device(args)
         console_logger.info(f'device: {device}')
-        do_profile_memory = device.type == 'cuda'
+        do_profile_memory = device.type == 'cuda' and not args.continue_
 
         # Load the tokens in the vocabulary. This determines the sizes of the
         # embedding and softmax layers in the model.
