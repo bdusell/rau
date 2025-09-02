@@ -293,6 +293,22 @@ def get_stack_rnn_num_parameters(
                 2 * (controller_output_size + 1) + # action layer
                 stack_embedding_size * (controller_output_size + 1) # pushed vector layer
             )
+        case ('superposition', (stack_embedding_size,)):
+            stack_reading_size = stack_embedding_size
+            stack_params = (
+                3 * (controller_output_size + 1) + # action layer
+                stack_embedding_size * (controller_output_size + 1) # pushed vector layer
+            )
+        case ('nondeterministic', (Q, S)):
+            stack_reading_size = Q * S
+            stack_params = ((Q*S) * (Q*S+Q*S+Q)) * (controller_output_size + 1)
+        case ('vector-nondeterministic', (Q, S, stack_embedding_size)):
+            stack_reading_size = Q * S * stack_embedding_size
+            stack_params = (
+                stack_embedding_size + # learned bottom vector
+                ((Q*S) * (Q*S+Q*S+Q)) * (controller_output_size + 1) + # action layer
+                stack_embedding_size * (controller_output_size + 1) # pushed vector layer
+            )
         case _:
             raise ValueError
     return (
