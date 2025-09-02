@@ -202,6 +202,36 @@ def test_stack_transformer_resize(layers):
         get_num_params(arg_dict, { '--d-model' : d_model + num_heads }, vocabulary_data)
     )
 
+@pytest.mark.parametrize('controller', ['rnn', 'lstm'])
+@pytest.mark.parametrize('stack', [
+    'stratification-7',
+    'superposition-7',
+    'nondeterministic-3-4',
+    'vector-nondeterministic-5-6-7'
+])
+@pytest.mark.parametrize('reading_trick', [False, True])
+def test_stack_rnn_resize(controller, stack, reading_trick):
+    target_num_params = 123000
+    vocab_size = 13
+    num_layers = 3
+    vocabulary_data = get_vocabulary_data(vocab_size)
+    arg_dict = run_resize([
+        '--parameters', str(target_num_params),
+        '--architecture', 'stack-rnn',
+        '--num-layers', str(num_layers),
+        '--stack-rnn-controller', controller,
+        '--stack-rnn-stack', stack,
+        *(['--stack-rnn-connect-reading-to-output'] if reading_trick else [])
+    ], vocabulary_data)
+    hidden_units = arg_dict['--hidden-units']
+    arg_dict['--dropout'] = 0.1
+    assert_is_closest(
+        target_num_params,
+        get_num_params(arg_dict, {}, vocabulary_data),
+        get_num_params(arg_dict, { '--hidden-units' : hidden_units - 1 }, vocabulary_data),
+        get_num_params(arg_dict, { '--hidden-units' : hidden_units + 1 }, vocabulary_data)
+    )
+
 @pytest.mark.parametrize('architecture', ['rnn', 'lstm'])
 def test_rnn_resize(architecture):
     target_num_params = 123000
