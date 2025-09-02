@@ -285,40 +285,42 @@ def get_stack_rnn_num_parameters(
     stack,
     connect_reading_to_output
 ):
-    controller_output_size = hidden_units
+    output_size = hidden_units
     match stack:
         case ('stratification', (stack_embedding_size,)):
             stack_reading_size = stack_embedding_size
             stack_params = (
-                2 * (controller_output_size + 1) + # action layer
-                stack_embedding_size * (controller_output_size + 1) # pushed vector layer
+                2 * (hidden_units + 1) + # action layer
+                stack_embedding_size * (hidden_units + 1) # pushed vector layer
             )
         case ('superposition', (stack_embedding_size,)):
             stack_reading_size = stack_embedding_size
             stack_params = (
-                3 * (controller_output_size + 1) + # action layer
-                stack_embedding_size * (controller_output_size + 1) # pushed vector layer
+                3 * (hidden_units + 1) + # action layer
+                stack_embedding_size * (hidden_units + 1) # pushed vector layer
             )
         case ('nondeterministic', (Q, S)):
             stack_reading_size = Q * S
-            stack_params = ((Q*S) * (Q*S+Q*S+Q)) * (controller_output_size + 1)
+            stack_params = ((Q*S) * (Q*S+Q*S+Q)) * (hidden_units + 1)
         case ('vector-nondeterministic', (Q, S, stack_embedding_size)):
             stack_reading_size = Q * S * stack_embedding_size
             stack_params = (
                 stack_embedding_size + # learned bottom vector
-                ((Q*S) * (Q*S+Q*S+Q)) * (controller_output_size + 1) + # action layer
-                stack_embedding_size * (controller_output_size + 1) # pushed vector layer
+                ((Q*S) * (Q*S+Q*S+Q)) * (hidden_units + 1) + # action layer
+                stack_embedding_size * (hidden_units + 1) # pushed vector layer
             )
         case _:
             raise ValueError
+    if connect_reading_to_output:
+        output_size = output_size + stack_reading_size
     return (
-        num_embeddings * hidden_units + # embeddings
+        num_embeddings * output_size + # embeddings
         # controller
         get_rnn_core_num_parameters(
             architecture=controller,
             num_layers=num_layers,
             hidden_units=hidden_units,
-            input_size=hidden_units + stack_reading_size
+            input_size=output_size + stack_reading_size
         ) +
         stack_params # stack
     )
