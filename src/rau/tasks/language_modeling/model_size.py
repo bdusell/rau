@@ -51,7 +51,7 @@ class LanguageModelingModelSizeCommand(Command):
         parser.add_argument('--feedforward-size-factor', type=int,
             help='(transformer) The size of the hidden layer of the '
                  'feedforward network in each feedforward sublayer.')
-        parser.add_argument('--stack-transformer-layers', type=parse_stack_transformer_layers,
+        parser.add_argument('--stack-transformer-layers',
             help='(stack-transformer) A string describing which layers to '
                  'use. ' +
                  STACK_TRANSFORMER_LAYERS_HELP_MESSAGE)
@@ -110,7 +110,7 @@ def get_arg_dict(
                         num_embeddings=num_embeddings,
                         d_model=d_model,
                         feedforward_size=feedforward_size,
-                        stack_transformer_layers=args.stack_transformer_layers
+                        stack_transformer_layers=parse_stack_transformer_layers(args.stack_transformer_layers)
                     )
                 case _:
                     raise ValueError
@@ -119,13 +119,16 @@ def get_arg_dict(
             size_int = round(size_expr.evalf())
             d_model_int = int(d_model.evalf(subs={ size : size_int }))
             feedforward_size_int = int(feedforward_size.evalf(subs={ size : size_int }))
-            return {
+            result = {
                 '--architecture' : args.architecture,
                 '--num-layers' : args.num_layers,
                 '--d-model' : d_model_int,
                 '--num-heads' : args.num_heads,
                 '--feedforward-size' : feedforward_size_int
             }
+            if args.architecture == 'stack-transformer':
+                result['--stack-transformer-layers'] = args.stack_transformer_layers
+            return result
         case 'rnn' | 'lstm':
             if args.num_layers is None:
                 raise ValueError

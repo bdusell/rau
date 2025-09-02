@@ -138,6 +138,37 @@ def test_transformer_resize():
         get_num_params(arg_dict, { '--d-model' : d_model + num_heads }, vocabulary_data)
     )
 
+@pytest.mark.parametrize('layers', [
+    '5',
+    '2.superposition-11.2',
+    '2.nondeterministic-3-4-5.2',
+    '1.superposition-11.1.nondeterministic-2-4-6.3'
+])
+def test_stack_transformer_resize(layers):
+    target_num_params = 123000
+    vocab_size = 13
+    num_layers = 5
+    d_model = 21
+    num_heads = 7
+    feedforward_size_factor = 3
+    vocabulary_data = get_vocabulary_data(vocab_size)
+    arg_dict = run_resize([
+        '--parameters', str(target_num_params),
+        '--architecture', 'stack-transformer',
+        '--num-layers', str(num_layers),
+        '--num-heads', str(num_heads),
+        '--feedforward-size-factor', str(feedforward_size_factor),
+        '--stack-transformer-layers', layers
+    ], vocabulary_data)
+    d_model = arg_dict['--d-model']
+    arg_dict['--dropout'] = 0.1
+    assert_is_closest(
+        target_num_params,
+        get_num_params(arg_dict, {}, vocabulary_data),
+        get_num_params(arg_dict, { '--d-model' : d_model - num_heads }, vocabulary_data),
+        get_num_params(arg_dict, { '--d-model' : d_model + num_heads }, vocabulary_data)
+    )
+
 @pytest.mark.parametrize('architecture', ['rnn', 'lstm'])
 def test_rnn_resize(architecture):
     target_num_params = 123000
