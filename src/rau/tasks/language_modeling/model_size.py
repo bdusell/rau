@@ -57,7 +57,7 @@ class LanguageModelingModelSizeCommand(Command):
                  STACK_TRANSFORMER_LAYERS_HELP_MESSAGE)
         parser.add_argument('--stack-rnn-controller', choices=['rnn', 'lstm'],
             help='(stack-rnn) The type of RNN to use as the controller.')
-        parser.add_argument('--stack-rnn-stack', type=parse_stack_rnn_stack,
+        parser.add_argument('--stack-rnn-stack',
             help='(stack-rnn) The type of differentiable stack to connect to '
                  'the RNN controller. Options are: '
                  '(1) stratification-<m>, where <m> is an integer, indicating '
@@ -77,7 +77,7 @@ class LanguageModelingModelSizeCommand(Command):
 
     def run(self, parser, args):
         arg_dict = get_arg_dict(args, load_vocabulary_data(args, parser))
-        print(' '.join(str(arg) for pair in arg_dict.items() for arg in pair))
+        print(' '.join(str(arg) for pair in arg_dict.items() for arg in pair if arg is not None))
 
 def get_arg_dict(
     args: argparse.Namespace,
@@ -129,26 +129,46 @@ def get_arg_dict(
             if args.architecture == 'stack-transformer':
                 result['--stack-transformer-layers'] = args.stack_transformer_layers
             return result
-        case 'rnn' | 'lstm':
+        case 'rnn' | 'lstm' | 'stack-rnn':
             if args.num_layers is None:
                 raise ValueError
             hidden_units = sympy.Symbol('size', positive=True)
-            eq = sympy.Eq(
-                get_rnn_num_parameters(
-                    architecture=args.architecture,
-                    num_embeddings=len(vocabulary_data.tokens) + int(vocabulary_data.allow_unk) + 1,
-                    num_layers=args.num_layers,
-                    hidden_units=hidden_units
-                ),
-                args.parameters
-            )
+            num_embeddings = len(vocabulary_data.tokens) + int(vocabulary_data.allow_unk) + 1
+            match args.architecture:
+                case 'rnn' | 'lstm':
+                    num_params_expr = get_rnn_num_parameters(
+                        architecture=args.architecture,
+                        num_embeddings=num_embeddings,
+                        num_layers=args.num_layers,
+                        hidden_units=hidden_units
+                    )
+                case 'stack-rnn':
+                    num_params_expr = get_stack_rnn_num_parameters(
+                        num_embeddings=num_embeddings,
+                        num_layers=args.num_layers,
+                        hidden_units=hidden_units,
+                        controller=args.stack_rnn_controller,
+                        stack=parse_stack_rnn_stack(args.stack_rnn_stack),
+                        connect_reading_to_output=args.stack_rnn_connect_reading_to_output
+                    )
+                case _:
+                    raise ValueError
+            eq = sympy.Eq(num_params_expr, args.parameters)
             hidden_units_expr = sympy.solve(eq, hidden_units, dict=True)[0][hidden_units]
             hidden_units_int = round(hidden_units_expr.evalf())
-            return {
+            result = {
                 '--architecture' : args.architecture,
                 '--num-layers' : args.num_layers,
                 '--hidden-units' : hidden_units_int
             }
+            if args.architecture == 'stack-rnn':
+                result.update({
+                    '--stack-rnn-controller' : args.stack_rnn_controller,
+                    '--stack-rnn-stack' : args.stack_rnn_stack
+                })
+                if args.stack_rnn_connect_reading_to_output:
+                    result['--stack-rnn-connect-reading-to-output'] = None
+            return result
 
 def get_transformer_num_parameters(
     num_embeddings,
@@ -222,6 +242,24 @@ def get_rnn_num_parameters(
     num_layers,
     hidden_units
 ):
+    return (
+        num_embeddings * hidden_units +
+        get_rnn_core_num_parameters(
+            architecture,
+            num_layers,
+            hidden_units,
+            input_size=hidden_units
+        )
+    )
+
+def get_rnn_core_num_parameters(
+    architecture,
+    num_layers,
+    hidden_units,
+    input_size
+):
+    if num_layers == 0:
+        return 0
     match architecture:
         case 'rnn':
             num_gates = 1
@@ -230,11 +268,43 @@ def get_rnn_num_parameters(
         case _:
             raise ValueError
     return (
-        num_embeddings * hidden_units + # embeddings
         num_layers * hidden_units + # initial hidden state
-        num_layers * (
-            num_gates * (2 * hidden_units + 1) * hidden_units # input/recurrent layers
+        # input/recurrent layers for first layer
+        num_gates * (hidden_units + input_size + 1) * hidden_units +
+        # input/recurrent layers for later layers
+        (num_layers - 1) * (
+            num_gates * (2 * hidden_units + 1) * hidden_units
         )
+    )
+
+def get_stack_rnn_num_parameters(
+    num_embeddings,
+    num_layers,
+    hidden_units,
+    controller,
+    stack,
+    connect_reading_to_output
+):
+    controller_output_size = hidden_units
+    match stack:
+        case ('stratification', (stack_embedding_size,)):
+            stack_reading_size = stack_embedding_size
+            stack_params = (
+                2 * (controller_output_size + 1) + # action layer
+                stack_embedding_size * (controller_output_size + 1) # pushed vector layer
+            )
+        case _:
+            raise ValueError
+    return (
+        num_embeddings * hidden_units + # embeddings
+        # controller
+        get_rnn_core_num_parameters(
+            architecture=controller,
+            num_layers=num_layers,
+            hidden_units=hidden_units,
+            input_size=hidden_units + stack_reading_size
+        ) +
+        stack_params # stack
     )
 
 if __name__ == '__main__':

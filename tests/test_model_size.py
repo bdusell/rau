@@ -7,7 +7,8 @@ from rau.tasks.language_modeling.model_size import (
     get_arg_dict,
     get_transformer_num_parameters,
     get_rnn_num_parameters,
-    get_stack_transformer_num_parameters
+    get_stack_transformer_num_parameters,
+    get_stack_rnn_num_parameters
 )
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.vocabulary import VocabularyData
@@ -107,6 +108,38 @@ def test_rnn_num_parameters(architecture):
     )
     assert num_params == expected_num_params
 
+@pytest.mark.parametrize('controller', ['rnn', 'lstm'])
+@pytest.mark.parametrize('stack', [
+    'stratification-7',
+    'superposition-7',
+    'nondeterministic-3-4',
+    'vector-nondeterministic-5-6-7'
+])
+@pytest.mark.parametrize('reading_trick', [False, True])
+def test_stack_rnn_num_parameters(controller, stack, reading_trick):
+    vocab_size = 13
+    num_layers = 3
+    hidden_units = 5
+    vocabulary_data = get_vocabulary_data(vocab_size)
+    expected_num_params, num_embeddings = get_actual_num_parameters([
+        '--architecture', 'stack-rnn',
+        '--num-layers', str(num_layers),
+        '--hidden-units', str(hidden_units),
+        '--stack-rnn-controller', controller,
+        '--stack-rnn-stack', stack,
+        *(['--stack-rnn-connect-reading-to-output'] if reading_trick else []),
+        '--dropout', '0.1'
+    ], vocabulary_data)
+    num_params = get_stack_rnn_num_parameters(
+        num_embeddings=num_embeddings,
+        num_layers=num_layers,
+        hidden_units=hidden_units,
+        controller=controller,
+        stack=parse_stack_rnn_stack(stack),
+        connect_reading_to_output=reading_trick
+    )
+    assert num_params == expected_num_params
+
 def run_resize(argv, vocabulary_data):
     command = LanguageModelingModelSizeCommand()
     parser = argparse.ArgumentParser()
@@ -192,7 +225,7 @@ def test_rnn_resize(architecture):
 def get_num_params(arg_dict, updates, vocabulary_data):
     updated_arg_dict = arg_dict | updates
     num_params, _ = get_actual_num_parameters(
-        [str(arg) for pair in updated_arg_dict.items() for arg in pair],
+        [str(arg) for pair in updated_arg_dict.items() for arg in pair if arg is not None],
         vocabulary_data
     )
     return num_params
