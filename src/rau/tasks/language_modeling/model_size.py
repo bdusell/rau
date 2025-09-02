@@ -121,11 +121,12 @@ def get_arg_dict(
             feedforward_size_int = int(feedforward_size.evalf(subs={ size : size_int }))
             result = {
                 '--architecture' : args.architecture,
-                '--num-layers' : args.num_layers,
                 '--d-model' : d_model_int,
                 '--num-heads' : args.num_heads,
                 '--feedforward-size' : feedforward_size_int
             }
+            if args.architecture == 'transformer':
+                result['--num-layers'] = args.num_layers
             if args.architecture == 'stack-transformer':
                 result['--stack-transformer-layers'] = args.stack_transformer_layers
             return result
