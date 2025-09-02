@@ -36,8 +36,7 @@ class LanguageModelingModelSizeCommand(Command):
                  'feedforward network in each feedforward sublayer.')
 
     def run(self, parser, args):
-        vocab = load_vocabulary_data(args, parser)
-        arg_dict = get_arg_dict(args, vocabulary_data)
+        arg_dict = get_arg_dict(args, load_vocabulary_data(args, parser))
         print(' '.join(str(arg) for pair in arg_dict.items() for arg in pair))
 
 def get_arg_dict(
