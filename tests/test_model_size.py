@@ -6,10 +6,17 @@ from rau.tasks.language_modeling.model_size import (
     LanguageModelingModelSizeCommand,
     get_arg_dict,
     get_transformer_num_parameters,
-    get_rnn_num_parameters
+    get_rnn_num_parameters,
+    get_stack_transformer_num_parameters
 )
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
 from rau.tasks.language_modeling.vocabulary import VocabularyData
+from rau.models.stack_nn.transformer.parse import (
+    parse_stack_transformer_layers
+)
+from rau.models.stack_nn.rnn.parse import (
+    parse_stack_rnn_stack
+)
 
 def get_actual_num_parameters(argv, vocabulary_data):
     model_interface = LanguageModelingModelInterface()
@@ -49,6 +56,34 @@ def test_transformer_num_parameters():
         d_model=d_model,
         num_layers=num_layers,
         feedforward_size=feedforward_size
+    )
+    assert num_params == expected_num_params
+
+@pytest.mark.parametrize('layers', [
+    '5',
+    '2.superposition-11.2',
+    '2.nondeterministic-3-4-5.2',
+    '1.superposition-11.1.nondeterministic-2-4-6.3'
+])
+def test_stack_transformer_num_parameters(layers):
+    vocab_size = 13
+    d_model = 21
+    num_heads = 7
+    feedforward_size = 17
+    vocabulary_data = get_vocabulary_data(vocab_size)
+    expected_num_params, num_embeddings = get_actual_num_parameters([
+        '--architecture', 'stack-transformer',
+        '--d-model', str(d_model),
+        '--num-heads', str(num_heads),
+        '--feedforward-size', str(feedforward_size),
+        '--stack-transformer-layers', layers,
+        '--dropout', '0.1'
+    ], vocabulary_data)
+    num_params = get_stack_transformer_num_parameters(
+        num_embeddings=num_embeddings,
+        d_model=d_model,
+        feedforward_size=feedforward_size,
+        stack_transformer_layers=parse_stack_transformer_layers(layers)
     )
     assert num_params == expected_num_params
 
