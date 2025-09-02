@@ -57,7 +57,7 @@ def get_arg_dict(
             feedforward_size = args.feedforward_size_factor * d_model
             eq = sympy.Eq(
                 get_transformer_num_parameters(
-                    num_embeddings=len(vocabulary_data.tokens) + int(vocabulary.allow_unk) + 2,
+                    num_embeddings=len(vocabulary_data.tokens) + int(vocabulary_data.allow_unk) + 2,
                     d_model=d_model,
                     num_layers=args.num_layers,
                     feedforward_size=feedforward_size
