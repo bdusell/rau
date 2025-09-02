@@ -1,3 +1,6 @@
+import argparse
+from typing import Any, Literal
+
 import torch
 
 from rau.tools.torch.model_interface import ModelInterface
@@ -17,7 +20,7 @@ from rau.unidirectional import (
     OutputUnidirectional
 )
 from rau.tasks.common.model import pad_sequences
-from .vocabulary import get_vocabularies
+from .vocabulary import get_vocabularies, VocabularyData
 
 class LanguageModelingModelInterface(ModelInterface):
 
@@ -35,6 +38,9 @@ class LanguageModelingModelInterface(ModelInterface):
         group.add_argument('--feedforward-size', type=int,
             help='(transformer) The size of the hidden layer of the '
                  'feedforward network in each feedforward sublayer.')
+        group.add_argument('--hidden-units', type=int,
+            help='(rnn, lstm) Number of hidden units to use in the hidden '
+                 'state.')
         group.add_argument('--dropout', type=float,
             help='(transformer) The dropout rate used throughout the '
                  'transformer on input embeddings, sublayer function outputs, '
@@ -42,14 +48,14 @@ class LanguageModelingModelInterface(ModelInterface):
                  '(rnn, lstm) The dropout rate used between all layers, '
                  'including between the input embedding layer and the first '
                  'layer, and between the last layer and the output layer.')
-        group.add_argument('--hidden-units', type=int,
-            help='(rnn, lstm) Number of hidden units to use in the hidden '
-                 'state.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
 
-    def get_kwargs(self, args, vocabulary_data):
+    def get_kwargs(self,
+        args: argparse.Namespace,
+        vocabulary_data: VocabularyData
+    ) -> dict[str, Any]:
         uses_bos = args.architecture == 'transformer'
         input_vocab, output_vocab = get_vocabularies(vocabulary_data, uses_bos)
         return dict(
@@ -67,18 +73,18 @@ class LanguageModelingModelInterface(ModelInterface):
         )
 
     def construct_model(self,
-        architecture,
-        num_layers,
-        d_model,
-        num_heads,
-        feedforward_size,
-        dropout,
-        hidden_units,
-        input_vocabulary_size,
-        output_vocabulary_size,
-        bos_index,
-        eos_index
-    ):
+        architecture: Literal['transformer', 'rnn', 'lstm'],
+        num_layers: int,
+        d_model: int | None,
+        num_heads: int | None,
+        feedforward_size: int | None,
+        dropout: float | None,
+        hidden_units: int | None,
+        input_vocabulary_size: int,
+        output_vocabulary_size: int,
+        bos_index: int | None,
+        eos_index: int
+    ) -> torch.nn.Module:
         if architecture is None:
             raise ValueError
         match architecture:
