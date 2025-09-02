@@ -96,5 +96,26 @@ def get_transformer_num_parameters(
         2 * d_model # final layer norm
     )
 
+def get_rnn_num_parameters(
+    architecture,
+    num_embeddings,
+    num_layers,
+    hidden_units
+):
+    match architecture:
+        case 'rnn':
+            num_gates = 1
+        case 'lstm':
+            num_gates = 4
+        case _:
+            raise ValueError
+    return (
+        num_embeddings * hidden_units + # embeddings
+        num_layers * hidden_units + # initial hidden state
+        num_layers * (
+            num_gates * (2 * hidden_units + 1) * hidden_units # input/recurrent layers
+        )
+    )
+
 if __name__ == '__main__':
     LanguageModelingModelSizeCommand().main()
