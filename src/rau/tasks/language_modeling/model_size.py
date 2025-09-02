@@ -85,8 +85,6 @@ def get_arg_dict(
 ) -> dict[str, Any]:
     match args.architecture:
         case 'transformer' | 'stack-transformer':
-            if args.num_layers is None:
-                raise ValueError
             if args.num_heads is None:
                 raise ValueError
             if args.feedforward_size_factor is None:
@@ -97,6 +95,8 @@ def get_arg_dict(
             num_embeddings = len(vocabulary_data.tokens) + int(vocabulary_data.allow_unk) + 2
             match args.architecture:
                 case 'transformer':
+                    if args.num_layers is None:
+                        raise ValueError
                     num_params_expr = get_transformer_num_parameters(
                         num_embeddings=num_embeddings,
                         d_model=d_model,
@@ -143,6 +143,10 @@ def get_arg_dict(
                         hidden_units=hidden_units
                     )
                 case 'stack-rnn':
+                    if args.stack_rnn_controller is None:
+                        raise ValueError
+                    if args.stack_rnn_stack is None:
+                        raise ValueError
                     num_params_expr = get_stack_rnn_num_parameters(
                         num_embeddings=num_embeddings,
                         num_layers=args.num_layers,
