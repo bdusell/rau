@@ -1,3 +1,6 @@
+import argparse
+from typing import Any, Literal
+
 import torch
 
 from rau.tools.torch.model_interface import ModelInterface
@@ -12,13 +15,15 @@ from rau.models.rnn.language_model import (
 )
 from rau.models.stack_nn.transformer.parse import (
     parse_stack_transformer_layers,
+    StackTransformerLayers,
     STACK_TRANSFORMER_LAYERS_HELP_MESSAGE
 )
 from rau.models.stack_nn.transformer.unidirectional_encoder import (
     get_unidirectional_stack_transformer_encoder
 )
 from rau.models.stack_nn.rnn.parse import (
-    parse_stack_rnn_stack
+    parse_stack_rnn_stack,
+    StackRNNStack
 )
 from rau.models.stack_nn.rnn.language_model import (
     get_stack_rnn_language_model
@@ -35,7 +40,7 @@ from rau.tasks.common.einsum import (
     get_einsum_block_size
 )
 
-from .vocabulary import get_vocabularies
+from .vocabulary import get_vocabularies, VocabularyData
 
 class LanguageModelingModelInterface(ModelInterface):
 
@@ -65,6 +70,9 @@ class LanguageModelingModelInterface(ModelInterface):
             help='(transformer, stack-transformer) The size of the hidden '
                  'layer of the feedforward network in each feedforward '
                  'sublayer.')
+        group.add_argument('--hidden-units', type=int,
+            help='(rnn, lstm, stack-rnn) Number of hidden units to use in '
+                 'the hidden state.')
         group.add_argument('--dropout', type=float,
             help='(transformer, stack-transformer) The dropout rate used '
                  'throughout the transformer on input embeddings, sublayer '
@@ -75,9 +83,6 @@ class LanguageModelingModelInterface(ModelInterface):
                  'layer, and between the last layer and the output layer. '
                  '(stack-rnn) Same as rnn and lstm. Stack actions are '
                  'computed from the dropped-out hidden state.')
-        group.add_argument('--hidden-units', type=int,
-            help='(rnn, lstm, stack-rnn) Number of hidden units to use in '
-                 'the hidden state.')
         group.add_argument('--stack-transformer-layers', type=parse_stack_transformer_layers,
             help='(stack-transformer) A string describing which layers to '
                  'use. ' +
@@ -109,7 +114,10 @@ class LanguageModelingModelInterface(ModelInterface):
         group = parser.add_argument_group('Model Execution')
         add_einsum_forward_arguments(group)
 
-    def get_kwargs(self, args, vocabulary_data):
+    def get_kwargs(self,
+        args: argparse.Namespace,
+        vocabulary_data: VocabularyData
+    ) -> dict[str, Any]:
         uses_bos = args.architecture in ('transformer', 'stack-transformer')
         input_vocab, output_vocab = get_vocabularies(vocabulary_data, uses_bos)
         return dict(
@@ -131,22 +139,28 @@ class LanguageModelingModelInterface(ModelInterface):
         )
 
     def construct_model(self,
-        architecture,
-        num_layers,
-        d_model,
-        num_heads,
-        feedforward_size,
-        dropout,
-        hidden_units,
-        stack_transformer_layers,
-        stack_rnn_controller,
-        stack_rnn_stack,
-        stack_rnn_connect_reading_to_output,
-        input_vocabulary_size,
-        output_vocabulary_size,
-        bos_index,
-        eos_index
-    ):
+        architecture: Literal[
+            'transformer',
+            'rnn',
+            'lstm',
+            'stack-transformer',
+            'stack-rnn'
+        ],
+        num_layers: int,
+        d_model: int | None,
+        num_heads: int | None,
+        feedforward_size: int | None,
+        dropout: float | None,
+        hidden_units: int | None,
+        stack_transformer_layers: StackTransformerLayers | None,
+        stack_rnn_controller: Literal['rnn', 'lstm'] | None,
+        stack_rnn_stack: StackRNNStack,
+        stack_rnn_connect_reading_to_output: bool,
+        input_vocabulary_size: int,
+        output_vocabulary_size: int,
+        bos_index: int | None,
+        eos_index: int
+    ) -> torch.nn.Module:
         if architecture is None:
             raise ValueError
         match architecture:
