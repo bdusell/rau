@@ -76,7 +76,25 @@ def get_arg_dict(
                 '--feedforward-size' : feedforward_size_int
             }
         case 'rnn' | 'lstm':
-            raise NotImplementedError
+            if args.num_layers is None:
+                raise ValueError
+            hidden_units = sympy.Symbol('size', positive=True)
+            eq = sympy.Eq(
+                get_rnn_num_parameters(
+                    architecture=args.architecture,
+                    num_embeddings=len(vocabulary_data.tokens) + int(vocabulary_data.allow_unk) + 1,
+                    num_layers=args.num_layers,
+                    hidden_units=hidden_units
+                ),
+                args.parameters
+            )
+            hidden_units_expr = sympy.solve(eq, hidden_units, dict=True)[0][hidden_units]
+            hidden_units_int = round(hidden_units_expr.evalf())
+            return {
+                '--architecture' : args.architecture,
+                '--num-layers' : args.num_layers,
+                '--hidden-units' : hidden_units_int
+            }
 
 def get_transformer_num_parameters(
     num_embeddings,
