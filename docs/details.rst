@@ -67,6 +67,15 @@ Features
    sequence-to-sequence transduction, it is possible to define new tasks while
    reusing the same training loop logic by extending the class
    :py:class:`~rau.tasks.common.TrainingLoop`.
+#. For language modeling, Rau provides implementations of a causally-masked
+   transformer with sinusoidal positional encodings, a simple RNN, and an LSTM.
+   For sequence-to-sequence, it provides a transformer encoder-decoder.
+#. For language modeling, the ``rau lm model-size`` command can be used to
+   automatically figure out how to readjust the :math:`d_\mathrm{model}` of a
+   transformer or the number of hidden states of an RNN or LSTM so that the
+   resulting model has a particular number of parameters, or as close to it as
+   possible. This makes it easy to configure models with comparable numbers of
+   parameters. It uses SymPy under the hood to work out the algebra.
 #. Provides a flexible Python API for building neural network architectures by
    composing simpler ones. In particular, it provides an abstract base class
    called :py:class:`~rau.unidirectional.Unidirectional` that represents a
@@ -195,6 +204,8 @@ Limitations
    LSTM, and transformer.
 #. The only architecture available for sequence-to-sequence generation is the
    transformer encoder-decoder.
+#. A ``rau ss model-size`` command like ``rau lm model-size`` has not been
+   implemented.
 #. Only three generation/decoding algorithms are implemented: ancestral
    sampling, greedy decoding, and beam search. Sequence-to-sequence generation
    only supports beam search for now (but the others can easily be added).
