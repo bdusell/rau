@@ -64,9 +64,6 @@ def test_transformer_resize():
     num_heads = 7
     feedforward_size_factor = 3
     vocabulary_data = get_vocabulary_data(vocab_size)
-    command = LanguageModelingModelSizeCommand()
-    parser = argparse.ArgumentParser()
-    command.add_arguments(parser)
     arg_dict = run_resize([
         '--parameters', str(target_num_params),
         '--architecture', 'transformer',
@@ -84,8 +81,13 @@ def test_transformer_resize():
         )
         return num_params
 
-    num_params = get_num_params(d_model)
-    num_params_lo = get_num_params(d_model - num_heads)
-    num_params_hi = get_num_params(d_model + num_heads)
-    assert abs(target_num_params - num_params) < abs(target_num_params - num_params_lo)
-    assert abs(target_num_params - num_params) < abs(target_num_params - num_params_hi)
+    assert_is_closest(
+        target_num_params,
+        get_num_params(d_model),
+        get_num_params(d_model - num_heads),
+        get_num_params(d_model + num_heads)
+    )
+
+def assert_is_closest(target, result, lo, hi):
+    assert abs(target - result) < abs(target - lo)
+    assert abs(target - result) < abs(target - hi)
