@@ -189,11 +189,24 @@ def get_stack_transformer_layer_num_parameters(layer, d_model, feedforward_size)
             return num_layers * get_transformer_layer_num_parameters(d_model, feedforward_size)
         case ('superposition', (stack_embedding_size,)):
             num_stack_actions = 3
+            stack_reading_size = stack_embedding_size
             return (
                 4 * d_model + # two layer norms
                 num_stack_actions * d_model + # stack action layer
                 stack_embedding_size * d_model + # input to pushed vector layer
-                d_model * stack_embedding_size + # stack reading to output layer
+                d_model * stack_reading_size + # stack reading to output layer
+                (feedforward_size + 1) * d_model + # feedforward first layer
+                (d_model + 1) * feedforward_size # feedforward second layer
+            )
+        case ('nondeterministic', (Q, S, stack_embedding_size)):
+            num_stack_actions = Q*S*Q*(S+S+1)
+            stack_reading_size = Q*S*stack_embedding_size
+            return (
+                4 * d_model + # two layer norms
+                stack_embedding_size + # learned bottom stack vector
+                num_stack_actions * d_model + # stack action layer
+                stack_embedding_size * d_model + # input to pushed vector layer
+                d_model * stack_reading_size + # stack reading to output layer
                 (feedforward_size + 1) * d_model + # feedforward first layer
                 (d_model + 1) * feedforward_size # feedforward second layer
             )
