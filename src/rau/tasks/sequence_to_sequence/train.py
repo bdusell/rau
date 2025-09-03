@@ -93,7 +93,8 @@ class SequenceToSequenceTrainCommand(Command):
                     event_logger.log('model_info', dict(
                         parameter_seed=model_interface.parameter_seed,
                         size_in_bytes=model_size_in_bytes,
-                        num_parameters=num_parameters
+                        num_parameters=num_parameters,
+                        init_scale=args.init_scale
                     ))
                 # Run the training loop.
                 training_loop_state.run(
