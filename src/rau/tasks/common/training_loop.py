@@ -47,10 +47,14 @@ def add_training_loop_arguments(
         help='Random seed used for random shuffling of the training data.')
     group.add_argument('--max-tokens-per-batch', type=int,
         help=max_tokens_per_batch_help)
-    group.add_argument('--optimizer', choices=['SGD', 'Adam'], default='Adam',
-        help='The algorithm to use for parameter optimization.')
+    group.add_argument('--optimizer', choices=['SGD', 'Adam', 'AdamW'], default='Adam',
+        help='The algorithm to use for parameter optimization. Available '
+             'choices: SGD, Adam (default), AdamW.')
     group.add_argument('--initial-learning-rate', type=float,
         help='The initial learning rate.')
+    group.add_argument('--weight-decay', type=float,
+        help='The weight decay coefficient to use with the optimizer. If not '
+             'specified, the default value specific to the optimizer is used.')
     group.add_argument('--label-smoothing-factor', type=float, default=0.0,
         help='The label smoothing factor to use with the cross-entropy '
              'loss. Default is 0 (no label smoothing).')
@@ -85,8 +89,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     max_epochs: int
     random_shuffling_seed: int
     max_tokens_per_batch: int
-    optimizer: Literal['SGD', 'Adam']
+    optimizer: Literal['SGD', 'Adam', 'AdamW']
     initial_learning_rate: float
+    weight_decay: float | None
     label_smoothing_factor: float | None
     gradient_clipping_threshold: float | None
     early_stopping_patience: int
@@ -192,6 +197,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'max_tokens_per_batch',
                 'optimizer',
                 'initial_learning_rate',
+                'weight_decay',
                 'label_smoothing_factor',
                 'gradient_clipping_threshold',
                 'early_stopping_patience',
@@ -251,11 +257,17 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 OptimizerClass = torch.optim.SGD
             case 'Adam':
                 OptimizerClass = torch.optim.Adam
+            case 'AdamW':
+                OptimizerClass = torch.optim.AdamW
             case _:
                 raise ValueError(f'unknown optimizer: {self.optimizer}')
+        kwargs = {}
+        if self.weight_decay is not None:
+            kwargs['weight_decay'] = self.weight_decay
         return OptimizerClass(
             model.parameters(),
-            lr=self.initial_learning_rate
+            lr=self.initial_learning_rate,
+            **kwargs
         )
 
     def save_config(self, saver: ModelSaver) -> None:
@@ -356,6 +368,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 random_shuffling_seed=self.random_shuffling_seed,
                 optimizer=self.optimizer,
                 initial_learning_rate=self.initial_learning_rate,
+                weight_decay=self.weight_decay,
                 label_smoothing_factor=self.label_smoothing_factor,
                 early_stopping_patience=self.early_stopping_patience,
                 learning_rate_patience=self.learning_rate_patience,
@@ -617,7 +630,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     def run_parameter_update(self,
         saver: ModelSaver,
         model_interface: ModelInterface,
-        optimizer: torch.optim.SGD | torch.optim.Adam,
+        optimizer: torch.optim.Optimizer,
         batch: Batch
     ) -> tuple[
         float,
@@ -782,7 +795,7 @@ class TrainingLoopState:
     epoch_no: int
     batch_no: int
     random_shuffling_state: object
-    optimizer: torch.optim.SGD | torch.optim.Adam
+    optimizer: torch.optim.Optimizer
     early_stopping: UpdatesWithoutImprovement
     lr_scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
     examples_since_checkpoint: int
