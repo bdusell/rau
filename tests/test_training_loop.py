@@ -184,7 +184,8 @@ def test_new_loop_matches_old(tmp_path):
 
 @pytest.mark.parametrize('fail_after_examples', [2200, 2700, 200, 0])
 @pytest.mark.parametrize('dropout', [0, 0.1])
-def test_cancel_and_continue(tmp_path, fail_after_examples, dropout):
+@pytest.mark.parametrize('optimizer', ['SGD', 'Adam', 'AdamW'])
+def test_cancel_and_continue(tmp_path, fail_after_examples, dropout, optimizer):
     console_logger = get_logger()
     training_data, validation_data, vocabulary_data = get_datasets()
     common_argv = [
@@ -200,7 +201,8 @@ def test_cancel_and_continue(tmp_path, fail_after_examples, dropout):
         '--max-epochs', '100',
         '--random-shuffling-seed', '123',
         '--max-tokens-per-batch', '256',
-        '--optimizer', 'Adam',
+        '--optimizer', optimizer,
+        '--weight-decay', '0.005',
         '--initial-learning-rate', '0.01',
         '--gradient-clipping-threshold', '5',
         '--early-stopping-patience', '4',
