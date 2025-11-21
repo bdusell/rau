@@ -167,6 +167,7 @@ class ModelSaver:
         model = model_constructor(**kwargs)
         return ModelSaver.from_model(model, directory, **kwargs)
 
+    @staticmethod
     def from_model(
         model: torch.nn.Module,
         directory: pathlib.Path,
@@ -210,6 +211,16 @@ class ModelSaver:
             created_directory=True,
             is_read_only=not continue_,
             append_to_logs=continue_
+        )
+
+    def to_directory(self, directory: pathlib.Path) -> 'ModelSaver':
+        return dataclasses.replace(
+            self,
+            saved_kwargs=False,
+            directory=directory,
+            created_directory=False,
+            is_read_only=False,
+            append_to_logs=False
         )
 
 def get_kwargs_file(directory: pathlib.Path) -> pathlib.Path:
