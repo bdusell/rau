@@ -157,10 +157,10 @@ for architecture in \
       --early-stopping-patience 2 \
       --learning-rate-patience 1 \
       --learning-rate-decay-factor 0.5 \
-      --examples-per-checkpoint 50000 \
+      --examples-per-checkpoint 500 \
       --output $temp_dir/lm/models/$architecture-every-n-examples \
-      --every-n-examples 10000 'print("every 10000:", state.every_n_examples_no[index])' \
-      --every-n-examples 20000 'print("every 20000:", state.every_n_examples_no[index])' \
+      --every-n-examples 100 'print("every 100:", state.every_n_examples_no[index])' \
+      --every-n-examples 200 'print("every 200:", state.every_n_examples_no[index])' \
       "${device_args[@]}"
   fi
 
