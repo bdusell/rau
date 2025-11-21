@@ -75,6 +75,18 @@ def add_training_loop_arguments(
     group.add_argument('--examples-per-checkpoint', type=int,
         help='An evaluation checkpoint will be run on the validation data '
              'every time this many training examples have been processed.')
+    group.add_argument('--every-n-examples',
+        nargs=2, action='append', default=[],
+        help='Run a snippet of Python code after every n training examples. '
+             'Accepts two arguments. The first should be n, the number of '
+             'examples. The second should be a snippet of Python code. '
+             'This option can be passed multiple times to run different code '
+             'snippets at different intervals. '
+             'The Python code will have the following variables in scope: '
+             'state, the current TrainingLoopState; '
+             'saver, the ModelSaver for the model being trained; '
+             'index: an int identifying which --every-n-examples callback is '
+             'being run.')
     return group
 
 def parse_time_limit(s: str) -> datetime.timedelta:
@@ -98,6 +110,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     learning_rate_patience: int
     learning_rate_decay_factor: float
     examples_per_checkpoint: int
+    every_n_examples: list[tuple[int, str]]
 
     def get_validation_metric_name(self) -> str:
         """Return the name of the validation set metric used for early stopping
@@ -169,6 +182,12 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             ]:
                 if getattr(args, name) is None:
                     parser.error(f'--{name.replace("_", "-")} is required')
+            for pair in args.every_n_examples:
+                n = pair[0]
+                try:
+                    pair[0] = int(n)
+                except ValueError:
+                    parser.error(f'argument {n} to --every-n-examples is not an integer')
 
     @classmethod
     def get_state(cls,
@@ -203,7 +222,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'early_stopping_patience',
                 'learning_rate_patience',
                 'learning_rate_decay_factor',
-                'examples_per_checkpoint'
+                'examples_per_checkpoint',
+                'every_n_examples'
             ]:
                 kwargs[name] = getattr(args, name)
             return cls(**kwargs).initial_state(saver, device)
@@ -243,7 +263,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             epoch_loss=DictScoreAccumulator(),
             epoch_duration=datetime.timedelta(),
             duration=datetime.timedelta(),
-            torch_rng_state=torch.get_rng_state() if device.type == 'cpu' else None
+            torch_rng_state=torch.get_rng_state() if device.type == 'cpu' else None,
+            examples_since_every_n_examples=[0 for _ in self.every_n_examples],
+            every_n_examples_no=[0 for _ in self.every_n_examples]
         )
         # Save the initial state so that training can be restarted consistently
         # even if no checkpoint has been taken.
@@ -472,6 +494,17 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                         progress_loss = DictScoreAccumulator()
                         progress_start_time = datetime.datetime.now()
                         progress_num_examples = 0
+                # Run callbacks that are set to run at regular intervals.
+                for i, (n, code) in enumerate(self.every_n_examples):
+                    state.examples_since_every_n_examples[i] += batch_size
+                    if state.examples_since_every_n_examples[i] >= n:
+                        exec(code, {}, dict(
+                            state=state,
+                            saver=saver,
+                            index=i
+                        ))
+                        state.examples_since_every_n_examples[i] %= n
+                        state.every_n_examples_no[i] += 1
                 # Trigger a simulated error if requested.
                 if fail_after_examples is not None:
                     examples_seen += batch_size
@@ -807,6 +840,8 @@ class TrainingLoopState:
     epoch_duration: datetime.timedelta
     duration: datetime.timedelta
     torch_rng_state: torch.Tensor | None
+    examples_since_every_n_examples: list[int]
+    every_n_examples_no: list[int]
 
     def run(self,
         saver: ModelSaver,
@@ -840,7 +875,7 @@ class TrainingLoopState:
     def get_serializable_data(self, device: torch.device) -> dict[str, Any]:
         result = {
             name : getattr(self, name)
-            for name in _NORMAL_TRAINING_LOOP_FIELDS
+            for name in _NORMAL_TRAINING_LOOP_STATE_FIELDS
         }
         result['optimizer_state'] = self.optimizer.state_dict()
         result['lr_scheduler_state'] = self.lr_scheduler.state_dict()
@@ -855,7 +890,7 @@ class TrainingLoopState:
     ) -> 'TrainingLoopState':
         kwargs = {
             name : data[name]
-            for name in _NORMAL_TRAINING_LOOP_FIELDS
+            for name in _NORMAL_TRAINING_LOOP_STATE_FIELDS
         }
         optimizer = training_loop.get_optimizer(model)
         # The state of the optimizer needs to be loaded after initializing
@@ -873,7 +908,7 @@ class TrainingLoopState:
         kwargs['torch_rng_state'] = torch_rng_state
         return TrainingLoopState(**kwargs)
 
-_NORMAL_TRAINING_LOOP_FIELDS = [
+_NORMAL_TRAINING_LOOP_STATE_FIELDS = [
     'epoch_no',
     'batch_no',
     'random_shuffling_state',
@@ -885,7 +920,9 @@ _NORMAL_TRAINING_LOOP_FIELDS = [
     'best_epoch_no',
     'epoch_loss',
     'epoch_duration',
-    'duration'
+    'duration',
+    'examples_since_every_n_examples',
+    'every_n_examples_no'
 ]
 
 def get_random_generator_and_seed(random_seed):
