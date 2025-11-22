@@ -77,16 +77,21 @@ def add_training_loop_arguments(
              'every time this many training examples have been processed.')
     group.add_argument('--every-n-examples',
         nargs=2, action='append', default=[],
-        help='Run a snippet of Python code after every n training examples. '
+        help='Run a snippet of Python code at intervals of n training '
+             'examples. '
              'Accepts two arguments. The first should be n, the number of '
              'examples. The second should be a snippet of Python code. '
+             'The code will run at the beginning of training and after every n '
+             'examples. '
              'This option can be passed multiple times to run different code '
              'snippets at different intervals. '
              'The Python code will have the following variables in scope: '
              'state, the current TrainingLoopState; '
              'saver, the ModelSaver for the model being trained; '
              'index: an int identifying which --every-n-examples callback is '
-             'being run.')
+             'being run. '
+             'The first iteration can be skipped by checking whether '
+             'state.every_n_examples_no[index] > 0.')
     return group
 
 def parse_time_limit(s: str) -> datetime.timedelta:
