@@ -410,6 +410,11 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             torch.set_rng_state(state.torch_rng_state)
         initial_duration = state.duration
         total_start_time = datetime.datetime.now()
+        # If we're at the beginning of training, run the first iteration of the
+        # callbacks that are set to run at regular intervals.
+        if state.epoch_no == 0 and state.batch_no == 0:
+            for i, (n, code) in enumerate(self.every_n_examples):
+                self._exec_every_n_examples(code, state, saver, i)
         while state.epoch_no < self.max_epochs:
             initial_epoch_duration = state.epoch_duration
             epoch_start_time = datetime.datetime.now()
@@ -498,13 +503,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 for i, (n, code) in enumerate(self.every_n_examples):
                     state.examples_since_every_n_examples[i] += batch_size
                     if state.examples_since_every_n_examples[i] >= n:
-                        exec(code, {}, dict(
-                            state=state,
-                            saver=saver,
-                            index=i
-                        ))
+                        self._exec_every_n_examples(code, state, saver, i)
                         state.examples_since_every_n_examples[i] %= n
-                        state.every_n_examples_no[i] += 1
                 # Trigger a simulated error if requested.
                 if fail_after_examples is not None:
                     examples_seen += batch_size
@@ -810,6 +810,19 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             factor=self.learning_rate_decay_factor,
             threshold=0.0
         )
+
+    def _exec_every_n_examples(self,
+        code: str,
+        state: 'TrainingLoopState',
+        saver: ModelSaver,
+        index: int
+    ) -> None:
+        exec(code, {}, dict(
+            state=state,
+            saver=saver,
+            index=index
+        ))
+        state.every_n_examples_no[index] += 1
 
 def get_training_loop_file(saver: ModelSaver) -> pathlib.Path:
     return saver.directory / 'training-loop.json'
