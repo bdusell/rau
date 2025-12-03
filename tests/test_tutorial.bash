@@ -175,12 +175,12 @@ for architecture in \
       --optimizer Adam \
       --initial-learning-rate 0.01 \
       --learning-rate-schedule-type linear-with-warmup \
-      --learning-rate-warmup-examples 10000 \
+      --learning-rate-warmup-examples 100 \
       --gradient-clipping-threshold 5 \
       --early-stopping-patience 2 \
       --learning-rate-patience 1 \
       --learning-rate-decay-factor 0.5 \
-      --examples-per-checkpoint 50000 \
+      --examples-per-checkpoint 500 \
       --output $temp_dir/lm/models/$architecture-linear-with-warmup \
       "${device_args[@]}"
   fi
