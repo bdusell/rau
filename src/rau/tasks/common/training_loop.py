@@ -283,7 +283,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             patience=self.early_stopping_patience
         )
         # Initialize the learning rate schedule.
-        if self.learning_rate_patience < 1:
+        if self.learning_rate_patience is not None and self.learning_rate_patience < 1:
             raise ValueError('learning rate patience must be at least 1')
         per_checkpoint_lr_scheduler, per_update_lr_scheduler = self.get_lr_scheduler(optimizer)
         state = TrainingLoopState(
