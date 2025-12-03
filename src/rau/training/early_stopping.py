@@ -1,8 +1,8 @@
 import math
 import operator
-import typing
+from typing import Literal, NamedTuple
 
-class UpdateResult(typing.NamedTuple):
+class UpdateResult(NamedTuple):
     is_best: bool
     should_stop: bool
 
@@ -10,7 +10,7 @@ class EarlyStoppingCriterion:
     """An API for implementing an early stopping criterion. The early stopping
     criterion can be tied to performance on a validation data set."""
 
-    def update(self, value) -> UpdateResult:
+    def update(self, value: float) -> UpdateResult:
         """Update the early stopping criterion with the latest value of a
         metric used to control early stopping (this should be validation
         performance), and check if training should stop now.
@@ -30,7 +30,11 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
     performance on a validation data set). Performance is always compared to
     the best value ever seen so far, not just the previous value."""
 
-    def __init__(self, mode: str, patience: int=math.inf, goal=None):
+    def __init__(self,
+        mode: Literal['min', 'max'],
+        patience: int | Literal[math.inf] = math.inf,
+        goal: float | None = None
+    ) -> None:
         """
         :param mode: Either ``'min'`` or ``'max'``. ``min`` means that lower
             values are better; ``max`` means that higher values are better.
@@ -59,7 +63,7 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
                 goal = math.inf
         self.goal = goal
 
-    def update(self, value):
+    def update(self, value: float) -> UpdateResult:
         is_best = self.is_better(value, self.best)
         if is_best:
             self.best = value
@@ -70,5 +74,6 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
         # score.
         should_stop = (
             self.updates_since_improvement >= self.patience or
-            not self.is_better(self.goal, value))
+            not self.is_better(self.goal, value)
+        )
         return UpdateResult(is_best, should_stop)
