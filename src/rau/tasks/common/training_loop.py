@@ -19,6 +19,8 @@ from rau.tools.torch.saver import ModelSaver, is_finished as model_saver_is_fini
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.profile import reset_memory_profiler, get_peak_memory
 from rau.training.early_stopping import UpdatesWithoutImprovement
+from rau.training.per_update_lr_scheduler import PerUpdateLRScheduler
+from rau.training.linear_with_warmup_lr_scheduler import LinearWithWarmupLRScheduler
 from .accumulator import DictScoreAccumulator
 
 Example = TypeVar('Example')
@@ -65,13 +67,31 @@ def add_training_loop_arguments(
         help='The allowed number of epochs of no improvement in performance '
              'on the validation data before training stops early. The minimum '
              'value is 1 (immediate).')
+    group.add_argument('--learning-rate-schedule-type',
+        choices=[
+            'reduce-on-plateau',
+            'linear-with-warmup'
+        ],
+        default='reduce-on-plateau',
+        help='The type of learning rate schedule to use. '
+             'reduce-on-plateau (default): Decrease the learning rate whenever '
+             'validation performance does not improve after a certain number '
+             'of checkpoints. '
+             'linear-with-warmup: Start with a warmup phase that increases the '
+             'learning rate from near-zero to the initial learning rate '
+             'according to a linear schedule, then decrease to near-zero '
+             'according to a linear schedule. The rate of decay is determined '
+             'by --max-epochs.')
     group.add_argument('--learning-rate-patience', type=int,
-        help='The allowed number of epochs of no improvement in performance '
-             'on the validation data before the learning rate is reduced. The '
-             'minimum value is 1 (immediate).')
+        help='(reduce-on-plateau) The allowed number of epochs of no '
+             'improvement in performance on the validation data before the '
+             'learning rate is reduced. The minimum value is 1 (immediate).')
     group.add_argument('--learning-rate-decay-factor', type=float,
-        help='A value between 0 and 1 that the learning rate will be '
-             'multiplied by whenever it should be decreased.')
+        help='(reduce-on-plateau) A value between 0 and 1 that the learning '
+             'rate will be multiplied by whenever it should be decreased.')
+    group.add_argument('--learning-rate-warmup-examples', type=int,
+        help='(linear-with-warmup) The number of examples for which the '
+             'learning rate warmup phase should last.')
     group.add_argument('--examples-per-checkpoint', type=int,
         help='An evaluation checkpoint will be run on the validation data '
              'every time this many training examples have been processed.')
@@ -112,8 +132,10 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     label_smoothing_factor: float | None
     gradient_clipping_threshold: float | None
     early_stopping_patience: int
-    learning_rate_patience: int
-    learning_rate_decay_factor: float
+    learning_rate_schedule_type: Literal['reduce-on-plateau', 'linear-with-warmup']
+    learning_rate_patience: int | None
+    learning_rate_decay_factor: float | None
+    learning_rate_warmup_examples: int | None
     examples_per_checkpoint: int
     every_n_examples: list[tuple[int, str]]
 
@@ -181,12 +203,23 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'max_tokens_per_batch',
                 'initial_learning_rate',
                 'early_stopping_patience',
-                'learning_rate_patience',
-                'learning_rate_decay_factor',
                 'examples_per_checkpoint'
             ]:
                 if getattr(args, name) is None:
                     parser.error(f'--{name.replace("_", "-")} is required')
+            match args.learning_rate_schedule_type:
+                case 'reduce-on-plateau':
+                    names = ['learning_rate_patience', 'learning_rate_decay_factor']
+                case 'linear-with-warmup':
+                    names = ['learning_rate_warmup_examples']
+                case _:
+                    raise ValueError
+            for name in names:
+                if getattr(args, name) is None:
+                    parser.error(
+                        f'--{name.replace("_", "-")} is required with '
+                        f'--learning-rate-schedule-type {args.learning_rate_schedule_type}'
+                    )
             for pair in args.every_n_examples:
                 n = pair[0]
                 try:
@@ -225,8 +258,10 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'label_smoothing_factor',
                 'gradient_clipping_threshold',
                 'early_stopping_patience',
+                'learning_rate_schedule_type',
                 'learning_rate_patience',
                 'learning_rate_decay_factor',
+                'learning_rate_warmup_examples',
                 'examples_per_checkpoint',
                 'every_n_examples'
             ]:
@@ -250,7 +285,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         # Initialize the learning rate schedule.
         if self.learning_rate_patience < 1:
             raise ValueError('learning rate patience must be at least 1')
-        lr_scheduler = self.get_lr_scheduler(optimizer)
+        per_checkpoint_lr_scheduler, per_update_lr_scheduler = self.get_lr_scheduler(optimizer)
         state = TrainingLoopState(
             training_loop=self,
             is_continued=False,
@@ -259,7 +294,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             random_shuffling_state=random_shuffling_generator.getstate(),
             optimizer=optimizer,
             early_stopping=early_stopping,
-            lr_scheduler=lr_scheduler,
+            per_checkpoint_lr_scheduler=per_checkpoint_lr_scheduler,
+            per_update_lr_scheduler=per_update_lr_scheduler,
             examples_since_checkpoint=0,
             checkpoint_no=0,
             best_validation_scores=None,
@@ -398,11 +434,15 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 weight_decay=self.weight_decay,
                 label_smoothing_factor=self.label_smoothing_factor,
                 early_stopping_patience=self.early_stopping_patience,
+                learning_rate_schedule_type=self.learning_rate_schedule_type,
                 learning_rate_patience=self.learning_rate_patience,
                 learning_rate_decay_factor=self.learning_rate_decay_factor,
+                learning_rate_warmup_examples=self.learning_rate_warmup_examples,
                 gradient_clipping_threshold=self.gradient_clipping_threshold,
                 examples_per_checkpoint=self.examples_per_checkpoint
             ))
+            if isinstance(state.per_update_lr_scheduler, LinearWithWarmupLRScheduler):
+                state.per_update_lr_scheduler.function.total = self.max_epochs * len(training_data)
         if fail_after_examples is not None:
             examples_seen = 0
             if examples_seen >= fail_after_examples:
@@ -456,6 +496,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             # Iterate over the randomly shuffled batches.
             while state.batch_no < num_batches:
                 batch = batches[state.batch_no]
+                batch_size = len(batch)
                 try:
                     # Run a forward-backward pass and parameter update using the
                     # batch.
@@ -483,7 +524,11 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     )
                     raise
                 state.batch_no += 1
-                batch_size = len(batch)
+                # If the LR scheduler should be updated once every parameter
+                # update, update it now.
+                if state.per_update_lr_scheduler is not None:
+                    state.per_update_lr_scheduler.function.counter += batch_size
+                    state.per_update_lr_scheduler.step()
                 # If requested, show progress messages at regular intervals.
                 if show_progress:
                     progress_num_examples += batch_size
@@ -530,11 +575,13 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     for key, value in validation_scores.items():
                         console_logger.info(f'      {key}: {value:.2f}')
                     validation_score = validation_scores[validation_metric]
-                    # Update the learning rate.
-                    state.lr_scheduler.step(validation_score)
-                    # Show the current learning rate.
-                    curr_learning_rate = state.lr_scheduler.get_last_lr()[0]
-                    console_logger.info(f'    learning rate: {curr_learning_rate}')
+                    # If the learning rate should be updated once every
+                    # checkpoint, update the learning rate.
+                    if state.per_checkpoint_lr_scheduler is not None:
+                        state.per_checkpoint_lr_scheduler.step(validation_score)
+                        # Show the current learning rate.
+                        curr_learning_rate = state.per_checkpoint_lr_scheduler.get_last_lr()[0]
+                        console_logger.info(f'    learning rate: {curr_learning_rate}')
                     # Decide whether to save the model parameters and whether to
                     # stop early.
                     is_best, should_stop = state.early_stopping.update(validation_score)
@@ -803,7 +850,21 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
 
     def get_lr_scheduler(self,
         optimizer: torch.optim.Optimizer
-    ) -> torch.optim.lr_scheduler.LRScheduler:
+    ) -> tuple[
+        torch.optim.lr_scheduler.LRScheduler | None,
+        PerUpdateLRScheduler | None
+    ]:
+        match self.learning_rate_schedule_type:
+            case 'reduce-on-plateau':
+                return self.get_reduce_on_plateau_lr_scheduler(optimizer), None
+            case 'linear-with-warmup':
+                return None, self.get_linear_with_warmup_lr_scheduler(optimizer)
+            case _:
+                raise ValueError
+
+    def get_reduce_on_plateau_lr_scheduler(self,
+        optimizer: torch.optim.Optimizer
+    ) -> torch.optim.lr_scheduler.ReduceLROnPlateau:
         return torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode=self.get_validation_metric_mode(),
@@ -814,6 +875,15 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             patience=self.learning_rate_patience - 1,
             factor=self.learning_rate_decay_factor,
             threshold=0.0
+        )
+
+    def get_linear_with_warmup_lr_scheduler(self,
+        optimizer: torch.optim.Optimizer
+    ) -> LinearWithWarmupLRScheduler:
+        return LinearWithWarmupLRScheduler(
+            optimizer,
+            self.learning_rate_warmup_examples,
+            self.learning_rate_warmup_examples
         )
 
     def _exec_every_n_examples(self,
@@ -848,7 +918,8 @@ class TrainingLoopState:
     random_shuffling_state: object
     optimizer: torch.optim.Optimizer
     early_stopping: UpdatesWithoutImprovement
-    lr_scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
+    per_checkpoint_lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None
+    per_update_lr_scheduler: PerUpdateLRScheduler | None
     examples_since_checkpoint: int
     checkpoint_no: int
     best_validation_scores: dict[str, float] | None
@@ -896,7 +967,8 @@ class TrainingLoopState:
             for name in _NORMAL_TRAINING_LOOP_STATE_FIELDS
         }
         result['optimizer_state'] = self.optimizer.state_dict()
-        result['lr_scheduler_state'] = self.lr_scheduler.state_dict()
+        result['per_checkpoint_lr_scheduler_state'] = _get_lr_scheduler_state(self.per_checkpoint_lr_scheduler)
+        result['per_update_lr_scheduler_state'] = _get_lr_scheduler_state(self.per_update_lr_scheduler)
         result['torch_rng_state'] = torch.get_rng_state() if device.type == 'cpu' else None
         return result
 
@@ -912,9 +984,10 @@ class TrainingLoopState:
         }
         optimizer = training_loop.get_optimizer(model)
         # The state of the optimizer needs to be loaded after initializing
-        # lr_scheduler.
-        lr_scheduler = training_loop.get_lr_scheduler(optimizer)
-        lr_scheduler.load_state_dict(data['lr_scheduler_state'])
+        # the LR scheduler.
+        per_checkpoint_lr_scheduler, per_update_lr_scheduler = training_loop.get_lr_scheduler(optimizer)
+        _load_lr_scheduler_state(per_checkpoint_lr_scheduler, data['per_checkpoint_lr_scheduler_state'])
+        _load_lr_scheduler_state(per_update_lr_scheduler, data['per_update_lr_scheduler_state'])
         optimizer.load_state_dict(data['optimizer_state'])
         torch_rng_state = data['torch_rng_state']
         if torch_rng_state is not None:
@@ -922,9 +995,17 @@ class TrainingLoopState:
         kwargs['training_loop'] = training_loop
         kwargs['is_continued'] = True
         kwargs['optimizer'] = optimizer
-        kwargs['lr_scheduler'] = lr_scheduler
+        kwargs['per_checkpoint_lr_scheduler'] = per_checkpoint_lr_scheduler
+        kwargs['per_update_lr_scheduler'] = per_update_lr_scheduler
         kwargs['torch_rng_state'] = torch_rng_state
         return TrainingLoopState(**kwargs)
+
+def _get_lr_scheduler_state(lr_scheduler):
+    return lr_scheduler.state_dict() if lr_scheduler is not None else None
+
+def _load_lr_scheduler_state(lr_scheduler, state):
+    if lr_scheduler is not None:
+        lr_scheduler.load_state_dict(state)
 
 _NORMAL_TRAINING_LOOP_STATE_FIELDS = [
     'epoch_no',

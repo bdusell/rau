@@ -98,8 +98,9 @@ for architecture in transformer rnn lstm; do
     --output $model \
     "${device_args[@]}"
 
-  # For the transformer only, test the --every-n-examples option.
+  # For the transformer only, test some options.
   if [[ $architecture = transformer ]]; then
+    # Test the --every-n-examples option.
     rau lm train \
       --training-data $lm_data \
       --architecture $architecture \
@@ -117,6 +118,26 @@ for architecture in transformer rnn lstm; do
       --output $temp_dir/lm/models/$architecture-every-n-examples \
       --every-n-examples 10000 'print("every 10000:", state.every_n_examples_no[index])' \
       --every-n-examples 20000 'print("every 20000:", state.every_n_examples_no[index])' \
+      "${device_args[@]}"
+
+    # Test the linear-with-warmup learning rate schedule.
+    rau lm train \
+      --training-data $lm_data \
+      --architecture $architecture \
+      "${model_args[@]}" \
+      --init-scale 0.1 \
+      --max-epochs $max_epochs \
+      --max-tokens-per-batch 2048 \
+      --optimizer Adam \
+      --initial-learning-rate 0.01 \
+      --learning-rate-schedule-type linear-with-warmup \
+      --learning-rate-warmup-examples 10000 \
+      --gradient-clipping-threshold 5 \
+      --early-stopping-patience 2 \
+      --learning-rate-patience 1 \
+      --learning-rate-decay-factor 0.5 \
+      --examples-per-checkpoint 50000 \
+      --output $temp_dir/lm/models/$architecture-linear-with-warmup \
       "${device_args[@]}"
   fi
 
