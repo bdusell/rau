@@ -66,6 +66,8 @@ def get_unidirectional_transformer_encoder(
             d_model,
             use_padding
         )
+    if positional_encoding_cacher is None:
+        positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
     return (
         get_transformer_input_unidirectional(
             vocabulary_size=input_vocabulary_size,

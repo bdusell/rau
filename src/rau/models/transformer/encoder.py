@@ -43,6 +43,8 @@ def get_transformer_encoder(
     :return: A module. Unless ``tag`` is given, it accepts the same arguments as
         :py:class:`TransformerEncoderLayers`.
     """
+    if positional_encoding_cacher is None:
+        positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
     return (
         Composable(
             get_transformer_input_unidirectional(

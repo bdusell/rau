@@ -33,23 +33,18 @@ class ScaledEmbeddingLayer(torch.nn.Module):
 
 class SinusoidalPositionalEncodingLayer(PositionalUnidirectional):
 
-    def __init__(self, cacher=None):
+    def __init__(self, cacher: SinusoidalPositionalEncodingCacher):
         super().__init__()
-        if cacher is None:
-            cacher = SinusoidalPositionalEncodingCacher()
         self.cacher = cacher
 
     def forward_from_position(self, input_sequence, position):
         batch_size, sequence_length, d_model = input_sequence.size()
-        positional_encodings = self.cacher.get_encodings(
-            position + sequence_length,
-            d_model
-        )
+        positional_encodings = self.cacher.get_encodings(position + sequence_length)
         return input_sequence + positional_encodings[None, position:position+sequence_length]
 
     def forward_at_position(self, input_tensor, position):
         batch_size, d_model = input_tensor.size()
-        positional_encodings = self.cacher.get_encodings(position + 1, d_model)
+        positional_encodings = self.cacher.get_encodings(position + 1)
         positional_encoding_i = positional_encodings[position]
         return input_tensor + positional_encoding_i
 
@@ -65,6 +60,8 @@ def get_transformer_input_unidirectional(
     # 1. scaled embedding layer
     # 2. sinusoidal positional encoding layer
     # 3. dropout layer (optional)
+    if positional_encoding_cacher is None:
+        positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
     result = (
         StatelessLayerUnidirectional(ScaledEmbeddingLayer(
             vocabulary_size=vocabulary_size,
@@ -72,9 +69,7 @@ def get_transformer_input_unidirectional(
             use_padding=use_padding,
             shared_embeddings=shared_embeddings
         )) |
-        SinusoidalPositionalEncodingLayer(
-            positional_encoding_cacher
-        )
+        SinusoidalPositionalEncodingLayer(positional_encoding_cacher)
     )
     if dropout:
         result = result | DropoutUnidirectional(dropout)

@@ -7,11 +7,14 @@ def sinusoidal_positional_encodings(sequence_length, d_model, device):
     if sequence_length == 0 or d_model == 0:
         return torch.empty((sequence_length, d_model), device=device)
     # TODO This doesn't work when d_model is odd.
+    # position : sequence_length x 1
     position = torch.arange(sequence_length, device=device).unsqueeze(1)
+    # div_term : 1 x d_model/2 or 1 x d_model/2+1
     div_term = torch.exp(
         torch.arange(0, d_model, 2, device=device) *
         (-math.log(10000.0) / d_model)
-    )
+    ).unsqueeze(0)
+    # pe : sequence_length x d_model
     pe = torch.empty(sequence_length, d_model, device=device)
     # TODO I'm sure sin and cos can be parallelized by simply changing the
     # phase of sin.
@@ -30,50 +33,50 @@ class SinusoidalPositionalEncodingCacher(torch.nn.Module):
     Otherwise, you may run out of memory in a way that is very hard to debug.
     """
 
-    def __init__(self) -> None:
+    _d_model: int
+    _allow_reallocation: bool
+
+    def __init__(self, d_model: int) -> None:
+        r"""
+        :param d_model: The :math:`d_\mathrm{model}` of the positional
+            encodings.
+        """
         super().__init__()
-        self._set_cache_size_with_device((0, 0), None)
+        self._d_model = d_model
+        self._set_cache_size_with_device(0, None)
         self._allow_reallocation = True
 
     def clear(self) -> None:
         r"""Clear the cache."""
-        self._set_cache_size((0, 0))
+        self._set_cache_size(0)
 
-    def _set_cache_size(self, size):
-        self._set_cache_size_with_device(size, self.encodings.device)
+    def _set_cache_size(self, length: int) -> None:
+        self._set_cache_size_with_device(length, self.encodings.device)
 
-    def _set_cache_size_with_device(self, size, device):
-        sequence_length, d_model = size
+    def _set_cache_size_with_device(self, length, device):
         self._set_encodings(sinusoidal_positional_encodings(
-            sequence_length,
-            d_model,
+            length,
+            self._d_model,
             device
         ))
 
     def _set_encodings(self, tensor):
         self.register_buffer('encodings', tensor, persistent=False)
 
-    def get_encodings(self, sequence_length: int, d_model: int) -> torch.Tensor:
+    def get_encodings(self, sequence_length: int) -> torch.Tensor:
         r"""Get a tensor of positional encodings of the requested size.
 
         :param sequence_length: Get positional encodings up to this length.
-        :param d_model: The :math:`d_\mathrm{model}` of the positional
-            encodings.
         :return: A tensor of positional encodings of the requested size.
         """
-        query_size = (sequence_length, d_model)
-        cache_size = self.encodings.size()
-        if not all(a <= b for a, b in zip(query_size, cache_size)):
+        if sequence_length > self.encodings.size(0):
             if not self._allow_reallocation:
                 raise ValueError(
                     'reallocation of the positional encoding cache has been '
                     'intentionally disabled with set_allow_reallocation(False)'
                 )
-            # Make sure never to decrease the cached sequence_length or
-            # d_model to avoid flip-flopping.
-            new_size = tuple(max(a, b) for a, b in zip(query_size, cache_size))
-            self._set_cache_size(new_size)
-        return self.encodings[:sequence_length, :d_model]
+            self._set_cache_size(sequence_length)
+        return self.encodings[:sequence_length]
 
     def set_allow_reallocation(self, value: bool) -> None:
         r"""Set whether reallocating the tensor dynamically based on requested

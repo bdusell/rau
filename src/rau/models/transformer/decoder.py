@@ -53,6 +53,8 @@ def get_transformer_decoder(
     :return: A module. Unless ``tag`` is given, it accepts the same arguments as
         :py:class:`TransformerDecoderLayers`.
     """
+    if positional_encoding_cacher is None:
+        positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
     return (
         get_transformer_input_unidirectional(
             vocabulary_size=input_vocabulary_size,

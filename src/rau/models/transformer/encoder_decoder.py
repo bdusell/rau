@@ -56,7 +56,7 @@ def get_transformer_encoder_decoder(
         use_source_padding,
         use_target_padding
     )
-    positional_encoding_cacher = SinusoidalPositionalEncodingCacher()
+    positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
     # NOTE It's ok to simply pass the same parameter to multiple sub-modules.
     # https://pytorch.org/docs/stable/notes/serialization.html#preserve-storage-sharing
     return TransformerEncoderDecoder(
