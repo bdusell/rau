@@ -1,6 +1,7 @@
 import torch
 
 from rau.models.transformer.input_layer import SinusoidalPositionalEncodingLayer
+from rau.models.transformer.positional_encodings import SinusoidalPositionalEncodingCacher
 from rau.models.transformer.decoder import get_transformer_decoder
 
 def test_positional_encoding_forward_matches_iterative():
@@ -8,7 +9,7 @@ def test_positional_encoding_forward_matches_iterative():
     sequence_length = 5
     d_model = 32
     generator = torch.manual_seed(123)
-    model = SinusoidalPositionalEncodingLayer()
+    model = SinusoidalPositionalEncodingLayer(SinusoidalPositionalEncodingCacher(d_model))
     x = torch.empty(batch_size, sequence_length, d_model)
     x.uniform_(generator=generator)
     forward_output = model(x, include_first=False)
