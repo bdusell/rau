@@ -3,7 +3,7 @@ import torch
 
 from rau.models.transformer.positional_encodings import sinusoidal_positional_encodings
 
-@pytest.mark.parametrize('d_model', [128])
+@pytest.mark.parametrize('d_model', [128, 129])
 def test_dmodel_sizes(d_model) -> None:
     sequence_length = 50
     device = torch.device('cpu')

@@ -2,24 +2,27 @@ import math
 
 import torch
 
+NEG_LOG_10K = -math.log(10000.0)
+
 def sinusoidal_positional_encodings(sequence_length, d_model, device):
     # Based on https://pytorch.org/tutorials/beginner/transformer_tutorial.html
     if sequence_length == 0 or d_model == 0:
         return torch.empty((sequence_length, d_model), device=device)
-    # TODO This doesn't work when d_model is odd.
     # position : sequence_length x 1
     position = torch.arange(sequence_length, device=device).unsqueeze(1)
-    # div_term : 1 x d_model/2 or 1 x d_model/2+1
+    # div_term : 1 x d_model/2 or 1 x d_model/2+1, depending on whether d_model
+    # is odd.
     div_term = torch.exp(
-        torch.arange(0, d_model, 2, device=device) *
-        (-math.log(10000.0) / d_model)
+        torch.arange(0, d_model + d_model % 2, 2, device=device) *
+        (NEG_LOG_10K / d_model)
     ).unsqueeze(0)
     # pe : sequence_length x d_model
     pe = torch.empty(sequence_length, d_model, device=device)
     # TODO I'm sure sin and cos can be parallelized by simply changing the
     # phase of sin.
     pe[:, 0::2] = torch.sin(position * div_term)
-    pe[:, 1::2] = torch.cos(position * div_term)
+    # Truncate div_term in case d_model is odd.
+    pe[:, 1::2] = torch.cos(position * div_term[:, :d_model//2])
     return pe
 
 class SinusoidalPositionalEncodingCacher(torch.nn.Module):
