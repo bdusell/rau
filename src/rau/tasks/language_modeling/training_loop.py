@@ -1,3 +1,4 @@
+import argparse
 from typing import Any
 
 import torch
@@ -10,7 +11,7 @@ from rau.tasks.common.training_loop import (
 from .batching import group_into_batches
 from .data import VocabularyContainer
 
-def add_training_loop_arguments(parser):
+def add_training_loop_arguments(parser: argparse.ArgumentParser) -> None:
     common_add_training_loop_arguments(parser,
         max_tokens_per_batch_help=
         'The maximum number of tokens allowed per batch. This puts a limit on '

@@ -247,26 +247,34 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     data
                 )
         else:
-            kwargs = {}
-            for name in [
-                'max_epochs',
-                'random_shuffling_seed',
-                'max_tokens_per_batch',
-                'optimizer',
-                'initial_learning_rate',
-                'weight_decay',
-                'label_smoothing_factor',
-                'gradient_clipping_threshold',
-                'early_stopping_patience',
-                'learning_rate_schedule_type',
-                'learning_rate_patience',
-                'learning_rate_decay_factor',
-                'learning_rate_warmup_examples',
-                'examples_per_checkpoint',
-                'every_n_examples'
-            ]:
-                kwargs[name] = getattr(args, name)
+            kwargs = cls.get_kwargs(parser, args)
             return cls(**kwargs).initial_state(saver, device)
+
+    @classmethod
+    def get_kwargs(cls,
+        parser: argparse.ArgumentParser,
+        args: argparse.Namespace
+    ) -> dict[str, Any]:
+        kwargs = {}
+        for name in [
+            'max_epochs',
+            'random_shuffling_seed',
+            'max_tokens_per_batch',
+            'optimizer',
+            'initial_learning_rate',
+            'weight_decay',
+            'label_smoothing_factor',
+            'gradient_clipping_threshold',
+            'early_stopping_patience',
+            'learning_rate_schedule_type',
+            'learning_rate_patience',
+            'learning_rate_decay_factor',
+            'learning_rate_warmup_examples',
+            'examples_per_checkpoint',
+            'every_n_examples'
+        ]:
+            kwargs[name] = getattr(args, name)
+        return kwargs
 
     def initial_state(self,
         saver: ModelSaver,
