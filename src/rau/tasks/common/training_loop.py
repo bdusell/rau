@@ -70,7 +70,8 @@ def add_training_loop_arguments(
     group.add_argument('--learning-rate-schedule-type',
         choices=[
             'reduce-on-plateau',
-            'linear-with-warmup'
+            'linear-with-warmup',
+            'constant'
         ],
         default='reduce-on-plateau',
         help='The type of learning rate schedule to use. '
@@ -81,7 +82,8 @@ def add_training_loop_arguments(
              'learning rate from near-zero to the initial learning rate '
              'according to a linear schedule, then decrease to near-zero '
              'according to a linear schedule. The rate of decay is determined '
-             'by --max-epochs.')
+             'by --max-epochs. '
+             'constant: Use the same learning rate throughout training.')
     group.add_argument('--learning-rate-patience', type=int,
         help='(reduce-on-plateau) The allowed number of epochs of no '
              'improvement in performance on the validation data before the '
@@ -212,6 +214,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                     names = ['learning_rate_patience', 'learning_rate_decay_factor']
                 case 'linear-with-warmup':
                     names = ['learning_rate_warmup_examples']
+                case 'constant':
+                    names = []
                 case _:
                     raise ValueError
             for name in names:
@@ -867,6 +871,8 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 return self.get_reduce_on_plateau_lr_scheduler(optimizer), None
             case 'linear-with-warmup':
                 return None, self.get_linear_with_warmup_lr_scheduler(optimizer)
+            case 'constant':
+                return None, None
             case _:
                 raise ValueError
 
