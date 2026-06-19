@@ -26,8 +26,8 @@ def add_training_loop_arguments(parser):
         'itself.'
     )
 
-Example = tuple[torch.Tensor, torch.Tensor]
-PreparedBatch = tuple[ModelSourceAndTarget, torch.Tensor]
+type Example = tuple[torch.Tensor, torch.Tensor]
+type PreparedBatch = tuple[ModelSourceAndTarget, torch.Tensor]
 
 class SequenceToSequenceTrainingLoop(TrainingLoop[
     Example,

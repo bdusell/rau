@@ -20,8 +20,8 @@ def add_training_loop_arguments(parser: argparse.ArgumentParser) -> None:
         'it is not discarded, but included in a batch by itself.'
     )
 
-Example = torch.Tensor
-PreparedBatch = tuple[torch.Tensor, torch.Tensor]
+type Example = torch.Tensor
+type PreparedBatch = tuple[torch.Tensor, torch.Tensor]
 
 class LanguageModelingTrainingLoop(TrainingLoop[
     Example,
