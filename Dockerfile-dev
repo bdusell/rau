@@ -1,4 +1,4 @@
-FROM python:3.11.12-bookworm
+FROM python:3.14.6-trixie
 # UTF-8 encoding is necessary for printing non-ASCII characters to the
 # terminal.
 ENV LC_ALL=C.UTF-8

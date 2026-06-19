@@ -64,7 +64,7 @@
 if [[ ! ${_DOCKERDEV_INCLUDED-} ]]; then
 _DOCKERDEV_INCLUDED=1
 
-DOCKERDEV_VERSION='0.5.5'
+DOCKERDEV_VERSION='0.5.6'
 
 # dockerdev_container_info <container-name>
 #   Get the image name and status of a container.
@@ -109,7 +109,7 @@ _dockerdev_add_user() {
       adduser -u $userid -G $(printf %q "$groupname") -D -g '' $(printf %q "$USER")
     elif addgroup --help 2>&1 | grep -F -- '--gid ID' > /dev/null; then
       if ! result=\`addgroup --gid $groupid $(printf %q "$groupname") 2>&1\`; then
-        echo \"\$result\" | grep '^addgroup: The group \`.*'\\'' already exists\\.$'
+        echo \"\$result\" | grep 'The group \`.*'\\'' already exists\\.$'
       else
         echo \"\$result\" >&2
         false
@@ -214,11 +214,18 @@ dockerdev_start_new_dev_container() {
           # See https://serverfault.com/questions/63764/create-home-directories-after-create-users/508509
           # Use `-u 0:0` to make sure we run as root.
           docker exec -i -u 0:0 "$container_name" sh -c "
-            cd $HOME && \
-            cp -r /etc/skel/. . && \
-            chown -R $userid:$groupid . && \
-            chmod -R go=u,go-w . && \
-            chmod go= .
+            chown $userid:$groupid $HOME && \
+            chmod go= $HOME && \
+            cd /etc/skel && \
+            for s in \`ls -A\`; do
+              d=$HOME/\$s
+              if ! [ -e \"\$d\" ]; then
+                cp -r \"\$s\" \"\$d\" && \
+                chown -R $userid:$groupid \"\$d\" && \
+                chmod -R go=u,go-w \"\$d\"
+              fi || \
+              exit 1
+            done
           "
         ;;
     esac
