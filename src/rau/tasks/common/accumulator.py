@@ -1,30 +1,38 @@
 class MicroAveragedScoreAccumulator:
 
+    _numerator: float
+    _denominator: float
+
     def __init__(self) -> None:
         super().__init__()
-        self.numerator = 0
-        self.denominator = 0
+        self._numerator = 0
+        self._denominator = 0
 
     def update(self, numerator: float, denominator: float) -> None:
-        self.numerator += numerator
-        self.denominator += denominator
+        self._numerator += numerator
+        self._denominator += denominator
 
     def get_value(self) -> float:
-        return self.numerator / self.denominator
+        return self._numerator / self._denominator
 
 class DictScoreAccumulator:
 
+    _loss: None | dict[str, MicroAveragedScoreAccumulator]
+
     def __init__(self) -> None:
         super().__init__()
-        self.loss = None
+        self._loss = None
 
     def update(self, scores: dict[str, tuple[float, float]]) -> None:
-        if self.loss is None:
-            self.loss = { k : MicroAveragedScoreAccumulator() for k in scores.keys() }
-        elif scores.keys() != self.loss.keys():
-            raise ValueError
+        if self._loss is None:
+            self._loss = { k : MicroAveragedScoreAccumulator() for k in scores.keys() }
+        elif scores.keys() != self._loss.keys():
+            raise ValueError(f'keys do not match')
         for key, (numerator, denominator) in scores.items():
-            self.loss[key].update(numerator, denominator)
+            self._loss[key].update(numerator, denominator)
 
     def get_value(self) -> dict[str, float]:
-        return { k : v.get_value() for k, v in self.loss.items() }
+        if self._loss is not None:
+            return { k : v.get_value() for k, v in self._loss.items() }
+        else:
+            raise ValueError(f'have not seen any scores yet')
