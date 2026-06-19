@@ -150,7 +150,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         raise NotImplementedError
 
     def generate_batches(self,
-        examples: Iterable[Example],
+        examples: list[Example],
         max_tokens: int
     ) -> Iterable[Batch]:
         """Given the full list of examples in a dataset and a maximum size,

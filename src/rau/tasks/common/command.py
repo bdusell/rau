@@ -27,7 +27,7 @@ class Command:
         r"""Main entry point for the command."""
         raise NotImplementedError
 
-    def main(self):
+    def main(self) -> None:
         r"""Run the command as an independent program."""
         parser = argparse.ArgumentParser(description=self.DESCRIPTION)
         self.add_arguments(parser)
