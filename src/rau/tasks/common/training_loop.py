@@ -18,7 +18,7 @@ from rau.tools.ticker import TimedTicker
 from rau.tools.torch.saver import ModelSaver, is_finished as model_saver_is_finished
 from rau.tools.torch.model_interface import ModelInterface
 from rau.tools.torch.profile import reset_memory_profiler, get_peak_memory
-from rau.training.early_stopping import UpdatesWithoutImprovement
+from rau.training.early_stopping import NoEarlyStopping, UpdatesWithoutImprovement
 from rau.training.per_update_lr_scheduler import PerUpdateLRScheduler
 from rau.training.linear_with_warmup_lr_scheduler import LinearWithWarmupLRScheduler
 from .accumulator import DictScoreAccumulator
@@ -45,6 +45,10 @@ def add_training_loop_arguments(
              'before training completes, a checkpoint will be saved so that '
              'training can be continued later, and the program will exit with '
              'an error code.')
+    group.add_argument('--no-early-stopping', action='store_true', default=False,
+        help='Instead of stopping early and saving the best model based on '
+             'validation performance, always train for the maximum number of '
+             'epochs and save the last model.')
     group.add_argument('--random-shuffling-seed', type=int,
         help='Random seed used for random shuffling of the training data.')
     group.add_argument('--max-tokens-per-batch', type=int,
@@ -133,8 +137,9 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
     weight_decay: float | None
     label_smoothing_factor: float | None
     gradient_clipping_threshold: float | None
-    early_stopping_patience: int
-    learning_rate_schedule_type: Literal['reduce-on-plateau', 'linear-with-warmup']
+    no_early_stopping: bool
+    early_stopping_patience: int | None
+    learning_rate_schedule_type: Literal['reduce-on-plateau', 'linear-with-warmup', 'constant']
     learning_rate_patience: int | None
     learning_rate_decay_factor: float | None
     learning_rate_warmup_examples: int | None
@@ -204,11 +209,16 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 'max_epochs',
                 'max_tokens_per_batch',
                 'initial_learning_rate',
-                'early_stopping_patience',
                 'examples_per_checkpoint'
             ]:
                 if getattr(args, name) is None:
                     parser.error(f'--{name.replace("_", "-")} is required')
+            if not args.no_early_stopping:
+                if args.early_stopping_patience is None:
+                    parser.error(
+                        '--early-stopping-patience is required unless '
+                        '--no-early-stopping is used'
+                    )
             match args.learning_rate_schedule_type:
                 case 'reduce-on-plateau':
                     names = ['learning_rate_patience', 'learning_rate_decay_factor']
@@ -269,6 +279,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             'weight_decay',
             'label_smoothing_factor',
             'gradient_clipping_threshold',
+            'no_early_stopping',
             'early_stopping_patience',
             'learning_rate_schedule_type',
             'learning_rate_patience',
@@ -290,10 +301,13 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         # Initialize the optimizer.
         optimizer = self.get_optimizer(saver.model)
         # Configure early stopping.
-        early_stopping = UpdatesWithoutImprovement(
-            self.get_validation_metric_mode(),
-            patience=self.early_stopping_patience
-        )
+        if self.no_early_stopping:
+            early_stopping = NoEarlyStopping()
+        else:
+            early_stopping = UpdatesWithoutImprovement(
+                self.get_validation_metric_mode(),
+                patience=self.early_stopping_patience
+            )
         # Initialize the learning rate schedule.
         if self.learning_rate_patience is not None and self.learning_rate_patience < 1:
             raise ValueError('learning rate patience must be at least 1')
@@ -445,6 +459,7 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
                 initial_learning_rate=self.initial_learning_rate,
                 weight_decay=self.weight_decay,
                 label_smoothing_factor=self.label_smoothing_factor,
+                no_early_stopping=self.no_early_stopping,
                 early_stopping_patience=self.early_stopping_patience,
                 learning_rate_schedule_type=self.learning_rate_schedule_type,
                 learning_rate_patience=self.learning_rate_patience,
@@ -694,7 +709,13 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
         console_logger.info(f'best epoch: #{state.best_epoch_no+1}')
         console_logger.info(f'completed checkpoints: {state.checkpoint_no}')
         console_logger.info(f'best checkpoint: #{state.best_checkpoint_no+1}')
-        console_logger.info(f'checkpoints since improvement: {state.early_stopping.updates_since_improvement}')
+        updates_since_improvement = (
+            state.early_stopping.updates_since_improvement
+            if isinstance(state.early_stopping, UpdatesWithoutImprovement)
+            else None
+        )
+        if updates_since_improvement is not None:
+            console_logger.info(f'checkpoints since improvement: {state.early_stopping.updates_since_improvement}')
         console_logger.info(f'total training duration: {state.duration}')
         event_logger.log('train', dict(
             best_validation_scores=state.best_validation_scores,
@@ -702,7 +723,11 @@ class TrainingLoop(Generic[Example, PreparedBatch, VocabularyContainer]):
             best_epoch=state.best_epoch_no,
             num_checkpoints=state.checkpoint_no,
             best_checkpoint=state.best_checkpoint_no,
-            checkpoints_since_improvement=state.early_stopping.updates_since_improvement,
+            **(
+                dict(checkpoints_since_improvement=updates_since_improvement)
+                if updates_since_improvement is not None
+                else {}
+            ),
             duration=state.duration.total_seconds()
         ))
 

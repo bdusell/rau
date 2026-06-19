@@ -77,3 +77,10 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
             not self.is_better(self.goal, value)
         )
         return UpdateResult(is_best, should_stop)
+
+class NoEarlyStopping(EarlyStoppingCriterion):
+    """An early stopping criterion that effectively disables early stopping. It
+    always saves the latest model and never stops early."""
+
+    def update(self, value: float) -> UpdateResult:
+        return UpdateResult(True, False)
