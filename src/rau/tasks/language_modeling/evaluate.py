@@ -1,8 +1,10 @@
+import argparse
 import json
 import math
 import pathlib
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from typing import Any, cast, Literal, overload
 
 import torch
 
@@ -11,22 +13,24 @@ from rau.tasks.common.command import Command
 from rau.tasks.common.data import load_prepared_data_file
 from rau.tasks.common.accumulator import MicroAveragedScoreAccumulator
 from rau.tasks.language_modeling.model import LanguageModelingModelInterface
-from rau.tasks.language_modeling.training_loop import generate_batches, evaluate_batch
+from rau.tasks.language_modeling.training_loop import evaluate_batch
 from rau.tasks.language_modeling.batching import group_into_batches
 
 class LanguageModelingEvaluateCommand(Command):
 
-    def __init__(self):
+    _model_interface: LanguageModelingModelInterface
+
+    def __init__(self) -> None:
         super().__init__()
-        self.model_interface = LanguageModelingModelInterface(use_load=True)
+        self._model_interface = LanguageModelingModelInterface(use_load=True)
 
     DESCRIPTION = (
         'Evaluate the likelihood of a dataset under a language model. Output '
         'the results as JSON.'
     )
 
-    def add_arguments(self, parser):
-        model_interface = self.model_interface
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        model_interface = self._model_interface
         parser.add_argument('--training-data', type=pathlib.Path,
             help='A directory containing training data. The file '
                  '<training-data>/datasets/<input>/main.prepared will be used '
@@ -77,13 +81,20 @@ class LanguageModelingEvaluateCommand(Command):
         model_interface.add_arguments(parser)
         model_interface.add_forward_arguments(parser)
 
-    def run(self, parser, args):
-        model_interface = self.model_interface
+    def run(self, parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+        model_interface = self._model_interface
         if not args.prompt_and_input:
             parser.error(
                 'no datasets were provided; provide one or more of --input or '
                 '--prompt-and-input'
             )
+        process_sequences: Callable[[
+            torch.nn.Module,
+            LanguageModelingModelInterface,
+            list[torch.Tensor] | None,
+            list[torch.Tensor],
+            int
+        ], Any]
         match args.granularity:
             case 'dataset':
                 process_sequences = process_sequences_dataset
@@ -128,29 +139,60 @@ class LanguageModelingEvaluateCommand(Command):
                 print(f'writing {output_file}')
                 write_result(result, output_file)
 
-def get_dataset_file_name(training_data, dataset):
+def get_dataset_file_name(training_data: pathlib.Path, dataset: str) -> pathlib.Path:
     return training_data / 'datasets' / dataset / 'main.prepared'
 
-def load_file(training_data, dataset):
+def load_file(training_data: pathlib.Path, dataset: str) -> list[torch.Tensor]:
     return load_prepared_data_file(get_dataset_file_name(training_data, dataset))
 
+@overload
+def generate_batches(
+    prompts: Iterable[torch.Tensor] | None,
+    sequences: Iterable[torch.Tensor],
+    max_tokens: int,
+    include_indexes: Literal[False]
+) -> Iterable[tuple[
+    list[tuple[int, torch.Tensor]] | None,
+    list[torch.Tensor]
+]]:
+    ...
+@overload
+def generate_batches(
+    prompts: Iterable[torch.Tensor] | None,
+    sequences: Iterable[torch.Tensor],
+    max_tokens: int,
+    include_indexes: Literal[True]
+) -> Iterable[tuple[
+    list[tuple[int, torch.Tensor | tuple[int, torch.Tensor]]],
+    list[torch.Tensor]
+]]:
+    ...
 def generate_batches(
     prompts: Iterable[torch.Tensor] | None,
     sequences: Iterable[torch.Tensor],
     max_tokens: int,
     include_indexes: bool = False
-):
+) -> Iterable[tuple[
+    list[tuple[int, torch.Tensor]] | None | list[tuple[int, torch.Tensor | tuple[int, torch.Tensor]]],
+    list[torch.Tensor]
+]]:
+    items: Iterable[torch.Tensor | tuple[int, torch.Tensor | tuple[int, torch.Tensor]]]
+    get_sequence: (
+        Callable[[torch.Tensor], torch.Tensor] |
+        Callable[[tuple[int, torch.Tensor]], torch.Tensor] |
+        Callable[[tuple[int, tuple[int, torch.Tensor]]], torch.Tensor]
+    )
     if prompts is None:
-        items = sequences
+        items = sequences # Iterable[torch.Tensor]
         get_sequence = lambda x: x
     else:
         items = (
             (len(prompt), torch.concat([prompt, sequence], dim=0))
             for prompt, sequence in zip(prompts, sequences, strict=True)
-        )
+        ) # Iterable[tuple[int, torch.Tensor]]
         get_sequence = lambda x: x[1]
     if include_indexes:
-        items = enumerate(items)
+        items = cast(Iterable[tuple[int, torch.Tensor | tuple[int, torch.Tensor]]], enumerate(cast(Iterable[torch.Tensor | tuple[int, torch.Tensor]], items)))
         old_get_sequence = get_sequence
         get_sequence = lambda x: old_get_sequence(x[1])
     batches = group_into_batches(
@@ -159,12 +201,24 @@ def generate_batches(
         get_length=lambda x: len(get_sequence(x))
     )
     if include_indexes:
-        return ((batch, [get_sequence(x) for x in batch]) for batch in batches)
+        # Iterable[tuple[list[tuple[int, torch.Tensor | tuple[int, torch.Tensor]]], list[torch.Tensor]]
+        return (
+            (batch, [get_sequence(x) for x in batch])
+            for batch in cast(Iterable[list[tuple[int, torch.Tensor | tuple[int, torch.Tensor]]]], batches)
+        )
     else:
         if prompts is None:
-            return ((None, batch) for batch in batches)
+            # Iterable[tuple[None, list[torch.Tensor]]]
+            return (
+                (None, batch)
+                for batch in cast(Iterable[list[torch.Tensor]], batches)
+            )
         else:
-            return ((batch, [get_sequence(x) for x in batch]) for batch in batches)
+            # Iterable[tuple[list[tuple[int, torch.Tensor]], list[torch.Tensor]]
+            return (
+                (batch, [get_sequence(x) for x in batch])
+                for batch in cast(Iterable[list[tuple[int, torch.Tensor]]], batches)
+            )
 
 def process_sequences_dataset(
     model: torch.nn.Module,
@@ -173,21 +227,21 @@ def process_sequences_dataset(
     sequences: list[torch.Tensor],
     max_tokens: int
 ) -> float:
-    batches = generate_batches(prompts, sequences, max_tokens)
+    batches = generate_batches(prompts, sequences, max_tokens, include_indexes=False)
     device = model_interface.get_device(None)
     pad_index = model_interface.output_padding_index
     accumulator = MicroAveragedScoreAccumulator()
-    for prompts, sequences in batches:
+    for batch_prompts, sequences in batches:
         input_tensor, output_tensor = model_interface.prepare_batch(sequences, device)
         logits = model_interface.get_logits(model, input_tensor)
-        if prompts is not None:
+        if batch_prompts is not None:
             # In the output tensor only, mask out the prompt with padding
             # tokens so that the prompt won't contribute to the total
             # cross-entropy or the total number of tokens.
             # Since input_tensor has already been used to compute the logits,
             # it doesn't matter if modifying output_tensor also modifies
             # input_tensor.
-            for (prompt_length, _), output_tensor_element in zip(prompts, output_tensor, strict=True):
+            for (prompt_length, _), output_tensor_element in zip(batch_prompts, output_tensor, strict=True):
                 output_tensor_element[:prompt_length] = pad_index
         cross_entropy = torch.nn.functional.cross_entropy(
             logits.permute(0, 2, 1),
@@ -208,7 +262,7 @@ def process_sequences_position(
 ) -> list[torch.Tensor]:
     device = model_interface.get_device(None)
     pad_index = model_interface.output_padding_index
-    def get_outputs(sequences):
+    def get_outputs(sequences: list[torch.Tensor]) -> torch.Tensor:
         input_tensor, output_tensor = model_interface.prepare_batch(sequences, device)
         logits = model_interface.get_logits(model, input_tensor)
         return torch.nn.functional.cross_entropy(
@@ -232,7 +286,7 @@ def process_sequences_vocabulary(
     max_tokens: int
 ) -> list[torch.Tensor]:
     device = model_interface.get_device(None)
-    def get_outputs(sequences):
+    def get_outputs(sequences: list[torch.Tensor]) -> torch.Tensor:
         input_tensor = model_interface.prepare_input_batch(sequences, device)
         logits = model_interface.get_logits(model, input_tensor)
         return -torch.nn.functional.log_softmax(logits, dim=2)
@@ -251,7 +305,7 @@ def process_sequences_logits(
     max_tokens: int
 ) -> list[torch.Tensor]:
     device = model_interface.get_device(None)
-    def get_outputs(sequences):
+    def get_outputs(sequences: list[torch.Tensor]) -> torch.Tensor:
         input_tensor = model_interface.prepare_input_batch(sequences, device)
         return model_interface.get_logits(model, input_tensor)
     return process_sequences_token_level(
@@ -265,25 +319,25 @@ def process_sequences_token_level(
     prompts: list[torch.Tensor] | None,
     sequences: list[torch.Tensor],
     max_tokens: int,
-    get_outputs
+    get_outputs: Callable[[list[torch.Tensor]], torch.Tensor]
 ) -> list[torch.Tensor]:
-    result = [None] * len(sequences)
+    result: list[torch.Tensor | None] = [None] * len(sequences)
     has_prompts = prompts is not None
     batches = generate_batches(prompts, sequences, max_tokens, include_indexes=True)
-    for info, sequences in batches:
-        outputs = get_outputs(sequences)
+    for info, batch_sequences in batches:
+        outputs = get_outputs(batch_sequences)
         for j, ((i, _), sequence, sequence_outputs) in enumerate(zip(info, sequences, outputs)):
             if has_prompts:
                 start_pos = info[j][1][0]
             else:
                 start_pos = 0
             result[i] = sequence_outputs[start_pos:len(sequence)+1]
-    return result
+    return cast(list[torch.Tensor], result)
 
-def write_txt(result, output_file):
+def write_txt(result: Any, output_file: pathlib.Path) -> None:
     output_file.write_text(str(result))
 
-def write_pt(result, output_file):
+def write_pt(result: Any, output_file: pathlib.Path):
     torch.save(result, output_file)
 
 if __name__ == '__main__':

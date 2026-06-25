@@ -1,15 +1,12 @@
 from collections.abc import Callable, Iterable
-from typing import TypeVar
 
 import torch
 
-Example = TypeVar('Example')
-
-def group_into_batches(
-    examples: list[Example],
+def group_into_batches[T](
+    examples: list[T],
     is_small_enough: Callable[[int, int], bool],
-    get_length: Callable[[Example], int] = len
-) -> Iterable[list[Example]]:
+    get_length: Callable[[T], int]
+) -> Iterable[list[T]]:
     examples.sort(key=get_length)
     batch = []
     for example in examples:
@@ -31,13 +28,13 @@ def group_into_batches(
     if batch:
         yield batch
 
-def group_into_same_length_batches(
-    examples: list[torch.Tensor],
+def group_into_same_length_batches[T](
+    examples: list[T],
     is_small_enough: Callable[[int, int], bool],
-    get_length: Callable[[Example], int] = len
-) -> Iterable[list[Example]]:
+    get_length: Callable[[T], int]
+) -> Iterable[list[T]]:
     examples.sort(key=get_length)
-    batch = []
+    batch: list[T] = []
     for example in examples:
         if batch and get_length(example) != get_length(batch[0]):
             yield batch
