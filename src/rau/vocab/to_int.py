@@ -4,7 +4,7 @@ from .base import Vocabulary, VocabularyBuilder
 
 class ToIntVocabulary(Vocabulary):
 
-    def __add__(self, other: 'ToIntVocabulary') -> 'ConcatenatedToIntVocabulary':
+    def __add__(self, other: ToIntVocabulary) -> ConcatenatedToIntVocabulary:
         return ConcatenatedToIntVocabulary(self, other)
 
     def to_int(self, token: str) -> int:
@@ -26,7 +26,9 @@ class ToIntVocabularyBuilder(VocabularyBuilder[ToIntVocabulary]):
 
 class ContentToIntVocabulary(ToIntVocabulary):
 
-    def __init__(self, tokens: list[str]):
+    _string_to_int: dict[str, int]
+
+    def __init__(self, tokens: list[str]) -> None:
         super().__init__()
         self._string_to_int = { s : i for i, s in enumerate(tokens) }
 
@@ -52,7 +54,9 @@ class CatchallToIntVocabulary(ToIntVocabulary):
 
 class ReservedToIntVocabulary(ToIntVocabulary):
 
-    def __init__(self, size: int):
+    _size: int
+
+    def __init__(self, size: int) -> None:
         super().__init__()
         self._size = size
 
@@ -67,7 +71,12 @@ class ReservedToIntVocabulary(ToIntVocabulary):
 
 class ConcatenatedToIntVocabulary(ToIntVocabulary):
 
-    def __init__(self, first: ToIntVocabulary, second: ToIntVocabulary):
+    _first: ToIntVocabulary
+    _second: ToIntVocabulary
+    _check_first: Callable[[str], int]
+    _check_second: Callable[[str], int]
+
+    def __init__(self, first: ToIntVocabulary, second: ToIntVocabulary) -> None:
         super().__init__()
         self._first = first
         self._second = second
@@ -93,10 +102,10 @@ class ConcatenatedToIntVocabulary(ToIntVocabulary):
     def has_catchall(self) -> bool:
         return self._first.has_catchall() or self._second.has_catchall()
 
-    def _first_to_int(self, token):
+    def _first_to_int(self, token: str) -> int:
         return self._first.to_int(token)
 
-    def _second_to_int(self, token):
+    def _second_to_int(self, token: str) -> int:
         return len(self._first) + self._second.to_int(token)
 
 def build_to_int_vocabulary(

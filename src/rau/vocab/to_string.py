@@ -4,13 +4,15 @@ from .base import Vocabulary, VocabularyBuilder
 
 class ToStringVocabulary(Vocabulary):
 
-    def __init__(self, reserved_names: list[tuple[str, int]]):
+    _reserved_names: list[tuple[str, int]]
+
+    def __init__(self, reserved_names: list[tuple[str, int]]) -> None:
         super().__init__()
         self._reserved_names = reserved_names
         for name, index in reserved_names:
             setattr(self, f'{name}_index', index)
 
-    def __add__(self, other: 'ToStringVocabulary') -> 'ConcatenatedToStringVocabulary':
+    def __add__(self, other: ToStringVocabulary) -> ConcatenatedToStringVocabulary:
         return ConcatenatedToStringVocabulary(self, other)
 
     def to_string(self, index: int) -> str:
@@ -29,7 +31,9 @@ class ToStringVocabularyBuilder(VocabularyBuilder[ToStringVocabulary]):
 
 class ContentToStringVocabulary(ToStringVocabulary):
 
-    def __init__(self, tokens: list[str]):
+    _string_list: list[str]
+
+    def __init__(self, tokens: list[str]) -> None:
         super().__init__([])
         self._string_list = tokens
 
@@ -41,7 +45,9 @@ class ContentToStringVocabulary(ToStringVocabulary):
 
 class CatchallToStringVocabulary(ToStringVocabulary):
 
-    def __init__(self, token: str):
+    _token: str
+
+    def __init__(self, token: str) -> None:
         super().__init__([(token, 0)])
         self._token = token
 
@@ -56,7 +62,7 @@ class CatchallToStringVocabulary(ToStringVocabulary):
 
 class ReservedToStringVocabulary(ToStringVocabulary):
 
-    def __init__(self, tokens: list[str]):
+    def __init__(self, tokens: list[str]) -> None:
         super().__init__([(name, i) for i, name in enumerate(tokens)])
         self._tokens = tokens
 
@@ -68,7 +74,10 @@ class ReservedToStringVocabulary(ToStringVocabulary):
 
 class ConcatenatedToStringVocabulary(ToStringVocabulary):
 
-    def __init__(self, first: ToStringVocabulary, second: ToStringVocabulary):
+    _first: ToStringVocabulary
+    _second: ToStringVocabulary
+
+    def __init__(self, first: ToStringVocabulary, second: ToStringVocabulary) -> None:
         first_size = len(first)
         super().__init__([
             *first._reserved_names,

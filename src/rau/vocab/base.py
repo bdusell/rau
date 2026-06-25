@@ -1,5 +1,3 @@
-from typing import Generic, TypeVar
-
 class Vocabulary:
     r"""An abstract base class that represents a mapping between token types and
     integer IDs.
@@ -10,9 +8,7 @@ class Vocabulary:
         """
         raise NotImplementedError
 
-V = TypeVar('V')
-
-class VocabularyBuilder(Generic[V]):
+class VocabularyBuilder[V]:
     r"""An abstract base class that can be used for constructing
     :py:class:`Vocabulary` objects of a certain type.
     """
