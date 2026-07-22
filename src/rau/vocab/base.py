@@ -1,3 +1,5 @@
+from typing import Self
+
 class Vocabulary:
     r"""An abstract base class that represents a mapping between token types and
     integer IDs.
@@ -8,7 +10,11 @@ class Vocabulary:
         """
         raise NotImplementedError
 
-class VocabularyBuilder[V]:
+    def __add__(self, other: Self) -> Self:
+        r"""Return the concatenation of this vocabulary with another."""
+        raise NotImplementedError
+
+class VocabularyBuilder[V: Vocabulary]:
     r"""An abstract base class that can be used for constructing
     :py:class:`Vocabulary` objects of a certain type.
     """
