@@ -1,13 +1,18 @@
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import cast
 
 import torch
 
 from .layer import Layer
 
-def default_fallback(name, data, generator):
+def default_fallback(
+    name: str,
+    data: torch.Tensor,
+    generator: torch.Generator | None
+) -> None:
     data.uniform_(generator=generator)
 
-def _raise_return_error():
+def _raise_return_error() -> None:
     raise TypeError(
         'initialize() should return an iterable of '
         '`torch.nn.Parameter`s containing the parameters that were '
@@ -23,7 +28,7 @@ def init_modules(
     fallback: Callable[
         [str, torch.Tensor, torch.Generator | None],
         None
-    ]=default_fallback,
+    ] = default_fallback,
     generator: torch.Generator | None = None
 ) -> None:
     """Recursively initialize the parameters of a module using a callback
@@ -52,7 +57,7 @@ def init_modules(
     :param generator: Optional PyTorch RNG passed to callbacks.
     """
     seen = set()
-    def recurse(module):
+    def recurse(module: torch.nn.Module) -> None:
         for submodule_name, submodule in module.named_children():
             matched, params = initialize(submodule_name, submodule, generator)
             if matched:
@@ -75,14 +80,14 @@ def init_modules_by_type(
         Mapping[
             type[torch.nn.Module],
             Callable[
-                [str, torch.nn.Module, torch.Generator],
+                [str, torch.nn.Module, torch.Generator | None],
                 Iterable[torch.nn.Parameter] | None
             ]
         ] |
         Iterable[tuple[
             type[torch.nn.Module],
             Callable[
-                [str, torch.nn.Module, torch.Generator],
+                [str, torch.nn.Module, torch.Generator | None],
                 Iterable[torch.nn.Parameter] | None
             ]
         ]]
@@ -90,7 +95,7 @@ def init_modules_by_type(
     fallback: Callable[
         [str, torch.Tensor, torch.Generator | None],
         None
-    ]=default_fallback,
+    ] = default_fallback,
     generator: torch.Generator | None = None
 ) -> None:
     """Recursively initialize the parameters of a module using callbacks that
@@ -116,8 +121,18 @@ def init_modules_by_type(
     :param generator: Optional PyTorch RNG passed to callbacks.
     """
     if isinstance(callbacks, Mapping):
-        def initialize(name, module, generator):
-            func = callbacks.get(type(module))
+        def initialize(
+            name: str,
+            module: torch.nn.Module,
+            generator: torch.Generator | None
+        ) -> tuple[bool, Iterable[torch.nn.Parameter] | None]:
+            func = cast(Mapping[
+                type[torch.nn.Module],
+                Callable[
+                    [str, torch.nn.Module, torch.Generator | None],
+                    Iterable[torch.nn.Parameter] | None
+                ]
+            ], callbacks).get(type(module))
             if func is not None:
                 return True, func(name, module, generator)
             else:
@@ -125,7 +140,11 @@ def init_modules_by_type(
     else:
         if not isinstance(callbacks, Sequence):
             callbacks = tuple(callbacks)
-        def initialize(name, module, generator):
+        def initialize(
+            name: str,
+            module: torch.nn.Module,
+            generator: torch.Generator | None
+        ) -> tuple[bool, Iterable[torch.nn.Parameter] | None]:
             for type_, func in callbacks:
                 if isinstance(module, type_):
                     return True, func(name, module, generator)
@@ -138,7 +157,7 @@ def xavier_uniform_init(
     fallback: Callable[
         [str, torch.Tensor, torch.Generator | None],
         None
-    ]=default_fallback,
+    ] = default_fallback
 ) -> None:
     """Initialize all :py:class:`Layer`s in a module with
     Xavier uniform initialization, and use a default for all other parameters.
@@ -158,9 +177,9 @@ def smart_init(
     fallback: Callable[
         [str, torch.Tensor, torch.Generator | None],
         None
-    ]=default_fallback,
-    use_xavier_uniform_for_layers: bool=True,
-    init_layer_norm: bool=True
+    ] = default_fallback,
+    use_xavier_uniform_for_layers: bool = True,
+    init_layer_norm: bool = True
 ) -> None:
     """Initialize all parameters in a module, using reasonable defaults for
     certain types of sub-module.
@@ -175,29 +194,43 @@ def smart_init(
         (re)initialize the weights to 1 and bias terms to 0. Otherwise, use the
         fallback.
     """
-    callbacks = []
+    callbacks: list[tuple[
+        type[torch.nn.Module],
+        Callable[
+            [str, torch.nn.Module, torch.Generator | None],
+            Iterable[torch.nn.Parameter] | None
+        ]
+    ]] = []
     if use_xavier_uniform_for_layers:
-        def init_layer(name, module, generator):
+        def init_layer(
+            name: str,
+            module: torch.nn.Module,
+            generator: torch.Generator | None
+        ) -> None:
+            assert isinstance(module, Layer)
             module.xavier_uniform_init(generator=generator)
         callbacks.append((Layer, init_layer))
     if init_layer_norm:
-        def init_layer_norm(name, module, generator):
+        def init_layer_norm_func(
+            name: str,
+            module: torch.nn.Module,
+            generator: torch.Generator | None
+        ) -> None:
+            assert isinstance(module, torch.nn.LayerNorm)
             if module.weight is not None:
                 module.weight.data[...] = 1.0
             if module.bias is not None:
                 module.bias.data[...] = 0.0
-        callbacks.append((torch.nn.LayerNorm, init_layer_norm))
+        callbacks.append((torch.nn.LayerNorm, init_layer_norm_func))
     init_modules_by_type(module, callbacks, fallback)
 
-def uniform_fallback(
-    scale: float
-) -> Callable[
-    [str, torch.nn.Module, torch.Generator | None],
+def uniform_fallback(scale: float) -> Callable[
+    [str, torch.Tensor, torch.Generator | None],
     None
 ]:
     def fallback(
         name: str,
-        param: torch.nn.Module,
+        param: torch.Tensor,
         generator: torch.Generator | None
     ) -> None:
         param.data.uniform_(-scale, scale, generator=generator)
