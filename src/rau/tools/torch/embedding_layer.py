@@ -2,12 +2,15 @@ import torch
 
 class EmbeddingLayer(torch.nn.Module):
 
+    padding_index: int | None
+    embeddings: torch.Tensor
+
     def __init__(self,
         vocabulary_size: int,
         output_size: int,
         use_padding: bool,
         shared_embeddings: torch.Tensor | None = None
-    ):
+    ) -> None:
         super().__init__()
         if use_padding:
             self.padding_index = vocabulary_size
@@ -33,7 +36,7 @@ class EmbeddingLayer(torch.nn.Module):
                 output_size
             ))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.embedding(
             x,
             self.embeddings,
