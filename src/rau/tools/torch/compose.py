@@ -1,18 +1,22 @@
 import itertools
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Self
 
+from orderedsets import OrderedSet
 import torch
 
 class BasicComposable(torch.nn.Module):
     r"""Base class for composable modules."""
 
+    _composable_is_main: bool
+    _composable_tags: OrderedSet
+
     def __init__(self, main: bool, tags: Iterable[str] | None) -> None:
         super().__init__()
         self._composable_is_main = main
-        self._composable_tags = dict.fromkeys(tags) if tags is not None else {}
+        self._composable_tags = OrderedSet(tags if tags is not None else [])
 
-    def __or__(self, other: torch.nn.Module) -> 'Composed':
+    def __or__(self, other: torch.nn.Module) -> Composed:
         r"""Compose this module with another.
 
         :param other: Another module that will receive the outputs of this
@@ -31,10 +35,12 @@ class Composable(BasicComposable):
     that it can be used in a pipeline of :py:class:`~BasicComposable`\ s.
     """
 
+    module: torch.nn.Module
+
     def __init__(self,
         module: torch.nn.Module,
         main: bool = False,
-        tags: Iterable[str] = None,
+        tags: Iterable[str] | None = None,
         kwargs: dict[str, Any] | None = None
     ) -> None:
         r"""
@@ -58,7 +64,7 @@ class Composable(BasicComposable):
         """
         return self.module(*args, **self._composable_kwargs, **kwargs)
 
-    def main(self) -> 'Composable':
+    def main(self) -> Self:
         r"""Mark this module as main.
 
         :return: Self.
@@ -66,16 +72,16 @@ class Composable(BasicComposable):
         self._composable_is_main = True
         return self
 
-    def tag(self, tag: str) -> 'Composable':
+    def tag(self, tag: str) -> Self:
         r"""Add a tag to this module for argument routing.
 
         :param tag: Tag name.
         :return: Self.
         """
-        self._composable_tags[tag] = None
+        self._composable_tags.add(tag)
         return self
 
-    def kwargs(self, **kwargs: Any) -> 'Composable':
+    def kwargs(self, **kwargs: Any) -> Self:
         r"""Bind keyword arguments to be passed to
         :py:meth:`~torch.nn.Module.forward` of the wrapped module.
 
@@ -93,10 +99,7 @@ class Composed(BasicComposable):
     def __init__(self, first: BasicComposable, second: BasicComposable) -> None:
         super().__init__(
             first._composable_is_main or second._composable_is_main,
-            itertools.chain(
-                first._composable_tags.keys(),
-                second._composable_tags.keys()
-            )
+            itertools.chain(first._composable_tags, second._composable_tags)
         )
         self.first = first
         self.second = second
@@ -125,11 +128,11 @@ class Composed(BasicComposable):
 
 def get_composed_args(
     module: BasicComposable,
-    args: list[Any],
+    args: Iterable[Any],
     kwargs: dict[str, Any],
     tag_kwargs: dict[str, dict[str, Any]] | None
 ) -> tuple[list[Any], dict[str, Any]]:
-    new_args = []
+    new_args: list[Any] = []
     new_kwargs = {}
     if module._composable_is_main:
         new_args.extend(args)
