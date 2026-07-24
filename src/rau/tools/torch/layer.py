@@ -1,37 +1,13 @@
 import math
 from collections.abc import Iterable
+from typing import cast
 
 import torch
 
-class Layer(torch.nn.Module):
-    """A fully-connected layer consisting of connection weights and an
-    activation function.
-    
-    Treating these things as a unit is useful because the activation function
-    can be used to initialize the weights with Xavier initialization
-    properly."""
+class LayerImpl(torch.nn.Module):
 
-    def __init__(self, input_size: int, output_size: int,
-            activation: torch.nn.Module=torch.nn.Identity(), bias: bool=True):
-        """
-        :param input_size: The number of units in the input to the layer.
-        :param output_size: The number of units in the output of the layer.
-        :param activation: The activation function. By default, no activation
-            function is applied.
-        :param bias: Whether to use a bias term.
-        """
-        super().__init__()
-        self.linear = torch.nn.Linear(input_size, output_size, bias=bias)
-        self.activation = activation
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        r"""Let :math:`B` be batch size, :math:`X` be ``input_size``, and
-        :math:`Y` be ``output_size``.
-
-        :param x: A tensor of size :math:`B \times X`.
-        :return: A tensor of size :math:`B \times Y`.
-        """
-        return self.activation(self.linear(x))
+    linear: torch.nn.Linear
+    activation: torch.nn.Module
 
     def get_nonlinearity_name(self) -> str:
         """Get the name of the activation function as a string which can be
@@ -45,7 +21,7 @@ class Layer(torch.nn.Module):
     def get_gain(self) -> float:
         """Get the correct gain value for initialization based on the
         activation function."""
-        return torch.nn.init.calculate_gain(self.get_nonlinearity_name())
+        return torch.nn.init.calculate_gain(self.get_nonlinearity_name()) # type: ignore
 
     def xavier_uniform_init(self,
         generator: torch.Generator | None = None
@@ -67,6 +43,49 @@ class Layer(torch.nn.Module):
             torch.nn.init.constant_(self.linear.bias, 0.0)
 
     def fan_in_size(self) -> int:
+        raise NotImplementedError
+
+    def fan_out_size(self) -> int:
+        raise NotImplementedError
+
+class Layer(torch.nn.Module):
+    """A fully-connected layer consisting of connection weights and an
+    activation function.
+
+    Treating these things as a unit is useful because the activation function
+    can be used to initialize the weights with Xavier initialization
+    properly."""
+
+    linear: torch.nn.Linear
+    activation: torch.nn.Module
+
+    def __init__(self,
+        input_size: int,
+        output_size: int,
+        activation: torch.nn.Module = torch.nn.Identity(),
+        bias: bool = True
+    ) -> None:
+        """
+        :param input_size: The number of units in the input to the layer.
+        :param output_size: The number of units in the output of the layer.
+        :param activation: The activation function. By default, no activation
+            function is applied.
+        :param bias: Whether to use a bias term.
+        """
+        super().__init__()
+        self.linear = torch.nn.Linear(input_size, output_size, bias=bias)
+        self.activation = activation
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        r"""Let :math:`B` be batch size, :math:`X` be ``input_size``, and
+        :math:`Y` be ``output_size``.
+
+        :param x: A tensor of size :math:`B \times X`.
+        :return: A tensor of size :math:`B \times Y`.
+        """
+        return self.activation(self.linear(x))
+
+    def fan_in_size(self) -> int:
         return self.input_size()
 
     def fan_out_size(self) -> int:
@@ -84,8 +103,12 @@ class FeedForward(torch.nn.Sequential):
     r"""Multiple :py:class:`Layer`\ s in serial, forming a feed-forward neural
     network."""
 
-    def __init__(self, input_size: int, layer_sizes: Iterable[int],
-            activation: torch.nn.Module, bias: bool=True):
+    def __init__(self,
+        input_size: int,
+        layer_sizes: Iterable[int],
+        activation: torch.nn.Module,
+        bias: bool = True
+    ) -> None:
         """
         :param input_size: The number of units in the input to the first layer.
         :param layer_sizes: The sizes of the outputs of each layer, including
@@ -104,19 +127,27 @@ class FeedForward(torch.nn.Sequential):
 
     def input_size(self) -> int:
         """The size of the input to this network."""
-        return self[0].input_size()
+        return cast(Layer, self[0]).input_size()
 
     def output_size(self) -> int:
         """The size of the output of this network."""
-        return self[-1].output_size()
+        return cast(Layer, self[-1]).output_size()
 
-class MultiLayer(Layer):
+class MultiLayer(LayerImpl):
     """A module representing :math:`num_layers` fully-connected layers all with
     the same input and activation function. The layer outputs will be computed
     in parallel."""
 
-    def __init__(self, input_size: int, output_size: int, num_layers: int,
-            activation: torch.nn.Module=torch.nn.Identity(), bias: bool=True):
+    _output_size: int
+    _num_layers: int
+
+    def __init__(self,
+        input_size: int,
+        output_size: int,
+        num_layers: int,
+        activation: torch.nn.Module = torch.nn.Identity(),
+        bias: bool = True
+    ) -> None:
         """
         :param input_size: The number of units in the input to the layers.
         :param output_size: The number of units in the output of each layer.
@@ -148,8 +179,14 @@ class MultiLayer(Layer):
         # return : B x n x Y
         return self.activation(y_view)
 
+    def fan_in_size(self) -> int:
+        return self.input_size()
+
     def fan_out_size(self) -> int:
         return self._output_size
+
+    def input_size(self) -> int:
+        return self.linear.in_features
 
     def output_size(self) -> tuple[int, int]:
         return (self._num_layers, self._output_size)
@@ -160,7 +197,7 @@ def xavier_uniform_(
     fan_out: int,
     gain: float,
     generator: torch.Generator | None
-):
+) -> torch.Tensor:
     """A rewrite of :py:func:`~torch.nn.init.xavier_uniform` that accepts a
     RNG and works on multi-dimensional tensors."""
     std = gain * math.sqrt(2.0 / (fan_in + fan_out))
