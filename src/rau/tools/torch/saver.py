@@ -200,7 +200,7 @@ class ModelSaver:
             load_kwargs = {}
             if device is not None:
                 load_kwargs['map_location'] = device
-            model.load_state_dict(torch.load(get_parameters_file(directory), **load_kwargs))
+            model.load_state_dict(torch.load(get_parameters_file(directory), **load_kwargs)) # type: ignore
             if device is not None:
                 model.to(device)
         return ModelSaver(
@@ -213,7 +213,7 @@ class ModelSaver:
             append_to_logs=continue_
         )
 
-    def to_directory(self, directory: pathlib.Path) -> 'ModelSaver':
+    def to_directory(self, directory: pathlib.Path) -> ModelSaver:
         return dataclasses.replace(
             self,
             saved_kwargs=False,
