@@ -4,7 +4,10 @@ from .layer import Layer
 
 class TiedLinear(torch.nn.Module):
 
-    def __init__(self, embeddings: torch.Tensor, output_size: int):
+    embeddings: torch.Tensor
+    _output_size: int
+
+    def __init__(self, embeddings: torch.Tensor, output_size: int) -> None:
         r"""
         :param embeddings: A tensor of size :math:`V' \times I`, where
             :math:`V'` is at least ``output_size``, and :math:`I` is the size
@@ -29,8 +32,8 @@ def get_linear(
     input_size: int,
     output_size: int,
     shared_embeddings: torch.Tensor | None = None,
-    bias: bool=True
-):
+    bias: bool = True
+) -> torch.nn.Module:
     if shared_embeddings is None:
         return Layer(input_size, output_size, bias=bias)
     else:
