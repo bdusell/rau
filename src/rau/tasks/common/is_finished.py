@@ -19,4 +19,4 @@ class IsFinishedCommand(Command):
         sys.exit(int(not is_finished(args.input)))
 
 if __name__ == '__main__':
-    IsFinishedCommand(get_logger()).main()
+    IsFinishedCommand().main()
