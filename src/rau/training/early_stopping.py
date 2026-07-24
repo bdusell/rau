@@ -1,5 +1,6 @@
 import math
 import operator
+from collections.abc import Callable
 from typing import Literal, NamedTuple
 
 class UpdateResult(NamedTuple):
@@ -30,9 +31,16 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
     performance on a validation data set). Performance is always compared to
     the best value ever seen so far, not just the previous value."""
 
+    mode: Literal['min', 'max']
+    updates_since_improvement: int
+    _patience: float
+    _goal: float
+    _is_better: Callable[[float, float], bool]
+    _best: float
+
     def __init__(self,
         mode: Literal['min', 'max'],
-        patience: int | Literal[math.inf] = math.inf,
+        patience: int | None = None,
         goal: float | None = None
     ) -> None:
         """
@@ -49,32 +57,32 @@ class UpdatesWithoutImprovement(EarlyStoppingCriterion):
             raise ValueError
         self.mode = mode
         if mode == 'min':
-            self.is_better = operator.lt
-            self.best = math.inf
+            self._is_better = operator.lt
+            self._best = math.inf
         else:
-            self.is_better = operator.gt
-            self.best = -math.inf
-        self.patience = patience
+            self._is_better = operator.gt
+            self._best = -math.inf
+        self._patience = patience if patience is not None else math.inf
         self.updates_since_improvement = 0
         if goal is None:
             if mode == 'min':
                 goal = -math.inf
             else:
                 goal = math.inf
-        self.goal = goal
+        self._goal = goal
 
     def update(self, value: float) -> UpdateResult:
-        is_best = self.is_better(value, self.best)
+        is_best = self._is_better(value, self._best)
         if is_best:
-            self.best = value
+            self._best = value
             self.updates_since_improvement = 0
         else:
             self.updates_since_improvement += 1
         # Stop if patience has run out or if this update achieved a perfect
         # score.
         should_stop = (
-            self.updates_since_improvement >= self.patience or
-            not self.is_better(self.goal, value)
+            self.updates_since_improvement >= self._patience or
+            not self._is_better(self._goal, value)
         )
         return UpdateResult(is_best, should_stop)
 
