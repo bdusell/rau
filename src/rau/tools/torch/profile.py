@@ -1,5 +1,6 @@
 import dataclasses
 import datetime
+from collections.abc import Callable
 
 import torch
 
@@ -11,7 +12,7 @@ class ProfileResult:
     initial_memory_stats: dict
     memory_stats: dict
 
-def profile(func, device, warmup=True) -> ProfileResult:
+def profile(func: Callable[[], None], device: torch.device, warmup: bool = True) -> ProfileResult:
     torch.cuda.synchronize(device)
     initial_memory_stats = torch.cuda.memory_stats(device)
     if warmup:
@@ -36,14 +37,14 @@ def profile(func, device, warmup=True) -> ProfileResult:
         memory_stats
     )
 
-def get_current_memory(device):
+def get_current_memory(device: torch.device) -> int:
     torch.cuda.synchronize(device)
     return torch.cuda.memory_stats(device)['allocated_bytes.all.current']
 
-def reset_memory_profiler(device):
+def reset_memory_profiler(device: torch.device) -> None:
     torch.cuda.synchronize(device)
     torch.cuda.reset_peak_memory_stats(device)
 
-def get_peak_memory(device):
+def get_peak_memory(device: torch.device) -> int:
     torch.cuda.synchronize(device)
     return torch.cuda.memory_stats(device)['allocated_bytes.all.peak']
