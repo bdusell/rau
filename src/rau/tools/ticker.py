@@ -2,39 +2,44 @@ import time
 
 class Ticker:
 
-    def __init__(self, total):
+    progress: float
+    total: float
+
+    def __init__(self, total: float) -> None:
         super().__init__()
         self.progress = 0
         self.total = total
 
-    def tick(self):
+    def tick(self) -> bool:
         raise NotImplementedError
 
     @property
-    def fraction(self):
+    def fraction(self) -> float:
         return self.progress / self.total
 
     @property
-    def percent(self):
+    def percent(self) -> float:
         return 100.0 * self.fraction
 
     @property
-    def int_percent(self):
-        return 100 * self.progress // self.total
+    def int_percent(self) -> int:
+        return int(100 * self.progress / self.total)
 
 class OnChangeTicker(Ticker):
 
-    def __init__(self, total):
-        super().__init__(total)
-        self.prev_tick = 0
+    _prev_tick: float
 
-    def tick(self):
+    def __init__(self, total: float) -> None:
+        super().__init__(total)
+        self._prev_tick = 0
+
+    def tick(self) -> bool:
         new_tick = self.new_tick()
-        result = new_tick > self.prev_tick
-        self.prev_tick = new_tick
+        result = new_tick > self._prev_tick
+        self._prev_tick = new_tick
         return result
 
-    def new_tick(self):
+    def new_tick(self) -> float:
         raise NotImplementedError
 
 class DividedTicker(OnChangeTicker):
@@ -48,10 +53,13 @@ class DividedTicker(OnChangeTicker):
 
 class TimedTicker(OnChangeTicker):
 
-    def __init__(self, total, seconds):
+    _seconds: float
+    _start_time: float
+
+    def __init__(self, total: float, seconds: float) -> None:
         super().__init__(total)
-        self.seconds = seconds
-        self.start_time = time.time()
+        self._seconds = seconds
+        self._start_time = time.time()
 
     def new_tick(self):
-        return int((time.time() - self.start_time) / self.seconds)
+        return int((time.time() - self._start_time) / self._seconds)
