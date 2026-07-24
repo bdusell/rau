@@ -6,7 +6,7 @@ import torch
 class PerUpdateLRSchedulerFunction:
     counter: int
 
-    def __call__(self) -> float:
+    def __call__(self, epoch: int) -> float:
         raise NotImplementedError
 
 class PerUpdateLRScheduler(torch.optim.lr_scheduler.LambdaLR):
