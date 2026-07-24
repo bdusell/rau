@@ -1,1 +1,1 @@
-bash scripts/docker_exec.bash "$@" -- bash
+exec bash scripts/docker_exec.bash "$@" -- bash

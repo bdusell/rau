@@ -32,10 +32,10 @@ jobs:
       # See https://github.com/actions/setup-python/blob/main/docs/advanced-usage.md#caching-packages
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11.12"
+          python-version: "3.14.6"
           cache: poetry
       - name: Install Python packages
-        run: bash scripts/install_python_packages.bash
+        run: bash scripts/install_python_packages.bash --no-cache
       - name: Build Documentation
         run: bash scripts/poetry_run.bash bash scripts/build_docs.bash
       - name: Upload artifact

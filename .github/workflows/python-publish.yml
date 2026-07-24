@@ -21,7 +21,7 @@ jobs:
       # See https://github.com/actions/setup-python/blob/main/docs/advanced-usage.md#caching-packages
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11.12"
+          python-version: "3.14.6"
           cache: poetry
       - name: Set package version
         run: |
@@ -32,9 +32,9 @@ jobs:
           echo "version: $version"
           poetry version "$version"
       - name: Install Python packages
-        run: bash scripts/install_python_packages.bash
+        run: bash scripts/install_python_packages.bash --no-cache
       - name: Run unit tests
-        run: bash scripts/run_tests.bash
+        run: bash scripts/poetry_run.bash bash scripts/run_tests.bash
       - name: Build release distributions
         run: poetry build
       - name: Upload distributions

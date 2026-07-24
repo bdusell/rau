@@ -2,7 +2,7 @@ set -euo pipefail
 if [[ $# -gt 0 ]]; then
   args=("$@")
 else
-  base_dir=$(dirname "$BASH_SOURCE")/..
-  args=("$base_dir"/src "$base_dir"/tests)
+  BASE_DIR=$(cd "$(dirname "$BASH_SOURCE")"/.. && pwd)
+  args=("$BASE_DIR"/{src,tests})
 fi
-mypy "${args[@]}"
+exec mypy "${args[@]}"
