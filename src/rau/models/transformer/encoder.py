@@ -48,12 +48,13 @@ def get_transformer_encoder(
     return (
         Composable(
             get_transformer_input_unidirectional(
-                vocabulary_size,
-                d_model,
-                dropout,
-                use_padding,
-                shared_embeddings,
-                positional_encoding_cacher
+                vocabulary_size=vocabulary_size,
+                d_model=d_model,
+                dropout=dropout,
+                use_sinusoidal_positional_encodings=True,
+                use_padding=use_padding,
+                shared_embeddings=shared_embeddings,
+                positional_encoding_cacher=positional_encoding_cacher
             )
         ).kwargs(include_first=False) |
         add_tag(Composable(
