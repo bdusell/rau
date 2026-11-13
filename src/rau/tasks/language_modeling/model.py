@@ -48,6 +48,9 @@ class LanguageModelingModelInterface(ModelInterface):
                  '(rnn, lstm) The dropout rate used between all layers, '
                  'including between the input embedding layer and the first '
                  'layer, and between the last layer and the output layer.')
+        group.add_argument('--nope', action='store_true', default=False,
+            help='(transformer) Use no positional encodings (NoPE). Otherwise, '
+                 'sinusoidal positional encodings will be used.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
@@ -65,6 +68,7 @@ class LanguageModelingModelInterface(ModelInterface):
             num_heads=args.num_heads,
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
+            use_sinusoidal_positional_encodings=not args.nope,
             hidden_units=args.hidden_units,
             input_vocabulary_size=len(input_vocab),
             output_vocabulary_size=len(output_vocab),
@@ -79,6 +83,7 @@ class LanguageModelingModelInterface(ModelInterface):
         num_heads: int | None,
         feedforward_size: int | None,
         dropout: float | None,
+        use_sinusoidal_positional_encodings: bool | None,
         hidden_units: int | None,
         input_vocabulary_size: int,
         output_vocabulary_size: int,
@@ -99,6 +104,8 @@ class LanguageModelingModelInterface(ModelInterface):
                     raise ValueError
                 if dropout is None:
                     raise ValueError
+                if use_sinusoidal_positional_encodings is None:
+                    raise ValueError
                 return get_unidirectional_transformer_encoder(
                     input_vocabulary_size=input_vocabulary_size,
                     output_vocabulary_size=output_vocabulary_size,
@@ -108,6 +115,7 @@ class LanguageModelingModelInterface(ModelInterface):
                     num_heads=num_heads,
                     feedforward_size=feedforward_size,
                     dropout=dropout,
+                    use_sinusoidal_positional_encodings=use_sinusoidal_positional_encodings,
                     use_padding=False
                 )
             case 'rnn':

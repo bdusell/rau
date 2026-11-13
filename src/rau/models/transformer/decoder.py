@@ -60,6 +60,7 @@ def get_transformer_decoder(
             vocabulary_size=input_vocabulary_size,
             d_model=d_model,
             dropout=dropout,
+            use_sinusoidal_positional_encodings=True,
             use_padding=use_padding,
             shared_embeddings=shared_embeddings,
             positional_encoding_cacher=positional_encoding_cacher

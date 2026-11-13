@@ -26,6 +26,7 @@ def get_unidirectional_transformer_encoder(
     num_heads: int,
     feedforward_size: int,
     dropout: float,
+    use_sinusoidal_positional_encodings: bool,
     use_padding: bool,
     shared_embeddings: torch.Tensor | None = None,
     positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None = None,
@@ -47,6 +48,9 @@ def get_unidirectional_transformer_encoder(
     :param feedforward_size: Number of hidden units in each feedforward
         sublayer.
     :param dropout: Dropout rate used throughout the transformer.
+    :param use_sinusoidal_positional_encodings: Whether to use sinusoidal
+        positional encodings. Otherwise, no positional encodings (NoPE) are
+        used.
     :param use_padding: Whether to ensure that the embedding matrix is big
         enough to accommodate an index for a reserved padding symbol.
     :param shared_embeddings: An optional matrix of embeddings that can be
@@ -66,13 +70,14 @@ def get_unidirectional_transformer_encoder(
             d_model,
             use_padding
         )
-    if positional_encoding_cacher is None:
+    if use_sinusoidal_positional_encodings and positional_encoding_cacher is None:
         positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
     return (
         get_transformer_input_unidirectional(
             vocabulary_size=input_vocabulary_size,
             d_model=d_model,
             dropout=dropout,
+            use_sinusoidal_positional_encodings=use_sinusoidal_positional_encodings,
             use_padding=use_padding,
             shared_embeddings=shared_embeddings,
             positional_encoding_cacher=positional_encoding_cacher

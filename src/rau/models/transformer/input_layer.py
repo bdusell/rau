@@ -52,25 +52,25 @@ def get_transformer_input_unidirectional(
     vocabulary_size: int,
     d_model: int,
     dropout: float | None,
+    use_sinusoidal_positional_encodings: bool,
     use_padding: bool,
     shared_embeddings: torch.nn.Parameter | None = None,
     positional_encoding_cacher: SinusoidalPositionalEncodingCacher | None = None
 ):
     # Apply the following layers in this order:
     # 1. scaled embedding layer
-    # 2. sinusoidal positional encoding layer
+    # 2. sinusoidal positional encoding layer (optional)
     # 3. dropout layer (optional)
-    if positional_encoding_cacher is None:
-        positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
-    result = (
-        StatelessLayerUnidirectional(ScaledEmbeddingLayer(
-            vocabulary_size=vocabulary_size,
-            output_size=d_model,
-            use_padding=use_padding,
-            shared_embeddings=shared_embeddings
-        )) |
-        SinusoidalPositionalEncodingLayer(positional_encoding_cacher)
-    )
+    result = StatelessLayerUnidirectional(ScaledEmbeddingLayer(
+        vocabulary_size=vocabulary_size,
+        output_size=d_model,
+        use_padding=use_padding,
+        shared_embeddings=shared_embeddings
+    ))
+    if use_sinusoidal_positional_encodings:
+        if positional_encoding_cacher is None:
+            positional_encoding_cacher = SinusoidalPositionalEncodingCacher(d_model)
+        result = result | SinusoidalPositionalEncodingLayer(positional_encoding_cacher)
     if dropout:
         result = result | DropoutUnidirectional(dropout)
     return result

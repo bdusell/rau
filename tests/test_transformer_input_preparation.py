@@ -42,7 +42,8 @@ def test_unidirectional_language_model():
         d_model=8,
         num_heads=4,
         feedforward_size=16,
-        dropout=0.0
+        dropout=0.0,
+        use_sinusoidal_positional_encodings=True
     )
     model_with_padding = get_unidirectional_transformer_encoder(
         **kwargs,
